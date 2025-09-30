@@ -1,0 +1,1714 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organização e Limpeza</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style>
+        :root {
+            --bg-primary: #f0f2f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f9f9f9;
+            --bg-card: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #555555;
+            --accent: #007bff;
+            --accent-secondary: #17a2b8;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --border: #dee2e6;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: var(--bg-card);
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow);
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        
+        .logo i {
+            font-size: 2rem;
+            color: var(--accent);
+        }
+        
+        h1, h2, h3 {
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .main-content {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+        
+        .main-column {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px var(--shadow);
+            border: 1px solid var(--border);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px var(--shadow);
+        }
+        
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 180px;
+        }
+        
+        label {
+            margin-bottom: 5px;
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        select, input, button {
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+        }
+        
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+            position: relative;
+        }
+        
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .progress-bar {
+            height: 25px;
+            background-color: var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+        
+        .progress-fill.warning {
+            background: var(--warning);
+        }
+        
+        .progress-fill.danger {
+            background: var(--danger);
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .target-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .target-info i {
+            color: var(--accent);
+        }
+        
+        .checkpoints-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .checkpoint {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+        
+        .checkpoint:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+        
+        .checkpoint input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+        
+        .checkpoint label {
+            margin-bottom: 0;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        
+        .team-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .team-btn {
+            padding: 15px;
+            text-align: center;
+            background: var(--bg-tertiary);
+            border: 2px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .team-btn:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+        
+        .team-btn.active {
+            border-color: var(--accent);
+            background: #eaf5ff;
+            box-shadow: 0 0 10px rgba(0, 123, 255, 0.2);
+        }
+        
+        .team-btn i {
+            font-size: 20px;
+            color: var(--accent);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        
+        th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        tr:hover {
+            background: #f1f1f1;
+        }
+        
+        .report-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .status-success {
+            background: rgba(40, 167, 69, 0.1);
+            color: var(--success);
+        }
+        
+        .status-danger {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--danger);
+        }
+        
+        .date-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            padding: 12px 18px;
+            background: var(--success);
+            color: white;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.error {
+            background: var(--danger);
+        }
+
+        .chart-fix {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .chart-instructions {
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--accent);
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .chart-instructions h4 {
+            color: var(--accent);
+            margin-bottom: 5px;
+        }
+        
+        .badge {
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: rgba(40, 167, 69, 0.1);
+            color: var(--success);
+        }
+        
+        .badge-danger {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--danger);
+        }
+        
+        .badge-warning {
+            background: rgba(255, 193, 7, 0.1);
+            color: var(--warning);
+        }
+        
+        .meta-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+        }
+        
+        .loading-spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .history-container {
+            margin-top: 15px;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .history-toggle {
+            background: var(--bg-secondary);
+            border: none;
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .history-content {
+            display: none;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        .history-content.show {
+            display: block;
+        }
+        
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .history-date {
+            font-weight: 500;
+        }
+        
+        .history-actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .history-btn {
+            padding: 5px 8px;
+            background: var(--bg-secondary);
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .history-btn.edit {
+            color: var(--accent);
+        }
+        
+        .history-btn.delete {
+            color: var(--danger);
+        }
+        
+        .chart-container {
+            margin: 20px 0;
+            height: 250px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 15px;
+            position: relative;
+        }
+        
+        /* ESTILOS PARA IMPRESSÃO */
+        @media print {
+            body {
+                background: none;
+                padding: 0;
+            }
+            .container {
+                max-width: none;
+            }
+            /* Esconde elementos não essenciais para impressão */
+            header, .main-column:first-child, .filters, .report-actions, .notification, .logo i, .logo p {
+                display: none !important;
+            }
+            .main-content {
+                display: block;
+            }
+            .main-column {
+                flex: none;
+                width: 100%;
+                min-width: 100%;
+                padding: 0;
+                margin: 0;
+            }
+            .card {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+                margin-bottom: 20px;
+            }
+            .chart-container {
+                page-break-inside: avoid;
+                height: 400px !important; /* Altura fixa para o gráfico na impressão */
+            }
+            canvas {
+                max-width: 100%;
+                height: 100% !important;
+            }
+            /* Garante que a tabela do ranking não seja quebrada no meio */
+            table {
+                page-break-inside: avoid;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .filters {
+                flex-direction: column;
+            }
+            
+            .checkpoints-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .team-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .card {
+                padding: 15px;
+            }
+            
+            .main-content {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-chart-line"></i>
+                <h1>ControlPoint</h1>
+            </div>
+            <p>Sistema de acompanhamento de metas para equipes</p>
+        </header>
+        
+        <div class="main-content">
+            <div class="main-column">
+                <div class="card">
+                    <h2><i class="fas fa-users"></i> Selecionar Equipe</h2>
+                    <div class="team-buttons">
+                        <div class="team-btn active" data-team="Equipe 1">
+                            <i class="fas fa-user-group"></i>
+                            <span>Equipe 1</span>
+                        </div>
+                        <div class="team-btn" data-team="Equipe 2">
+                            <i class="fas fa-user-group"></i>
+                            <span>Equipe 2</span>
+                        </div>
+                        <div class="team-btn" data-team="Equipe 3">
+                            <i class="fas fa-user-group"></i>
+                            <span>Equipe 3</span>
+                        </div>
+                        <div class="team-btn" data-team="Equipe 4">
+                            <i class="fas fa-user-group"></i>
+                            <span>Equipe 4</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><i class="fas fa-list-check"></i> Pontos de Verificação - <span id="current-team">Equipe 1</span></h2>
+                    
+                    <div class="date-selector">
+                        <label for="verification-date"><i class="fas fa-calendar-day"></i> Selecione a data:</label>
+                        <input type="date" id="verification-date">
+                        <button id="return-today">
+                            <i class="fas fa-calendar-day"></i>
+                            Hoje
+                        </button>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-info">
+                            <h3>Progresso da Equipe</h3>
+                            <span id="progress-percent">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%"></div>
+                            <div class="progress-text">0%</div>
+                        </div>
+                        
+                        <div class="target-info">
+                            <i class="fas fa-bullseye"></i>
+                            <span>Meta: <span id="dynamic-meta">93%</span></span>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="meta-range"><i class="fas fa-bullseye"></i> Ajustar Meta:</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="meta-range" min="0" max="100" value="93" style="width: 100%;">
+                                <span id="meta-value" style="font-weight: bold;">93%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="meta-info">
+                            <span class="badge badge-success" id="meta-status">Meta atingida</span>
+                            <span id="meta-difference">+0% acima da meta</span>
+                        </div>
+                    </div>
+                    
+                    <div class="checkpoints-grid" id="checkpoints-container">
+                        </div>
+                    
+                    <button id="save-btn">
+                        <i class="fas fa-save"></i>
+                        Salvar Verificação
+                    </button>
+                    
+                    <div class="history-container">
+                        <div class="history-header">
+                            <h3><i class="fas fa-history"></i> Histórico de Verificações</h3>
+                            <button class="history-toggle" id="history-toggle">
+                                <i class="fas fa-chevron-down"></i>
+                                Mostrar
+                            </button>
+                        </div>
+                        
+                        <div class="history-content" id="history-content">
+                            </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-column">
+                <div class="card">
+                    <h2><i class="fas fa-chart-column"></i> Relatórios</h2>
+                    
+                   
+                    
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label for="report-type"><i class="fas fa-chart-line"></i> Tipo de Relatório:</label>
+                            <select id="report-type">
+                                <option value="daily">Diário</option>
+                                <option value="monthly">Mensal</option>
+                                <option value="ranking">Ranking Geral</option>
+                                <option value="combined">Mensal + Ranking (Imprimir)</option> 
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="report-team"><i class="fas fa-users"></i> Equipe:</label>
+                            <select id="report-team">
+                                <option value="all">Todas as Equipes</option>
+                                <option value="Equipe 1">Equipe 1</option>
+                                <option value="Equipe 2">Equipe 2</option>
+                                <option value="Equipe 3">Equipe 3</option>
+                                <option value="Equipe 4">Equipe 4</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group" id="date-filter">
+                            <label for="report-date"><i class="fas fa-calendar-day"></i> Data:</label>
+                            <input type="date" id="report-date">
+                        </div>
+                        
+                        <div class="filter-group" id="month-filter" style="display: none">
+                            <label for="report-month"><i class="fas fa-calendar"></i> Mês:</label>
+                            <input type="month" id="report-month">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label>&nbsp;</label>
+                            <button id="generate-report">
+                                <i class="fas fa-file-lines"></i>
+                                Gerar Relatório
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="report-actions">
+                        <button id="export-csv-btn">
+                            <i class="fas fa-file-export"></i>
+                            Exportar para CSV
+                        </button>
+
+                        <button id="capture-report-btn">
+                            <i class="fas fa-camera"></i>
+                            Tirar Print
+                        </button>
+                        
+                        <button id="print-report-btn" style="background: var(--accent-secondary);">
+                            <i class="fas fa-print"></i>
+                            Imprimir Relatório
+                        </button>
+                        
+                        <label for="import-file" class="button" style="display: flex; align-items: center; gap: 8px; cursor: pointer; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 14px;">
+                            <i class="fas fa-file-import"></i>
+                            Importar do CSV
+                        </label>
+                        <input type="file" id="import-file" accept=".csv" style="display: none;">
+                    </div>
+                    
+                    <div id="report-result">
+                        <p>Selecione os filtros e clique em "Gerar Relatório"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notification-message"></span>
+    </div>
+
+    <script>
+        // Variáveis globais para os gráficos
+        let performanceChart = null;
+        let comparisonChart = null;
+
+        // Plugin para desenhar a linha da meta no gráfico
+        const metaLinePlugin = {
+            id: 'metaLine',
+            afterDatasetsDraw(chart, args, options) {
+                const {
+                    ctx,
+                    chartArea: {
+                        top,
+                        bottom,
+                        left,
+                        right,
+                        width,
+                        height
+                    },
+                    scales: {
+                        y
+                    }
+                } = chart;
+
+                ctx.save();
+                const metaY = y.getPixelForValue(options.metaValue);
+
+                // Desenha a linha
+                ctx.beginPath();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = options.lineColor || '#007bff';
+                ctx.setLineDash([5, 5]);
+                ctx.moveTo(left, metaY);
+                ctx.lineTo(right, metaY);
+                ctx.stroke();
+
+                // Desenha o texto da meta
+                ctx.fillStyle = options.textColor || '#007bff';
+                ctx.font = '12px sans-serif';
+                ctx.fillText(options.labelText, left, metaY - 5);
+
+                ctx.restore();
+            }
+        };
+
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elementos da UI
+            const currentTeamEl = document.getElementById('current-team');
+            const progressPercentEl = document.getElementById('progress-percent');
+            const progressFillEl = document.querySelector('.progress-fill');
+            const progressTextEl = document.querySelector('.progress-text');
+            const checkpointsContainer = document.getElementById('checkpoints-container');
+            const saveBtn = document.getElementById('save-btn');
+            const teamButtons = document.querySelectorAll('.team-btn');
+            const reportType = document.getElementById('report-type');
+            const dateFilter = document.getElementById('date-filter');
+            const monthFilter = document.getElementById('month-filter');
+            const generateReportBtn = document.getElementById('generate-report');
+            const reportResult = document.getElementById('report-result');
+            const metaStatusEl = document.getElementById('meta-status');
+            const metaDifferenceEl = document.getElementById('meta-difference');
+            const historyToggle = document.getElementById('history-toggle');
+            const historyContent = document.getElementById('history-content');
+            const notification = document.getElementById('notification');
+            const notificationMessage = document.getElementById('notification-message');
+            const exportCsvBtn = document.getElementById('export-csv-btn');
+            const importFile = document.getElementById('import-file');
+            const metaRangeEl = document.getElementById('meta-range');
+            const metaValueEl = document.getElementById('meta-value');
+            const dynamicMetaEl = document.getElementById('dynamic-meta');
+            const captureReportBtn = document.getElementById('capture-report-btn');
+            const printReportBtn = document.getElementById('print-report-btn'); 
+            
+            // Novos elementos para a funcionalidade de data de verificação
+            const verificationDateInput = document.getElementById('verification-date');
+            const returnTodayBtn = document.getElementById('return-today');
+
+            // Estado da aplicação
+            let currentTeam = 'Equipe 1';
+            let currentCheckpoints = Array(16).fill(false);
+            
+            // Preenche o seletor de data com a data atual ao carregar
+            const today = new Date();
+            verificationDateInput.value = formatDate(today);
+            
+            // Adiciona listener para carregar os dados ao mudar a data
+            verificationDateInput.addEventListener('change', loadTeamData);
+            
+            // Atualizar valor da meta ao mover o controle deslizante
+            metaRangeEl.addEventListener('input', () => {
+                const newMeta = parseInt(metaRangeEl.value);
+                metaValueEl.textContent = `${newMeta}%`;
+                dynamicMetaEl.textContent = `${newMeta}%`;
+                updateProgress();
+            });
+
+            // Função para obter a meta atual
+            function getMeta() {
+                return parseInt(metaRangeEl.value);
+            }
+            
+            // Mostrar notificação
+            function showNotification(message, isError = false) {
+                notificationMessage.textContent = message;
+                notification.className = isError ? 'notification error' : 'notification';
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+            
+            // Inicializar pontos de verificação
+            function initializeCheckpoints() {
+                checkpointsContainer.innerHTML = '';
+
+                const newDescriptions = [
+                    'Sala de Tonalidade L4',
+                    'Sala de Padrões L4',
+                    'Área da Qualitron L4',
+                    'Área de Inspeção L4',
+                    'Área de Retido L4',
+                    'Antigo Falcon L4',
+                    'Deformação L4/L5',
+                    'Sala de Tonalidade L5/L6',
+                    'Sala de Padrões L5/L6',
+                    'Área da Qualitron L5',
+                    'Área de Inspeção L5/L6',
+                    'Área de Retido L5',
+                    'Área da Qualitrons L6',
+                    'Cavaletes de Empeno',
+                    'Área de Retido L6',
+                    'Deformação L6'
+                ];
+
+                for (let i = 0; i < 16; i++) {
+                    const checkpoint = document.createElement('div');
+                    checkpoint.className = 'checkpoint';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `point-${i+1}`;
+                    checkbox.checked = currentCheckpoints[i];
+                    checkbox.addEventListener('change', () => {
+                        currentCheckpoints[i] = checkbox.checked;
+                        updateProgress();
+                    });
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `point-${i+1}`;
+                    label.textContent = newDescriptions[i];
+
+                    checkpoint.appendChild(checkbox);
+                    checkpoint.appendChild(label);
+                    checkpointsContainer.appendChild(checkpoint);
+                }
+
+                updateProgress();
+            }
+            
+            // Atualizar barra de progresso
+            function updateProgress() {
+                const completed = currentCheckpoints.filter(Boolean).length;
+                const percentage = (completed / 16) * 100;
+                const meta = getMeta();
+                const difference = percentage - meta;
+                
+                progressPercentEl.textContent = `${percentage.toFixed(2)}%`;
+                progressFillEl.style.width = `${percentage}%`;
+                progressTextEl.textContent = `${percentage.toFixed(2)}%`;
+                
+                // Atualizar status da meta
+                if (percentage >= meta) {
+                    progressFillEl.className = 'progress-fill';
+                    metaStatusEl.className = 'badge badge-success';
+                    metaStatusEl.textContent = 'Meta atingida';
+                    metaDifferenceEl.textContent = `+${difference.toFixed(2)}% acima da meta`;
+                    metaDifferenceEl.style.color = 'var(--success)';
+                } else {
+                    progressFillEl.className = 'progress-fill danger';
+                    metaStatusEl.className = 'badge badge-danger';
+                    metaStatusEl.textContent = 'Meta não atingida';
+                    metaDifferenceEl.textContent = `${difference.toFixed(2)}% abaixo da meta`;
+                    metaDifferenceEl.style.color = 'var(--danger)';
+                }
+            }
+            
+            // Trocar equipe
+            teamButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    teamButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    
+                    currentTeam = button.getAttribute('data-team');
+                    currentTeamEl.textContent = currentTeam;
+                    
+                    // Carregar dados da equipe selecionada e data selecionada
+                    loadTeamData();
+                    loadHistory();
+                });
+            });
+            
+            // Carregar dados da equipe e data
+            function loadTeamData() {
+                const selectedDate = verificationDateInput.value;
+                const savedData = localStorage.getItem(`checkpoints_${currentTeam}_${selectedDate}`);
+                
+                if (savedData) {
+                    currentCheckpoints = JSON.parse(savedData);
+                } else {
+                    currentCheckpoints = Array(16).fill(false);
+                }
+                
+                initializeCheckpoints();
+            }
+            
+            // Salvar dados
+            saveBtn.addEventListener('click', () => {
+                const selectedDate = verificationDateInput.value;
+                localStorage.setItem(`checkpoints_${currentTeam}_${selectedDate}`, JSON.stringify(currentCheckpoints));
+                
+                showNotification(`Dados de ${formatDateDisplay(selectedDate)} salvos com sucesso!`);
+                
+                loadHistory();
+            });
+            
+            // Alternar entre filtros de data/mês/ranking/combinado
+            reportType.addEventListener('change', () => {
+                const type = reportType.value;
+                if (type === 'daily') {
+                    dateFilter.style.display = 'flex';
+                    monthFilter.style.display = 'none';
+                } else if (type === 'monthly' || type === 'combined') { 
+                    dateFilter.style.display = 'none';
+                    monthFilter.style.display = 'flex';
+                } else { // 'ranking'
+                    dateFilter.style.display = 'none';
+                    monthFilter.style.display = 'none';
+                }
+            });
+            
+            // Gerar relatório
+            generateReportBtn.addEventListener('click', generateReport);
+            
+            function generateReport() {
+                // Destroi qualquer gráfico existente para evitar conflitos
+                if (performanceChart) {
+                    performanceChart.destroy();
+                    performanceChart = null;
+                }
+                if (comparisonChart) {
+                    comparisonChart.destroy();
+                    comparisonChart = null;
+                }
+
+                const team = document.getElementById('report-team').value;
+                const type = reportType.value;
+                
+                // Exibe uma mensagem de carregamento
+                reportResult.innerHTML = `<div class="loading"><div class="loading-spinner"></div></div><p style="text-align:center;">Gerando relatório...</p>`;
+
+                setTimeout(() => {
+                    if (type === 'daily') {
+                        const date = document.getElementById('report-date').value;
+                        if (!date) {
+                            showNotification('Selecione uma data para o relatório diário', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            return;
+                        }
+                        generateDailyReport(team, date);
+                    } else if (type === 'monthly') {
+                        const month = document.getElementById('report-month').value;
+                        if (!month) {
+                            showNotification('Selecione um mês para o relatório mensal', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            return;
+                        }
+                        generateMonthlyReport(team, month);
+                    } else if (type === 'ranking') { 
+                        generateRankingReport();
+                    } else if (type === 'combined') { // NOVO TRECHO COMBINADO
+                        const month = document.getElementById('report-month').value;
+                        if (!month) {
+                            showNotification('Selecione um mês para o relatório combinado', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            return;
+                        }
+                        generateCombinedMonthlyRankingReport(team, month);
+                    }
+                }, 500);
+            }
+            
+            // FUNÇÃO MÃE PARA GERAR O RANKING (AGORA RETORNA HTML)
+            function getRankingReportHtml() {
+                const teams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
+                const teamStats = [];
+                const meta = getMeta();
+                
+                // 1. Coletar dados de todas as equipes
+                teams.forEach(currentTeam => {
+                    let totalPercentage = 0;
+                    let count = 0;
+                    
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        
+                        if (key.startsWith(`checkpoints_${currentTeam}_`)) {
+                            try {
+                                const data = JSON.parse(localStorage.getItem(key));
+                                if (Array.isArray(data) && data.length === 16) {
+                                    const completed = data.filter(Boolean).length;
+                                    const percentage = (completed / 16) * 100;
+                                    
+                                    totalPercentage += percentage;
+                                    count++;
+                                }
+                            } catch (e) {
+                                console.error(`Erro ao processar dados de localStorage para a chave: ${key}`, e);
+                            }
+                        }
+                    }
+                    
+                    const average = count > 0 ? (totalPercentage / count) : 0;
+                    
+                    teamStats.push({
+                        name: currentTeam,
+                        average: average,
+                        records: count,
+                        displayRank: 0
+                    });
+                });
+                
+                // 2. Ordenar o ranking
+                teamStats.sort((a, b) => b.average - a.average);
+                
+                // LÓGICA DE RANKING SEQUENCIAL (COM ATRIBUIÇÃO DE MEDALHAS)
+                let uniqueScoresCount = 0; 
+                let lastAverage = -1; 
+                
+                teamStats.forEach((stats, i) => {
+                    const currentAverage = parseFloat(stats.average.toFixed(2));
+                    if (currentAverage !== lastAverage) {
+                        uniqueScoresCount = i + 1;
+                    }
+                    stats.displayRank = uniqueScoresCount;
+                    lastAverage = currentAverage;
+                });
+
+                // 3. Gerar o HTML
+                let reportHTML = `<div style="padding-top: 20px;"><h3><i class="fas fa-trophy"></i> Ranking Geral Histórico</h3>`;
+                reportHTML += `<p>Classificação das equipes com base na média de desempenho de todas as verificações registradas.</p>`;
+                
+                if (teamStats.every(s => s.records === 0)) {
+                    reportHTML += '<p style="margin-top: 20px;">Nenhum registro histórico de verificações encontrado para gerar o ranking.</p></div>';
+                    return reportHTML;
+                }
+
+                reportHTML += `<table style="min-width: 100%;"><tr><th>Posição</th><th>Equipe</th><th>Média de Desempenho</th><th>Registros</th><th>Status da Meta (${meta}%)</th></tr>`;
+                
+                teamStats.forEach((stats) => {
+                    const position = stats.displayRank; 
+                    const statusClass = stats.average >= meta ? 'status-success' : 'status-danger';
+                    const statusText = stats.average >= meta ? 'Meta atingida' : 'Meta não atingida';
+                    
+                    let medal = '';
+                    if (position === 1) {
+                        medal = ' 🥇';
+                    } else if (position === 2) {
+                        medal = ' 🥈';
+                    } else if (position === 3) {
+                        medal = ' 🥉';
+                    }
+
+                    reportHTML += `
+                        <tr>
+                            <td><strong>${position}º</strong></td>
+                            <td>${stats.name}${medal}</td>
+                            <td>${stats.average.toFixed(2)}%</td>
+                            <td>${stats.records}</td>
+                            <td><span class="status-indicator ${statusClass}">${statusText}</span></td>
+                        </tr>
+                    `;
+                });
+                
+                reportHTML += '</table></div>';
+                
+                return reportHTML;
+            }
+            
+            // FUNÇÃO MÃE PARA GERAR O RELATÓRIO MENSAL (AGORA RETORNA HTML + CONFIG)
+            function getMonthlyReportHtmlAndConfig(team, month, isCombined = false) {
+                const meta = getMeta();
+                const teamsToCompare = team === 'all' ? ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'] : [team];
+                
+                const labels = [];
+                const dataPoints = [];
+                const backgroundColors = [];
+                const canvasId = isCombined ? 'monthlyChartCombined' : 'monthlyChart';
+                
+                teamsToCompare.forEach(currentTeam => {
+                    const [year, monthStr] = month.split('-');
+                    const startDate = new Date(year, parseInt(monthStr) - 1, 1);
+                    const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+                    const totalDaysInMonth = endDate.getDate();
+
+                    let totalPercentage = 0;
+                    let dailyCount = 0;
+
+                    for (let i = 1; i <= totalDaysInMonth; i++) {
+                        const tempDate = new Date(startDate.getFullYear(), startDate.getMonth(), i);
+                        const dateKey = formatDate(tempDate);
+                        const data = localStorage.getItem(`checkpoints_${currentTeam}_${dateKey}`);
+
+                        if (data) {
+                            const points = JSON.parse(data);
+                            const completed = points.filter(Boolean).length;
+                            const percentage = (completed / 16) * 100;
+                            totalPercentage += percentage;
+                            dailyCount++;
+                        }
+                    }
+
+                    const monthlyAverage = dailyCount > 0 ? (totalPercentage / dailyCount) : 0;
+                    
+                    labels.push(currentTeam);
+                    dataPoints.push(monthlyAverage);
+                    
+                    if (monthlyAverage >= meta) {
+                        backgroundColors.push('#28a745');
+                    } else {
+                        backgroundColors.push('#dc3545');
+                    }
+                });
+                
+                // HTML Placeholder
+                const htmlPlaceholder = `
+                    <h3><i class="fas fa-calendar"></i> Relatório Mensal - ${formatMonthDisplay(month)}</h3>
+                    <p>Média de desempenho das equipes durante o mês.</p>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="${canvasId}"></canvas> 
+                    </div>
+                `;
+
+                // Chart Config
+                const config = {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Desempenho Médio (%)',
+                            data: dataPoints,
+                            backgroundColor: backgroundColors,
+                            borderColor: backgroundColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 150,
+                                title: {
+                                    display: true,
+                                    text: 'Desempenho (%)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: { mode: 'index', intersect: false },
+                            metaLine: { metaValue: meta, labelText: `Meta: ${meta}%`, lineColor: '#000', textColor: '#000' },
+                            datalabels: { anchor: 'end', align: 'top', color: '#000', formatter: (value, context) => { return value.toFixed(2) + '%'; }, font: { weight: 'bold' } }
+                        }
+                    },
+                    canvasId: canvasId
+                };
+                
+                return { html: htmlPlaceholder, config: config };
+            }
+            
+            // NOVO: Função para gerar o relatório mensal e o ranking juntos
+            function generateCombinedMonthlyRankingReport(team, month) {
+                // 1. Obter dados do relatório mensal (combinado=true para novo ID)
+                const monthlyData = getMonthlyReportHtmlAndConfig(team, month, true);
+                // 2. Obter HTML do ranking
+                const rankingHtml = getRankingReportHtml();
+
+                // 3. Juntar e renderizar no resultado
+                reportResult.innerHTML = monthlyData.html + rankingHtml;
+                
+                // 4. Renderizar o Chart após inserir o HTML
+                const ctx = document.getElementById(monthlyData.config.canvasId).getContext('2d');
+                
+                // Usamos a variável performanceChart para gerenciar o gráfico na seção de relatório
+                performanceChart = new Chart(ctx, {
+                    type: monthlyData.config.type,
+                    data: monthlyData.config.data,
+                    options: monthlyData.config.options,
+                    plugins: [ChartDataLabels, metaLinePlugin]
+                });
+            }
+
+            // Funções de relatório atualizadas para usar as funções MÃE
+            function generateRankingReport() {
+                reportResult.innerHTML = getRankingReportHtml();
+            }
+
+            function generateMonthlyReport(team, month) {
+                const monthlyData = getMonthlyReportHtmlAndConfig(team, month, false);
+                
+                reportResult.innerHTML = monthlyData.html;
+
+                const ctx = document.getElementById(monthlyData.config.canvasId).getContext('2d');
+                
+                performanceChart = new Chart(ctx, {
+                    type: monthlyData.config.type,
+                    data: monthlyData.config.data,
+                    options: monthlyData.config.options,
+                    plugins: [ChartDataLabels, metaLinePlugin]
+                });
+            }
+
+            // O restante do código (generateDailyReport, funções utilitárias, etc.) permanece inalterado.
+            
+            function generateDailyReport(team, date) {
+                const newDescriptions = [
+                    'Sala de Tonalidade L4',
+                    'Sala de Padrões L4',
+                    'Área da Qualitron L4',
+                    'Área de Inspeção L4',
+                    'Área de Retido L4',
+                    'Antigo Falcon L4',
+                    'Deformação L4/L5',
+                    'Sala de Tonalidade L5/L6',
+                    'Sala de Padrões L5/L6',
+                    'Área da Qualitron L5',
+                    'Área de Inspeção L5/L6',
+                    'Área de Retido L5',
+                    'Área da Qualitrons L6',
+                    'Cavaletes de Empeno',
+                    'Área de Retido L6',
+                    'Deformação L6'
+                ];
+                
+                let reportHTML = `<h3><i class="fas fa-calendar-day"></i> Relatório Diário - ${formatDateDisplay(date)}</h3>`;
+                const meta = getMeta();
+                
+                if (team === 'all') {
+                    const teams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
+                    reportHTML += '<table><tr><th>Equipe</th><th>Pontos Concluídos</th><th>Percentual</th><th>Status</th></tr>';
+                    
+                    teams.forEach(t => {
+                        const data = localStorage.getItem(`checkpoints_${t}_${date}`);
+                        if (data) {
+                            const points = JSON.parse(data);
+                            const completed = points.filter(Boolean).length;
+                            const percentage = (completed / 16) * 100;
+                            const status = percentage >= meta ? 
+                                '<span class="status-indicator status-success"><i class="fas fa-check-circle"></i> Atingiu</span>' : 
+                                '<span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span>';
+                            
+                            reportHTML += `<tr>
+                                <td>${t}</td>
+                                <td>${completed}/16</td>
+                                <td>${percentage.toFixed(2)}%</td>
+                                <td>${status}</td>
+                            </tr>`;
+                        } else {
+                            reportHTML += `<tr>
+                                <td>${t}</td>
+                                <td>Nenhum dado</td>
+                                <td>0%</td>
+                                <td><span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span></td>
+                            </tr>`;
+                        }
+                    });
+                    
+                    reportHTML += '</table>';
+                } else {
+                    const data = localStorage.getItem(`checkpoints_${team}_${date}`);
+                    
+                    if (data) {
+                        const points = JSON.parse(data);
+                        const completed = points.filter(Boolean).length;
+                        const percentage = (completed / 16) * 100;
+                        const status = percentage >= meta ? 
+                            '<span class="status-indicator status-success"><i class="fas fa-check-circle"></i> Atingiu a meta</span>' : 
+                            '<span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu a meta</span>';
+                        
+                        reportHTML += `
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
+                                    <h4><i class="fas fa-users"></i> Equipe</h4>
+                                    <p>${team}</p>
+                                </div>
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
+                                    <h4><i class="fas fa-chart-pie"></i> Pontos Concluídos</h4>
+                                    <p>${completed}/16</p>
+                                </div>
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
+                                    <h4><i class="fas fa-percent"></i> Percentual</h4>
+                                    <p>${percentage.toFixed(2)}%</p>
+                                </div>
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
+                                    <h4><i class="fas fa-bullseye"></i> Status</h4>
+                                    <p>${status}</p>
+                                </div>
+                            </div>
+                            
+                            <h4><i class="fas fa-list-check"></i> Detalhamento dos Pontos:</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 12px;">
+                        `;
+                        
+                        points.forEach((point, index) => {
+                            const status = point ? 
+                                '<span class="status-indicator status-success"><i class="fas fa-check"></i> Concluído</span>' : 
+                                '<span class="status-indicator status-danger"><i class="fas fa-xmark"></i> Pendente</span>';
+                            
+                            reportHTML += `
+                                <div style="background: var(--bg-tertiary); padding: 8px; border-radius: 6px;">
+                                    <strong>${newDescriptions[index]}:</strong> ${status}
+                                </div>
+                            `;
+                        });
+                        
+                        reportHTML += '</div>';
+                    } else {
+                        reportHTML += '<p>Nenhum dado encontrado para esta data.</p>';
+                    }
+                }
+                
+                reportResult.innerHTML = reportHTML;
+            }
+            
+            // Funções utilitárias para datas
+            function formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            
+            function formatDateDisplay(dateString) {
+                const [year, month, day] = dateString.split('-');
+                const date = new Date(year, month - 1, day);
+                return date.toLocaleDateString('pt-BR');
+            }
+            
+            function formatMonthDisplay(monthString) {
+                const [year, month] = monthString.split('-');
+                const date = new Date(year, month - 1);
+                return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            }
+            
+            // Carregar dados iniciais
+            loadTeamData();
+            
+            // Inicializar a data do relatório como hoje
+            document.getElementById('report-date').value = formatDate(today);
+            document.getElementById('report-month').value = formatDate(today).substring(0, 7);
+            
+            // Implementação da funcionalidade de histórico
+            
+            // Alternar visibilidade do histórico
+            historyToggle.addEventListener('click', () => {
+                historyContent.classList.toggle('show');
+                if (historyContent.classList.contains('show')) {
+                    historyToggle.innerHTML = '<i class="fas fa-chevron-up"></i> Ocultar';
+                    loadHistory();
+                } else {
+                    historyToggle.innerHTML = '<i class="fas fa-chevron-down"></i> Mostrar';
+                }
+            });
+            
+            // Carregar histórico
+            function loadHistory() {
+                historyContent.innerHTML = '';
+                
+                const keys = Object.keys(localStorage);
+                const historyItems = [];
+                
+                keys.forEach(key => {
+                    if (key.startsWith(`checkpoints_${currentTeam}_`)) {
+                        const date = key.replace(`checkpoints_${currentTeam}_`, '');
+                        historyItems.push({
+                            date: date,
+                            data: JSON.parse(localStorage.getItem(key))
+                        });
+                    }
+                });
+                
+                historyItems.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                if (historyItems.length === 0) {
+                    historyContent.innerHTML = '<p>Nenhum registro histórico encontrado.</p>';
+                    return;
+                }
+                
+                const meta = getMeta();
+                historyItems.forEach(item => {
+                    const completed = item.data.filter(Boolean).length;
+                    const percentage = (completed / 16) * 100;
+                    
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    
+                    historyItem.innerHTML = `
+                        <div class="history-date">${formatDateDisplay(item.date)}</div>
+                        <div>
+                            <span>${completed}/16 (${percentage.toFixed(2)}%)</span>
+                            <span class="badge ${percentage >= meta ? 'badge-success' : 'badge-danger'}">${percentage >= meta ? 'Atingiu' : 'Não atingiu'}</span>
+                        </div>
+                        <div class="history-actions">
+                            <button class="history-btn edit" data-date="${item.date}">
+                                <i class="fas fa-edit"></i>
+                                Editar
+                            </button>
+                            <button class="history-btn delete" data-date="${item.date}">
+                                <i class="fas fa-trash"></i>
+                                Excluir
+                            </button>
+                        </div>
+                    `;
+                    
+                    historyContent.appendChild(historyItem);
+                });
+                
+                document.querySelectorAll('.history-btn.edit').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const date = btn.getAttribute('data-date');
+                        editHistory(date);
+                    });
+                });
+                
+                document.querySelectorAll('.history-btn.delete').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const date = btn.getAttribute('data-date');
+                        deleteHistory(date);
+                    });
+                });
+            }
+            
+            // Editar histórico
+            function editHistory(date) {
+                verificationDateInput.value = date;
+                loadTeamData();
+                showNotification(`Editando dados de ${formatDateDisplay(date)}`);
+            }
+            
+            // Excluir histórico
+            function deleteHistory(date) {
+                if (confirm(`Tem certeza que deseja excluir os dados de ${formatDateDisplay(date)}?`)) {
+                    localStorage.removeItem(`checkpoints_${currentTeam}_${date}`);
+                    loadHistory();
+                    showNotification(`Dados de ${formatDateDisplay(date)} excluídos com sucesso!`);
+                    
+                    if (verificationDateInput.value === date) {
+                        returnToToday();
+                    }
+                }
+            }
+            
+            // Voltar para a data atual
+            returnTodayBtn.addEventListener('click', returnToToday);
+            
+            function returnToToday() {
+                verificationDateInput.value = formatDate(new Date());
+                loadTeamData();
+                showNotification('Voltando para os dados de hoje');
+            }
+            
+            // Exportar para CSV
+            exportCsvBtn.addEventListener('click', exportToCsv);
+            
+            function exportToCsv() {
+                const keys = Object.keys(localStorage);
+                const teamKeys = keys.filter(key => key.startsWith('checkpoints_'));
+                
+                if (teamKeys.length === 0) {
+                    showNotification('Nenhum dado disponível para exportação', true);
+                    return;
+                }
+                
+                let csvContent = 'Equipe,Data,Pontos_Concluidos\n';
+                
+                teamKeys.forEach(key => {
+                    const parts = key.split('_');
+                    const team = parts[1];
+                    const date = parts[2];
+                    const data = JSON.parse(localStorage.getItem(key));
+                    const completed = data.filter(Boolean).length;
+                    
+                    csvContent += `${team},${date},${completed}\n`;
+                });
+                
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `controlpoint_export_${formatDate(new Date())}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showNotification('Dados exportados com sucesso!');
+            }
+            
+            // Importar de CSV
+            importFile.addEventListener('change', handleCsvImport);
+            
+            function handleCsvImport(event) {
+                const file = event.target.files[0];
+                if (!file) {
+                    showNotification('Nenhum arquivo selecionado.', true);
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const contents = e.target.result;
+                    const lines = contents.split('\n');
+
+                    const header = lines[0].trim().split(',');
+                    const requiredHeader = ['Equipe', 'Data', 'Pontos_Concluidos'];
+                    if (JSON.stringify(header) !== JSON.stringify(requiredHeader)) {
+                        showNotification('Formato de CSV inválido. As colunas devem ser: Equipe,Data,Pontos_Concluidos', true);
+                        console.error('Erro de importação: Cabeçalho do CSV não corresponde ao esperado.', header, requiredHeader);
+                        return;
+                    }
+                    
+                    let importedCount = 0;
+                    
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (line === '') continue;
+                        
+                        const [equipe, data, pontos] = line.split(',');
+                        
+                        if (equipe && data && pontos) {
+                            const numPontos = parseInt(pontos);
+                            
+                            if (isNaN(numPontos) || numPontos < 0 || numPontos > 16) {
+                                console.warn(`Aviso: Pulando linha inválida. Pontos: ${pontos}`);
+                                continue;
+                            }
+
+                            const checkpoints = Array(16).fill(false);
+                            for (let j = 0; j < numPontos; j++) {
+                                checkpoints[j] = true;
+                            }
+                            
+                            const key = `checkpoints_${equipe}_${data}`;
+                            localStorage.setItem(key, JSON.stringify(checkpoints));
+                            importedCount++;
+                            console.log(`Dados importados: Chave = ${key}, Pontos = ${numPontos}`);
+                        } else {
+                            console.warn(`Aviso: Pulando linha com formato inválido: "${line}"`);
+                        }
+                    }
+                    
+                    if (importedCount > 0) {
+                        showNotification(`${importedCount} registros importados com sucesso!`);
+                        loadHistory();
+                        loadTeamData();
+                        
+                        console.log('Dados salvos no localStorage:');
+                        Object.keys(localStorage).filter(key => key.startsWith('checkpoints_')).forEach(key => console.log(key));
+                    } else {
+                        showNotification('Nenhum registro válido encontrado no arquivo CSV.', true);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    showNotification('Erro ao ler o arquivo.', true);
+                };
+                
+                reader.readAsText(file);
+                
+                event.target.value = '';
+            }
+
+            // Lógica para tirar o print do relatório
+            captureReportBtn.addEventListener('click', () => {
+                const reportContent = document.getElementById('report-result');
+                if (reportContent.innerHTML.includes("Nenhum dado encontrado") || reportContent.innerHTML.includes("Selecione os filtros")) {
+                    showNotification('Gere um relatório antes de tirar o print!', true);
+                    return;
+                }
+
+                html2canvas(reportContent, {
+                    scale: 6
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'relatorio_controlpoint.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    showNotification('Print do relatório salvo com sucesso!');
+                }).catch(err => {
+                    console.error('Erro ao capturar o relatório:', err);
+                    showNotification('Não foi possível tirar o print do relatório.', true);
+                });
+            });
+            
+            // Lógica para imprimir o relatório
+            printReportBtn.addEventListener('click', () => {
+                const reportContent = document.getElementById('report-result');
+                if (reportContent.innerHTML.includes("Nenhum dado encontrado") || reportContent.innerHTML.includes("Selecione os filtros")) {
+                    showNotification('Gere um relatório antes de imprimir!', true);
+                    return;
+                }
+                
+                window.print();
+            });
+            
+            // Carregar histórico inicial
+            loadHistory();
+        });
+    </script>
+</body>
+</html>
