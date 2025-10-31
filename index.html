@@ -711,15 +711,15 @@
                     <h2><i class="fas fa-chart-column"></i> Relatórios</h2>
                     
                    
-                    
                     <div class="filters">
                         <div class="filter-group">
                             <label for="report-type"><i class="fas fa-chart-line"></i> Tipo de Relatório:</label>
                             <select id="report-type">
                                 <option value="daily">Diário</option>
-                                <option value="monthly">Mensal</option>
-                                <option value="ranking">Ranking Geral</option>
-                                <option value="combined">Mensal + Ranking (Imprimir)</option> 
+                                <option value="monthly">Mensal (Gráfico)</option>
+                                <option value="ranking_historical">Ranking Histórico (Total)</option>
+                                <option value="monthly_plus_ranking">Mensal + Ranking (do Mês)</option> 
+                                <option value="yearly_ranking">Ranking Anual</option> 
                             </select>
                         </div>
                         
@@ -743,6 +743,11 @@
                             <label for="report-month"><i class="fas fa-calendar"></i> Mês:</label>
                             <input type="month" id="report-month">
                         </div>
+
+                        <div class="filter-group" id="year-filter" style="display: none">
+                            <label for="report-year"><i class="fas fa-calendar-alt"></i> Ano:</label>
+                            <input type="number" id="report-year" placeholder="Ex: 2025" min="2020" max="2099">
+                        </div>
                         
                         <div class="filter-group">
                             <label>&nbsp;</label>
@@ -752,7 +757,6 @@
                             </button>
                         </div>
                     </div>
-                    
                     <div class="report-actions">
                         <button id="export-csv-btn">
                             <i class="fas fa-file-export"></i>
@@ -847,6 +851,7 @@
             const reportType = document.getElementById('report-type');
             const dateFilter = document.getElementById('date-filter');
             const monthFilter = document.getElementById('month-filter');
+            const yearFilter = document.getElementById('year-filter'); // MODIFICAÇÃO: Adicionado
             const generateReportBtn = document.getElementById('generate-report');
             const reportResult = document.getElementById('report-result');
             const metaStatusEl = document.getElementById('meta-status');
@@ -1016,21 +1021,31 @@
                 loadHistory();
             });
             
-            // Alternar entre filtros de data/mês/ranking/combinado
+            // ======================================================
+            // 2. SEÇÃO JS MODIFICADA: Event Listener do ReportType
+            // ======================================================
+            // Alternar entre filtros de data/mês/ano
             reportType.addEventListener('change', () => {
                 const type = reportType.value;
+                
+                // Oculta todos os filtros de data
+                dateFilter.style.display = 'none';
+                monthFilter.style.display = 'none';
+                yearFilter.style.display = 'none';
+
                 if (type === 'daily') {
                     dateFilter.style.display = 'flex';
-                    monthFilter.style.display = 'none';
-                } else if (type === 'monthly' || type === 'combined') { 
-                    dateFilter.style.display = 'none';
+                } else if (type === 'monthly' || type === 'monthly_plus_ranking') { 
                     monthFilter.style.display = 'flex';
-                } else { // 'ranking'
-                    dateFilter.style.display = 'none';
-                    monthFilter.style.display = 'none';
+                } else if (type === 'yearly_ranking') {
+                    yearFilter.style.display = 'flex';
                 }
+                // 'ranking_historical' não precisa de filtro
             });
             
+            // ======================================================
+            // 3. SEÇÃO JS MODIFICADA: Função generateReport
+            // ======================================================
             // Gerar relatório
             generateReportBtn.addEventListener('click', generateReport);
             
@@ -1060,6 +1075,7 @@
                             return;
                         }
                         generateDailyReport(team, date);
+
                     } else if (type === 'monthly') {
                         const month = document.getElementById('report-month').value;
                         if (!month) {
@@ -1068,9 +1084,11 @@
                             return;
                         }
                         generateMonthlyReport(team, month);
-                    } else if (type === 'ranking') { 
-                        generateRankingReport();
-                    } else if (type === 'combined') { // NOVO TRECHO COMBINADO
+
+                    } else if (type === 'ranking_historical') { 
+                        generateRankingReport('historical'); // Chama a função genérica com filtro
+
+                    } else if (type === 'monthly_plus_ranking') { 
                         const month = document.getElementById('report-month').value;
                         if (!month) {
                             showNotification('Selecione um mês para o relatório combinado', true);
@@ -1078,16 +1096,43 @@
                             return;
                         }
                         generateCombinedMonthlyRankingReport(team, month);
+
+                    } else if (type === 'yearly_ranking') { // NOVA OPÇÃO
+                        const year = document.getElementById('report-year').value;
+                        if (!year || year.length !== 4) {
+                            showNotification('Por favor, insira um ano válido (ex: 2025)', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            return;
+                        }
+                        generateRankingReport('yearly', year); // Chama a função genérica com filtro
                     }
                 }, 500);
             }
             
-            // FUNÇÃO MÃE PARA GERAR O RANKING (AGORA RETORNA HTML)
-            function getRankingReportHtml() {
+            // ======================================================
+            // 4. SEÇÃO JS MODIFICADA: Função getRankingReportHtml
+            // ======================================================
+            // FUNÇÃO MÃE PARA GERAR O RANKING (AGORA PARAMETRIZADA)
+            function getRankingReportHtml(filterType = 'historical', filterValue = '') {
                 const teams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
                 const teamStats = [];
                 const meta = getMeta();
                 
+                let title = '';
+                let description = '';
+
+                // Define o título e a descrição com base no filtro
+                if (filterType === 'monthly') {
+                    title = `<i class="fas fa-trophy"></i> Ranking Mensal - ${formatMonthDisplay(filterValue)}`;
+                    description = `Classificação com base no desempenho médio durante o mês de ${formatMonthDisplay(filterValue)}.`;
+                } else if (filterType === 'yearly') {
+                    title = `<i class="fas fa-trophy"></i> Ranking Anual - ${filterValue}`;
+                    description = `Classificação com base no desempenho médio durante o ano de ${filterValue}.`;
+                } else { // 'historical'
+                    title = `<i class="fas fa-trophy"></i> Ranking Geral Histórico`;
+                    description = `Classificação das equipes com base na média de desempenho de todas as verificações registradas.`;
+                }
+
                 // 1. Coletar dados de todas as equipes
                 teams.forEach(currentTeam => {
                     let totalPercentage = 0;
@@ -1096,7 +1141,27 @@
                     for (let i = 0; i < localStorage.length; i++) {
                         const key = localStorage.key(i);
                         
+                        // Verificação do filtro
+                        let includeRecord = false;
                         if (key.startsWith(`checkpoints_${currentTeam}_`)) {
+                            const dateFromKey = key.split('_')[2]; // Formato YYYY-MM-DD
+                            
+                            if (filterType === 'historical') {
+                                includeRecord = true;
+                            } else if (filterType === 'monthly') {
+                                // Compara YYYY-MM
+                                if (dateFromKey.startsWith(filterValue)) {
+                                    includeRecord = true;
+                                }
+                            } else if (filterType === 'yearly') {
+                                // Compara YYYY
+                                if (dateFromKey.startsWith(filterValue)) {
+                                    includeRecord = true;
+                                }
+                            }
+                        }
+
+                        if (includeRecord) {
                             try {
                                 const data = JSON.parse(localStorage.getItem(key));
                                 if (Array.isArray(data) && data.length === 16) {
@@ -1117,7 +1182,7 @@
                     teamStats.push({
                         name: currentTeam,
                         average: average,
-                        records: count,
+                        records: count, // Agora 'records' é o número de registros NO PERÍODO
                         displayRank: 0
                     });
                 });
@@ -1125,7 +1190,7 @@
                 // 2. Ordenar o ranking
                 teamStats.sort((a, b) => b.average - a.average);
                 
-                // LÓGICA DE RANKING SEQUENCIAL (COM ATRIBUIÇÃO DE MEDALHAS)
+                // 3. Lógica de ranking sequencial (atribuição de medalhas)
                 let uniqueScoresCount = 0; 
                 let lastAverage = -1; 
                 
@@ -1138,16 +1203,17 @@
                     lastAverage = currentAverage;
                 });
 
-                // 3. Gerar o HTML
-                let reportHTML = `<div style="padding-top: 20px;"><h3><i class="fas fa-trophy"></i> Ranking Geral Histórico</h3>`;
-                reportHTML += `<p>Classificação das equipes com base na média de desempenho de todas as verificações registradas.</p>`;
+                // 4. Gerar o HTML
+                let reportHTML = `<div style="padding-top: 20px;"><h3>${title}</h3>`;
+                reportHTML += `<p>${description}</p>`;
                 
                 if (teamStats.every(s => s.records === 0)) {
-                    reportHTML += '<p style="margin-top: 20px;">Nenhum registro histórico de verificações encontrado para gerar o ranking.</p></div>';
+                    reportHTML += '<p style="margin-top: 20px;">Nenhum registro encontrado para este período.</p></div>';
                     return reportHTML;
                 }
 
-                reportHTML += `<table style="min-width: 100%;"><tr><th>Posição</th><th>Equipe</th><th>Média de Desempenho</th><th>Registros</th><th>Status da Meta (${meta}%)</th></tr>`;
+                // A tabela agora mostra 'Média' e 'Registros (Período)'
+                reportHTML += `<table style="min-width: 100%;"><tr><th>Posição</th><th>Equipe</th><th>Média (Período)</th><th>Registros (Período)</th><th>Status da Meta (${meta}%)</th></tr>`;
                 
                 teamStats.forEach((stats) => {
                     const position = stats.displayRank; 
@@ -1168,8 +1234,7 @@
                             <td><strong>${position}º</strong></td>
                             <td>${stats.name}${medal}</td>
                             <td>${stats.average.toFixed(2)}%</td>
-                            <td>${stats.records}</td>
-                            <td><span class="status-indicator ${statusClass}">${statusText}</span></td>
+                            <td>${stats.records}</td> <td><span class="status-indicator ${statusClass}">${statusText}</span></td>
                         </tr>
                     `;
                 });
@@ -1271,12 +1336,16 @@
                 return { html: htmlPlaceholder, config: config };
             }
             
-            // NOVO: Função para gerar o relatório mensal e o ranking juntos
+            // ======================================================
+            // 5. SEÇÃO JS MODIFICADA: Função generateCombinedMonthlyRankingReport
+            // ======================================================
+            // NOVO: Função para gerar o relatório mensal e o ranking juntos (DO MÊS)
             function generateCombinedMonthlyRankingReport(team, month) {
-                // 1. Obter dados do relatório mensal (combinado=true para novo ID)
+                // 1. Obter dados do relatório mensal (gráfico)
                 const monthlyData = getMonthlyReportHtmlAndConfig(team, month, true);
-                // 2. Obter HTML do ranking
-                const rankingHtml = getRankingReportHtml();
+                
+                // 2. Obter HTML do ranking (AGORA FILTRADO PELO MÊS)
+                const rankingHtml = getRankingReportHtml('monthly', month);
 
                 // 3. Juntar e renderizar no resultado
                 reportResult.innerHTML = monthlyData.html + rankingHtml;
@@ -1293,24 +1362,12 @@
                 });
             }
 
-            // Funções de relatório atualizadas para usar as funções MÃE
-            function generateRankingReport() {
-                reportResult.innerHTML = getRankingReportHtml();
-            }
-
-            function generateMonthlyReport(team, month) {
-                const monthlyData = getMonthlyReportHtmlAndConfig(team, month, false);
-                
-                reportResult.innerHTML = monthlyData.html;
-
-                const ctx = document.getElementById(monthlyData.config.canvasId).getContext('2d');
-                
-                performanceChart = new Chart(ctx, {
-                    type: monthlyData.config.type,
-                    data: monthlyData.config.data,
-                    options: monthlyData.config.options,
-                    plugins: [ChartDataLabels, metaLinePlugin]
-                });
+            // ======================================================
+            // 6. SEÇÃO JS MODIFICADA: Função generateRankingReport
+            // ======================================================
+            // Funções de relatório atualizadas para usar a função MÃE
+            function generateRankingReport(filterType, filterValue = '') {
+                reportResult.innerHTML = getRankingReportHtml(filterType, filterValue);
             }
 
             // O restante do código (generateDailyReport, funções utilitárias, etc.) permanece inalterado.
@@ -1448,9 +1505,13 @@
             // Carregar dados iniciais
             loadTeamData();
             
+            // ======================================================
+            // 7. SEÇÃO JS MODIFICADA: Inicialização de datas
+            // ======================================================
             // Inicializar a data do relatório como hoje
             document.getElementById('report-date').value = formatDate(today);
             document.getElementById('report-month').value = formatDate(today).substring(0, 7);
+            document.getElementById('report-year').value = today.getFullYear(); // NOVO
             
             // Implementação da funcionalidade de histórico
             
