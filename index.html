@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organização e Limpeza</title>
+    <title>Organização e Limpeza - ControlPoint</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -52,7 +52,19 @@
             border-radius: 8px;
             box-shadow: 0 4px 12px var(--shadow);
             border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-content {
             text-align: center;
+            flex: 1;
+        }
+
+        .header-actions {
+            position: absolute;
+            right: 25px;
         }
         
         .logo {
@@ -128,7 +140,7 @@
             color: var(--text-secondary);
         }
         
-        select, input, button {
+        select, input, button, textarea {
             padding: 10px 12px;
             background: var(--bg-tertiary);
             color: var(--text-primary);
@@ -138,7 +150,7 @@
             transition: all 0.3s ease;
         }
         
-        select:focus, input:focus {
+        select:focus, input:focus, textarea:focus {
             outline: none;
             border-color: var(--accent);
             box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
@@ -161,7 +173,98 @@
             transform: translateY(-2px);
         }
 
-        /* Estilo específico para o botão de selecionar tudo */
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Estilo para botão de Configuração */
+        #config-btn {
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            padding: 8px;
+        }
+        
+        #config-btn:hover {
+            color: var(--accent);
+            transform: rotate(90deg);
+        }
+
+        /* Modal de Configuração */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .modal {
+            background: var(--bg-card);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-tertiary);
+        }
+        
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            background: var(--bg-tertiary);
+        }
+        
+        .config-section {
+            margin-bottom: 25px;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        
         .action-bar {
             display: flex;
             justify-content: flex-end;
@@ -388,7 +491,7 @@
             color: white;
             border-radius: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
+            z-index: 3000;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -573,7 +676,7 @@
                 max-width: none;
             }
             /* Esconde elementos não essenciais para impressão */
-            header, .main-column:first-child, .filters, .report-actions, .notification, .logo i, .logo p {
+            header, .main-column:first-child, .filters, .report-actions, .notification, .logo i, .logo p, .action-bar {
                 display: none !important;
             }
             .main-content {
@@ -626,45 +729,61 @@
             .main-content {
                 flex-direction: column;
             }
+            
+            header {
+                flex-direction: row;
+                position: relative;
+            }
+
+            .header-actions {
+                position: static;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="logo">
-                <i class="fas fa-chart-line"></i>
-                <h1>ControlPoint</h1>
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <h1>ControlPoint</h1>
+                </div>
+                <p>Sistema de acompanhamento de metas para equipes</p>
             </div>
-            <p>Sistema de acompanhamento de metas para equipes</p>
+            <div class="header-actions">
+                <button id="config-btn" title="Configurações e Nomes">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
         </header>
         
         <div class="main-content">
             <div class="main-column">
                 <div class="card">
                     <h2><i class="fas fa-users"></i> Selecionar Equipe</h2>
-                    <div class="team-buttons">
+                    <div class="team-buttons" id="team-buttons-container">
                         <div class="team-btn active" data-team="Equipe 1">
                             <i class="fas fa-user-group"></i>
-                            <span>Equipe 1</span>
+                            <span class="team-name-display">Equipe 1</span>
                         </div>
                         <div class="team-btn" data-team="Equipe 2">
                             <i class="fas fa-user-group"></i>
-                            <span>Equipe 2</span>
+                            <span class="team-name-display">Equipe 2</span>
                         </div>
                         <div class="team-btn" data-team="Equipe 3">
                             <i class="fas fa-user-group"></i>
-                            <span>Equipe 3</span>
+                            <span class="team-name-display">Equipe 3</span>
                         </div>
                         <div class="team-btn" data-team="Equipe 4">
                             <i class="fas fa-user-group"></i>
-                            <span>Equipe 4</span>
+                            <span class="team-name-display">Equipe 4</span>
                         </div>
                     </div>
                 </div>
                 
                 <div class="card">
-                    <h2><i class="fas fa-list-check"></i> Pontos de Verificação - <span id="current-team">Equipe 1</span></h2>
+                    <h2><i class="fas fa-list-check"></i> Pontos de Verificação - <span id="current-team-display">Equipe 1</span></h2>
                     
                     <div class="date-selector">
                         <label for="verification-date"><i class="fas fa-calendar-day"></i> Selecione a data:</label>
@@ -815,12 +934,58 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="config-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> Configurações e Nomes</h3>
+                <button class="btn-secondary" id="close-config-btn" style="padding: 5px 10px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="config-section">
+                    <h4><i class="fas fa-users-cog"></i> Renomear Equipes</h4>
+                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Altere como as equipes aparecem na tela e nos relatórios.</p>
+                    <div class="config-grid" id="teams-config-grid">
+                        </div>
+                </div>
+
+                <div class="config-section">
+                    <h4><i class="fas fa-tasks"></i> Renomear Pontos de Verificação</h4>
+                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Personalize os 16 itens que são verificados diariamente.</p>
+                    <div class="config-grid" id="checkpoints-config-grid">
+                        </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="reset-config-btn">Restaurar Padrões</button>
+                <button id="save-config-btn"><i class="fas fa-save"></i> Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+
     <div class="notification" id="notification">
         <i class="fas fa-check-circle"></i>
         <span id="notification-message"></span>
     </div>
 
     <script>
+        // CONFIGURAÇÃO E DADOS GLOBAIS
+        const DEFAULT_CONFIG = {
+            teamNames: {
+                'Equipe 1': 'Equipe 1',
+                'Equipe 2': 'Equipe 2',
+                'Equipe 3': 'Equipe 3',
+                'Equipe 4': 'Equipe 4'
+            },
+            checkpointNames: [
+                'Sala de Tonalidade L4', 'Sala de Padrões L4', 'Área da Qualitron L4', 'Área de Inspeção L4',
+                'Área de Retido L4', 'Antigo Falcon L4', 'Deformação L4/L5', 'Sala de Tonalidade L5/L6',
+                'Sala de Padrões L5/L6', 'Área da Qualitron L5', 'Área de Inspeção L5/L6', 'Área de Retido L5',
+                'Área da Qualitrons L6', 'Cavaletes de Empeno', 'Área de Retido L6', 'Deformação L6'
+            ]
+        };
+
+        let currentConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
         // Variáveis globais para os gráficos
         let performanceChart = null;
         let comparisonChart = null;
@@ -829,25 +994,9 @@
         const metaLinePlugin = {
             id: 'metaLine',
             afterDatasetsDraw(chart, args, options) {
-                const {
-                    ctx,
-                    chartArea: {
-                        top,
-                        bottom,
-                        left,
-                        right,
-                        width,
-                        height
-                    },
-                    scales: {
-                        y
-                    }
-                } = chart;
-
+                const { ctx, chartArea: { top, bottom, left, right }, scales: { y } } = chart;
                 ctx.save();
                 const metaY = y.getPixelForValue(options.metaValue);
-
-                // Desenha a linha
                 ctx.beginPath();
                 ctx.lineWidth = 2;
                 ctx.strokeStyle = options.lineColor || '#007bff';
@@ -855,26 +1004,35 @@
                 ctx.moveTo(left, metaY);
                 ctx.lineTo(right, metaY);
                 ctx.stroke();
-
-                // Desenha o texto da meta
                 ctx.fillStyle = options.textColor || '#007bff';
                 ctx.font = '12px sans-serif';
                 ctx.fillText(options.labelText, left, metaY - 5);
-
                 ctx.restore();
             }
         };
 
-        
         document.addEventListener('DOMContentLoaded', function() {
+            // -- CARREGAR CONFIGURAÇÕES SALVAS --
+            const savedConfig = localStorage.getItem('controlpoint_config');
+            if (savedConfig) {
+                currentConfig = JSON.parse(savedConfig);
+                // Garantir compatibilidade se o array tiver tamanho diferente (caso futuro)
+                if (currentConfig.checkpointNames.length !== 16) {
+                    currentConfig.checkpointNames = DEFAULT_CONFIG.checkpointNames;
+                }
+            }
+
             // Elementos da UI
-            const currentTeamEl = document.getElementById('current-team');
+            const currentTeamDisplay = document.getElementById('current-team-display');
             const progressPercentEl = document.getElementById('progress-percent');
             const progressFillEl = document.querySelector('.progress-fill');
             const progressTextEl = document.querySelector('.progress-text');
             const checkpointsContainer = document.getElementById('checkpoints-container');
             const saveBtn = document.getElementById('save-btn');
-            const teamButtons = document.querySelectorAll('.team-btn');
+            const teamButtonsContainer = document.getElementById('team-buttons-container');
+            // Select de equipes nos relatórios precisa ser dinâmico também
+            const reportTeamSelect = document.getElementById('report-team');
+
             const reportType = document.getElementById('report-type');
             const dateFilter = document.getElementById('date-filter');
             const monthFilter = document.getElementById('month-filter');
@@ -894,21 +1052,142 @@
             const dynamicMetaEl = document.getElementById('dynamic-meta');
             const captureReportBtn = document.getElementById('capture-report-btn');
             const printReportBtn = document.getElementById('print-report-btn'); 
-            // Novo elemento para o botão de selecionar todos
             const toggleAllBtn = document.getElementById('toggle-all-btn');
-            
-            // Novos elementos para a funcionalidade de data de verificação
             const verificationDateInput = document.getElementById('verification-date');
             const returnTodayBtn = document.getElementById('return-today');
+            
+            // Elementos do Modal
+            const configBtn = document.getElementById('config-btn');
+            const configModal = document.getElementById('config-modal');
+            const closeConfigBtn = document.getElementById('close-config-btn');
+            const saveConfigBtn = document.getElementById('save-config-btn');
+            const resetConfigBtn = document.getElementById('reset-config-btn');
 
             // Estado da aplicação
-            let currentTeam = 'Equipe 1';
+            let currentTeam = 'Equipe 1'; // ID interno sempre fixo
             let currentCheckpoints = Array(16).fill(false);
             
-            // Preenche o seletor de data com a data atual ao carregar
+            // --- INICIALIZAÇÃO DA DATA ---
             const today = new Date();
             verificationDateInput.value = formatDate(today);
+            document.getElementById('report-date').value = formatDate(today);
+            document.getElementById('report-month').value = formatDate(today).substring(0, 7);
+            document.getElementById('report-year').value = today.getFullYear();
+
+            // --- FUNÇÕES DE CONFIGURAÇÃO E NOMES ---
             
+            // Atualiza a interface com os nomes configurados
+            function updateUIWithConfig() {
+                // Atualizar botões de equipe
+                const buttons = document.querySelectorAll('.team-btn');
+                buttons.forEach(btn => {
+                    const teamId = btn.getAttribute('data-team');
+                    const span = btn.querySelector('span');
+                    if (span && currentConfig.teamNames[teamId]) {
+                        span.textContent = currentConfig.teamNames[teamId];
+                    }
+                });
+
+                // Atualizar título da seção de verificação
+                if (currentConfig.teamNames[currentTeam]) {
+                    currentTeamDisplay.textContent = currentConfig.teamNames[currentTeam];
+                }
+
+                // Atualizar Select do Relatório
+                const options = reportTeamSelect.options;
+                for (let i = 0; i < options.length; i++) {
+                    const val = options[i].value;
+                    if (val !== 'all' && currentConfig.teamNames[val]) {
+                        options[i].text = currentConfig.teamNames[val];
+                    }
+                }
+
+                // Se os checkpoints já estiverem renderizados, atualizá-los
+                initializeCheckpoints();
+            }
+
+            // Função helper para pegar nome de exibição
+            function getTeamDisplayName(internalId) {
+                return currentConfig.teamNames[internalId] || internalId;
+            }
+
+            // --- LÓGICA DO MODAL ---
+            configBtn.addEventListener('click', () => {
+                populateConfigModal();
+                configModal.classList.add('open');
+            });
+
+            closeConfigBtn.addEventListener('click', () => {
+                configModal.classList.remove('open');
+            });
+
+            // Fechar ao clicar fora
+            configModal.addEventListener('click', (e) => {
+                if (e.target === configModal) configModal.classList.remove('open');
+            });
+
+            function populateConfigModal() {
+                const teamsGrid = document.getElementById('teams-config-grid');
+                const checksGrid = document.getElementById('checkpoints-config-grid');
+                
+                teamsGrid.innerHTML = '';
+                checksGrid.innerHTML = '';
+
+                // Inputs para Equipes
+                Object.keys(currentConfig.teamNames).forEach(key => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <label>Nome para ${key}:</label>
+                        <input type="text" class="team-name-input" data-key="${key}" value="${currentConfig.teamNames[key]}">
+                    `;
+                    teamsGrid.appendChild(div);
+                });
+
+                // Inputs para Checkpoints
+                currentConfig.checkpointNames.forEach((name, index) => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <label>Ponto ${index + 1}:</label>
+                        <input type="text" class="checkpoint-name-input" data-index="${index}" value="${name}">
+                    `;
+                    checksGrid.appendChild(div);
+                });
+            }
+
+            saveConfigBtn.addEventListener('click', () => {
+                // Salvar Equipes
+                document.querySelectorAll('.team-name-input').forEach(input => {
+                    const key = input.getAttribute('data-key');
+                    currentConfig.teamNames[key] = input.value;
+                });
+
+                // Salvar Checkpoints
+                document.querySelectorAll('.checkpoint-name-input').forEach(input => {
+                    const idx = parseInt(input.getAttribute('data-index'));
+                    currentConfig.checkpointNames[idx] = input.value;
+                });
+
+                // Persistir no LocalStorage
+                localStorage.setItem('controlpoint_config', JSON.stringify(currentConfig));
+                
+                showNotification('Configurações salvas com sucesso!');
+                configModal.classList.remove('open');
+                updateUIWithConfig();
+                
+                // Recarregar histórico para atualizar nomes se necessário
+                loadHistory(); 
+            });
+
+            resetConfigBtn.addEventListener('click', () => {
+                if(confirm('Tem certeza? Isso voltará os nomes para o padrão original.')) {
+                    currentConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+                    populateConfigModal(); // Atualiza os inputs do modal visualmente
+                    // Não salva automaticamente, o usuário deve clicar em salvar se quiser confirmar
+                }
+            });
+
+            // --- FIM LÓGICA MODAL ---
+
             // Adiciona listener para carregar os dados ao mudar a data
             verificationDateInput.addEventListener('change', loadTeamData);
             
@@ -920,29 +1199,22 @@
                 updateProgress();
             });
 
-            // Função para obter a meta atual
             function getMeta() {
                 return parseInt(metaRangeEl.value);
             }
             
-            // Mostrar notificação
             function showNotification(message, isError = false) {
                 notificationMessage.textContent = message;
                 notification.className = isError ? 'notification error' : 'notification';
                 notification.classList.add('show');
-                
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                }, 3000);
+                setTimeout(() => { notification.classList.remove('show'); }, 3000);
             }
 
-            // --- LÓGICA DO BOTÃO SELECIONAR TODOS (NOVO) ---
+            // --- LÓGICA DO BOTÃO SELECIONAR TODOS ---
             let allCheckedState = false;
 
             toggleAllBtn.addEventListener('click', () => {
                 allCheckedState = !allCheckedState;
-                
-                // Atualiza o estado visual do botão
                 if (allCheckedState) {
                     toggleAllBtn.innerHTML = '<i class="fas fa-square"></i> Desmarcar Todos';
                     currentCheckpoints.fill(true);
@@ -950,34 +1222,13 @@
                     toggleAllBtn.innerHTML = '<i class="fas fa-check-double"></i> Selecionar Todos';
                     currentCheckpoints.fill(false);
                 }
-                
-                // Recria os checkboxes e atualiza o progresso
                 initializeCheckpoints();
-                // Não chama updateProgress aqui pois initializeCheckpoints já chama
             });
             
-            // Inicializar pontos de verificação
+            // Inicializar pontos de verificação (USANDO NOMES DA CONFIG)
             function initializeCheckpoints() {
                 checkpointsContainer.innerHTML = '';
-
-                const newDescriptions = [
-                    'Sala de Tonalidade L4',
-                    'Sala de Padrões L4',
-                    'Área da Qualitron L4',
-                    'Área de Inspeção L4',
-                    'Área de Retido L4',
-                    'Antigo Falcon L4',
-                    'Deformação L4/L5',
-                    'Sala de Tonalidade L5/L6',
-                    'Sala de Padrões L5/L6',
-                    'Área da Qualitron L5',
-                    'Área de Inspeção L5/L6',
-                    'Área de Retido L5',
-                    'Área da Qualitrons L6',
-                    'Cavaletes de Empeno',
-                    'Área de Retido L6',
-                    'Deformação L6'
-                ];
+                const names = currentConfig.checkpointNames; // Usa a config atual
 
                 for (let i = 0; i < 16; i++) {
                     const checkpoint = document.createElement('div');
@@ -989,29 +1240,24 @@
                     checkbox.checked = currentCheckpoints[i];
                     checkbox.addEventListener('change', () => {
                         currentCheckpoints[i] = checkbox.checked;
-                        
-                        // Reseta o estado do botão "Selecionar Todos" se um for desmarcado manualmente
                         if (!checkbox.checked) {
                             allCheckedState = false;
                             toggleAllBtn.innerHTML = '<i class="fas fa-check-double"></i> Selecionar Todos';
                         }
-                        
                         updateProgress();
                     });
 
                     const label = document.createElement('label');
                     label.htmlFor = `point-${i+1}`;
-                    label.textContent = newDescriptions[i];
+                    label.textContent = names[i] || `Ponto ${i+1}`; // Fallback
 
                     checkpoint.appendChild(checkbox);
                     checkpoint.appendChild(label);
                     checkpointsContainer.appendChild(checkpoint);
                 }
-
                 updateProgress();
             }
             
-            // Atualizar barra de progresso
             function updateProgress() {
                 const completed = currentCheckpoints.filter(Boolean).length;
                 const percentage = (completed / 16) * 100;
@@ -1022,7 +1268,6 @@
                 progressFillEl.style.width = `${percentage}%`;
                 progressTextEl.textContent = `${percentage.toFixed(2)}%`;
                 
-                // Atualizar status da meta
                 if (percentage >= meta) {
                     progressFillEl.className = 'progress-fill';
                     metaStatusEl.className = 'badge badge-success';
@@ -1039,25 +1284,25 @@
             }
             
             // Trocar equipe
+            const teamButtons = document.querySelectorAll('.team-btn');
             teamButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     teamButtons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
                     
+                    // ID Interno ('Equipe 1')
                     currentTeam = button.getAttribute('data-team');
-                    currentTeamEl.textContent = currentTeam;
+                    // Display Name (Configurado)
+                    currentTeamDisplay.textContent = getTeamDisplayName(currentTeam);
                     
-                    // Resetar botão selecionar todos ao trocar equipe
                     allCheckedState = false;
                     toggleAllBtn.innerHTML = '<i class="fas fa-check-double"></i> Selecionar Todos';
 
-                    // Carregar dados da equipe selecionada e data selecionada
                     loadTeamData();
                     loadHistory();
                 });
             });
             
-            // Carregar dados da equipe e data
             function loadTeamData() {
                 const selectedDate = verificationDateInput.value;
                 const savedData = localStorage.getItem(`checkpoints_${currentTeam}_${selectedDate}`);
@@ -1067,25 +1312,18 @@
                 } else {
                     currentCheckpoints = Array(16).fill(false);
                 }
-                
                 initializeCheckpoints();
             }
             
-            // Salvar dados
             saveBtn.addEventListener('click', () => {
                 const selectedDate = verificationDateInput.value;
                 localStorage.setItem(`checkpoints_${currentTeam}_${selectedDate}`, JSON.stringify(currentCheckpoints));
-                
                 showNotification(`Dados de ${formatDateDisplay(selectedDate)} salvos com sucesso!`);
-                
                 loadHistory();
             });
             
-            // Alternar entre filtros de data/mês/ano
             reportType.addEventListener('change', () => {
                 const type = reportType.value;
-                
-                // Oculta todos os filtros de data
                 dateFilter.style.display = 'none';
                 monthFilter.style.display = 'none';
                 yearFilter.style.display = 'none';
@@ -1097,35 +1335,26 @@
                 } else if (type === 'yearly_ranking') {
                     yearFilter.style.display = 'flex';
                 }
-                // 'ranking_historical' não precisa de filtro
             });
             
             // Gerar relatório
             generateReportBtn.addEventListener('click', generateReport);
             
             function generateReport() {
-                // Destroi qualquer gráfico existente para evitar conflitos
-                if (performanceChart) {
-                    performanceChart.destroy();
-                    performanceChart = null;
-                }
-                if (comparisonChart) {
-                    comparisonChart.destroy();
-                    comparisonChart = null;
-                }
+                if (performanceChart) { performanceChart.destroy(); performanceChart = null; }
+                if (comparisonChart) { comparisonChart.destroy(); comparisonChart = null; }
 
                 const team = document.getElementById('report-team').value;
                 const type = reportType.value;
                 
-                // Exibe uma mensagem de carregamento
                 reportResult.innerHTML = `<div class="loading"><div class="loading-spinner"></div></div><p style="text-align:center;">Gerando relatório...</p>`;
 
                 setTimeout(() => {
                     if (type === 'daily') {
                         const date = document.getElementById('report-date').value;
                         if (!date) {
-                            showNotification('Selecione uma data para o relatório diário', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            showNotification('Selecione uma data', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
                             return;
                         }
                         generateDailyReport(team, date);
@@ -1133,8 +1362,8 @@
                     } else if (type === 'monthly') {
                         const month = document.getElementById('report-month').value;
                         if (!month) {
-                            showNotification('Selecione um mês para o relatório mensal', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            showNotification('Selecione um mês', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
                             return;
                         }
                         generateMonthlyReport(team, month);
@@ -1145,8 +1374,8 @@
                     } else if (type === 'monthly_plus_ranking') { 
                         const month = document.getElementById('report-month').value;
                         if (!month) {
-                            showNotification('Selecione um mês para o relatório combinado', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            showNotification('Selecione um mês', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
                             return;
                         }
                         generateCombinedMonthlyRankingReport(team, month);
@@ -1154,8 +1383,8 @@
                     } else if (type === 'yearly_ranking') {
                         const year = document.getElementById('report-year').value;
                         if (!year || year.length !== 4) {
-                            showNotification('Por favor, insira um ano válido (ex: 2025)', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros e clique em "Gerar Relatório"</p>';
+                            showNotification('Insira um ano válido', true);
+                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
                             return;
                         }
                         generateRankingReport('yearly', year);
@@ -1163,52 +1392,42 @@
                 }, 500);
             }
             
-            // FUNÇÃO MÃE PARA GERAR O RANKING (CORRIGIDA: LÓGICA DE EMPATE)
+            // FUNÇÃO RANKING COM DISPLAY NAMES
             function getRankingReportHtml(filterType = 'historical', filterValue = '') {
-                const teams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
+                const internalTeams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
                 const teamStats = [];
                 const meta = getMeta();
                 
-                let title = '';
-                let description = '';
+                let title = '', description = '';
 
-                // Define o título e a descrição com base no filtro
                 if (filterType === 'monthly') {
                     title = `<i class="fas fa-trophy"></i> Ranking Mensal - ${formatMonthDisplay(filterValue)}`;
-                    description = `Classificação com base no desempenho médio durante o mês de ${formatMonthDisplay(filterValue)}.`;
+                    description = `Classificação do mês de ${formatMonthDisplay(filterValue)}.`;
                 } else if (filterType === 'yearly') {
                     title = `<i class="fas fa-trophy"></i> Ranking Anual - ${filterValue}`;
-                    description = `Classificação com base no desempenho médio durante o ano de ${filterValue}.`;
-                } else { // 'historical'
+                    description = `Classificação do ano de ${filterValue}.`;
+                } else {
                     title = `<i class="fas fa-trophy"></i> Ranking Geral Histórico`;
-                    description = `Classificação das equipes com base na média de desempenho de todas as verificações registradas.`;
+                    description = `Classificação geral de todas as verificações.`;
                 }
 
-                // 1. Coletar dados de todas as equipes
-                teams.forEach(currentTeam => {
+                internalTeams.forEach(tID => {
                     let totalPercentage = 0;
                     let count = 0;
                     
                     for (let i = 0; i < localStorage.length; i++) {
                         const key = localStorage.key(i);
                         
-                        // Verificação do filtro
                         let includeRecord = false;
-                        if (key.startsWith(`checkpoints_${currentTeam}_`)) {
-                            const dateFromKey = key.split('_')[2]; // Formato YYYY-MM-DD
+                        if (key.startsWith(`checkpoints_${tID}_`)) {
+                            const dateFromKey = key.split('_')[2];
                             
                             if (filterType === 'historical') {
                                 includeRecord = true;
                             } else if (filterType === 'monthly') {
-                                // Compara YYYY-MM
-                                if (dateFromKey.startsWith(filterValue)) {
-                                    includeRecord = true;
-                                }
+                                if (dateFromKey.startsWith(filterValue)) includeRecord = true;
                             } else if (filterType === 'yearly') {
-                                // Compara YYYY
-                                if (dateFromKey.startsWith(filterValue)) {
-                                    includeRecord = true;
-                                }
+                                if (dateFromKey.startsWith(filterValue)) includeRecord = true;
                             }
                         }
 
@@ -1218,95 +1437,62 @@
                                 if (Array.isArray(data) && data.length === 16) {
                                     const completed = data.filter(Boolean).length;
                                     const percentage = (completed / 16) * 100;
-                                    
                                     totalPercentage += percentage;
                                     count++;
                                 }
-                            } catch (e) {
-                                console.error(`Erro ao processar dados de localStorage para a chave: ${key}`, e);
-                            }
+                            } catch (e) { console.error(e); }
                         }
                     }
                     
                     const average = count > 0 ? (totalPercentage / count) : 0;
                     
                     teamStats.push({
-                        name: currentTeam,
+                        name: getTeamDisplayName(tID), // Usa o nome personalizado
                         average: average,
                         records: count,
                         displayRank: 0
                     });
                 });
                 
-                // 2. Ordenar o ranking
                 teamStats.sort((a, b) => b.average - a.average);
                 
-                // 3. Lógica de ranking corrigida (DENSE RANKING)
-                // Se equipe A=100, B=100, C=100, D=90 -> Ranks: 1, 1, 1, 2
                 let currentRank = 1;
-                
                 teamStats.forEach((stats, i) => {
-                    // Para o primeiro item, o rank é 1
                     if (i === 0) {
                         stats.displayRank = 1;
                     } else {
-                        // Compara com o anterior
-                        const prevStats = teamStats[i-1];
-                        // Arredonda para 2 casas decimais para evitar erros de ponto flutuante
                         const currentAvg = parseFloat(stats.average.toFixed(2));
-                        const prevAvg = parseFloat(prevStats.average.toFixed(2));
-
-                        if (currentAvg < prevAvg) {
-                            // Se a nota é menor, incrementa o rank (sistema denso)
-                            // Se fosse sistema padrão (gap), seria = i + 1
-                            currentRank++; 
-                        }
-                        // Se for igual, mantém o rank atual (currentRank não muda)
+                        const prevAvg = parseFloat(teamStats[i-1].average.toFixed(2));
+                        if (currentAvg < prevAvg) currentRank++; 
                         stats.displayRank = currentRank;
                     }
                 });
 
-                // 4. Gerar o HTML
-                let reportHTML = `<div style="padding-top: 20px;"><h3>${title}</h3>`;
-                reportHTML += `<p>${description}</p>`;
+                let reportHTML = `<div style="padding-top: 20px;"><h3>${title}</h3><p>${description}</p>`;
                 
                 if (teamStats.every(s => s.records === 0)) {
-                    reportHTML += '<p style="margin-top: 20px;">Nenhum registro encontrado para este período.</p></div>';
+                    reportHTML += '<p style="margin-top: 20px;">Nenhum registro encontrado.</p></div>';
                     return reportHTML;
                 }
 
-                reportHTML += `<table style="min-width: 100%;"><tr><th>Posição</th><th>Equipe</th><th>Média (Período)</th><th>Registros (Período)</th><th>Status da Meta (${meta}%)</th></tr>`;
+                reportHTML += `<table style="min-width: 100%;"><tr><th>Posição</th><th>Equipe</th><th>Média</th><th>Registros</th><th>Status (${meta}%)</th></tr>`;
                 
                 teamStats.forEach((stats) => {
-                    const position = stats.displayRank; 
                     const statusClass = stats.average >= meta ? 'status-success' : 'status-danger';
                     const statusText = stats.average >= meta ? 'Meta atingida' : 'Meta não atingida';
-                    
                     let medal = '';
-                    if (position === 1) {
-                        medal = ' 🥇';
-                    } else if (position === 2) {
-                        medal = ' 🥈';
-                    } else if (position === 3) {
-                        medal = ' 🥉';
-                    }
+                    if (stats.displayRank === 1) medal = ' 🥇';
+                    else if (stats.displayRank === 2) medal = ' 🥈';
+                    else if (stats.displayRank === 3) medal = ' 🥉';
 
-                    reportHTML += `
-                        <tr>
-                            <td><strong>${position}º</strong></td>
-                            <td>${stats.name}${medal}</td>
-                            <td>${stats.average.toFixed(2)}%</td>
-                            <td>${stats.records}</td> <td><span class="status-indicator ${statusClass}">${statusText}</span></td>
-                        </tr>
-                    `;
+                    reportHTML += `<tr><td><strong>${stats.displayRank}º</strong></td><td>${stats.name}${medal}</td><td>${stats.average.toFixed(2)}%</td><td>${stats.records}</td><td><span class="status-indicator ${statusClass}">${statusText}</span></td></tr>`;
                 });
                 
                 reportHTML += '</table></div>';
-                
                 return reportHTML;
             }
             
-            // FUNÇÃO MÃE PARA GERAR O RELATÓRIO MENSAL (AGORA RETORNA HTML + CONFIG)
+            // FUNÇÃO RELATÓRIO MENSAL COM DISPLAY NAMES
             function getMonthlyReportHtmlAndConfig(team, month, isCombined = false) {
                 const meta = getMeta();
                 const teamsToCompare = team === 'all' ? ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'] : [team];
@@ -1316,7 +1502,7 @@
                 const backgroundColors = [];
                 const canvasId = isCombined ? 'monthlyChartCombined' : 'monthlyChart';
                 
-                teamsToCompare.forEach(currentTeam => {
+                teamsToCompare.forEach(currentTeamID => {
                     const [year, monthStr] = month.split('-');
                     const startDate = new Date(year, parseInt(monthStr) - 1, 1);
                     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
@@ -1328,7 +1514,7 @@
                     for (let i = 1; i <= totalDaysInMonth; i++) {
                         const tempDate = new Date(startDate.getFullYear(), startDate.getMonth(), i);
                         const dateKey = formatDate(tempDate);
-                        const data = localStorage.getItem(`checkpoints_${currentTeam}_${dateKey}`);
+                        const data = localStorage.getItem(`checkpoints_${currentTeamID}_${dateKey}`);
 
                         if (data) {
                             const points = JSON.parse(data);
@@ -1341,26 +1527,20 @@
 
                     const monthlyAverage = dailyCount > 0 ? (totalPercentage / dailyCount) : 0;
                     
-                    labels.push(currentTeam);
+                    labels.push(getTeamDisplayName(currentTeamID)); // Label personalizado
                     dataPoints.push(monthlyAverage);
                     
-                    if (monthlyAverage >= meta) {
-                        backgroundColors.push('#28a745');
-                    } else {
-                        backgroundColors.push('#dc3545');
-                    }
+                    backgroundColors.push(monthlyAverage >= meta ? '#28a745' : '#dc3545');
                 });
                 
-                // HTML Placeholder
                 const htmlPlaceholder = `
                     <h3><i class="fas fa-calendar"></i> Relatório Mensal - ${formatMonthDisplay(month)}</h3>
-                    <p>Média de desempenho das equipes durante o mês.</p>
+                    <p>Média de desempenho das equipes.</p>
                     <div class="chart-container" style="height: 350px;">
                         <canvas id="${canvasId}"></canvas> 
                     </div>
                 `;
 
-                // Chart Config
                 const config = {
                     type: 'bar',
                     data: {
@@ -1376,20 +1556,11 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                max: 150,
-                                title: {
-                                    display: true,
-                                    text: 'Desempenho (%)'
-                                }
-                            }
-                        },
+                        scales: { y: { beginAtZero: true, max: 150, title: { display: true, text: 'Desempenho (%)' } } },
                         plugins: {
                             tooltip: { mode: 'index', intersect: false },
                             metaLine: { metaValue: meta, labelText: `Meta: ${meta}%`, lineColor: '#000', textColor: '#000' },
-                            datalabels: { anchor: 'end', align: 'top', color: '#000', formatter: (value, context) => { return value.toFixed(2) + '%'; }, font: { weight: 'bold' } }
+                            datalabels: { anchor: 'end', align: 'top', color: '#000', formatter: (value) => value.toFixed(2) + '%', font: { weight: 'bold' } }
                         }
                     },
                     canvasId: canvasId
@@ -1398,21 +1569,11 @@
                 return { html: htmlPlaceholder, config: config };
             }
             
-            // NOVO: Função para gerar o relatório mensal e o ranking juntos (DO MÊS)
             function generateCombinedMonthlyRankingReport(team, month) {
-                // 1. Obter dados do relatório mensal (gráfico)
                 const monthlyData = getMonthlyReportHtmlAndConfig(team, month, true);
-                
-                // 2. Obter HTML do ranking (AGORA FILTRADO PELO MÊS)
                 const rankingHtml = getRankingReportHtml('monthly', month);
-
-                // 3. Juntar e renderizar no resultado
                 reportResult.innerHTML = monthlyData.html + rankingHtml;
-                
-                // 4. Renderizar o Chart após inserir o HTML
                 const ctx = document.getElementById(monthlyData.config.canvasId).getContext('2d');
-                
-                // Usamos a variável performanceChart para gerenciar o gráfico na seção de relatório
                 performanceChart = new Chart(ctx, {
                     type: monthlyData.config.type,
                     data: monthlyData.config.data,
@@ -1421,7 +1582,6 @@
                 });
             }
 
-            // Funções de relatório atualizadas para usar a função MÃE
             function generateRankingReport(filterType, filterValue = '') {
                 reportResult.innerHTML = getRankingReportHtml(filterType, filterValue);
             }
@@ -1429,7 +1589,6 @@
             function generateMonthlyReport(team, month) {
                 const monthlyData = getMonthlyReportHtmlAndConfig(team, month, false);
                 reportResult.innerHTML = monthlyData.html;
-
                 const ctx = document.getElementById(monthlyData.config.canvasId).getContext('2d');
                 performanceChart = new Chart(ctx, {
                     type: monthlyData.config.type,
@@ -1440,34 +1599,18 @@
             }
             
             function generateDailyReport(team, date) {
-                const newDescriptions = [
-                    'Sala de Tonalidade L4',
-                    'Sala de Padrões L4',
-                    'Área da Qualitron L4',
-                    'Área de Inspeção L4',
-                    'Área de Retido L4',
-                    'Antigo Falcon L4',
-                    'Deformação L4/L5',
-                    'Sala de Tonalidade L5/L6',
-                    'Sala de Padrões L5/L6',
-                    'Área da Qualitron L5',
-                    'Área de Inspeção L5/L6',
-                    'Área de Retido L5',
-                    'Área da Qualitrons L6',
-                    'Cavaletes de Empeno',
-                    'Área de Retido L6',
-                    'Deformação L6'
-                ];
-                
+                const names = currentConfig.checkpointNames; // Nomes personalizados
                 let reportHTML = `<h3><i class="fas fa-calendar-day"></i> Relatório Diário - ${formatDateDisplay(date)}</h3>`;
                 const meta = getMeta();
                 
                 if (team === 'all') {
-                    const teams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
+                    const internalTeams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
                     reportHTML += '<table><tr><th>Equipe</th><th>Pontos Concluídos</th><th>Percentual</th><th>Status</th></tr>';
                     
-                    teams.forEach(t => {
-                        const data = localStorage.getItem(`checkpoints_${t}_${date}`);
+                    internalTeams.forEach(tID => {
+                        const data = localStorage.getItem(`checkpoints_${tID}_${date}`);
+                        const displayName = getTeamDisplayName(tID);
+                        
                         if (data) {
                             const points = JSON.parse(data);
                             const completed = points.filter(Boolean).length;
@@ -1476,25 +1619,15 @@
                                 '<span class="status-indicator status-success"><i class="fas fa-check-circle"></i> Atingiu</span>' : 
                                 '<span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span>';
                             
-                            reportHTML += `<tr>
-                                <td>${t}</td>
-                                <td>${completed}/16</td>
-                                <td>${percentage.toFixed(2)}%</td>
-                                <td>${status}</td>
-                            </tr>`;
+                            reportHTML += `<tr><td>${displayName}</td><td>${completed}/16</td><td>${percentage.toFixed(2)}%</td><td>${status}</td></tr>`;
                         } else {
-                            reportHTML += `<tr>
-                                <td>${t}</td>
-                                <td>Nenhum dado</td>
-                                <td>0%</td>
-                                <td><span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span></td>
-                            </tr>`;
+                            reportHTML += `<tr><td>${displayName}</td><td>Nenhum dado</td><td>0%</td><td><span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span></td></tr>`;
                         }
                     });
-                    
                     reportHTML += '</table>';
                 } else {
                     const data = localStorage.getItem(`checkpoints_${team}_${date}`);
+                    const displayName = getTeamDisplayName(team);
                     
                     if (data) {
                         const points = JSON.parse(data);
@@ -1506,24 +1639,11 @@
                         
                         reportHTML += `
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
-                                    <h4><i class="fas fa-users"></i> Equipe</h4>
-                                    <p>${team}</p>
-                                </div>
-                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
-                                    <h4><i class="fas fa-chart-pie"></i> Pontos Concluídos</h4>
-                                    <p>${completed}/16</p>
-                                </div>
-                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
-                                    <h4><i class="fas fa-percent"></i> Percentual</h4>
-                                    <p>${percentage.toFixed(2)}%</p>
-                                </div>
-                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;">
-                                    <h4><i class="fas fa-bullseye"></i> Status</h4>
-                                    <p>${status}</p>
-                                </div>
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;"><h4><i class="fas fa-users"></i> Equipe</h4><p>${displayName}</p></div>
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;"><h4><i class="fas fa-chart-pie"></i> Pontos</h4><p>${completed}/16</p></div>
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;"><h4><i class="fas fa-percent"></i> Percentual</h4><p>${percentage.toFixed(2)}%</p></div>
+                                <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;"><h4><i class="fas fa-bullseye"></i> Status</h4><p>${status}</p></div>
                             </div>
-                            
                             <h4><i class="fas fa-list-check"></i> Detalhamento dos Pontos:</h4>
                             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 12px;">
                         `;
@@ -1533,23 +1653,16 @@
                                 '<span class="status-indicator status-success"><i class="fas fa-check"></i> Concluído</span>' : 
                                 '<span class="status-indicator status-danger"><i class="fas fa-xmark"></i> Pendente</span>';
                             
-                            reportHTML += `
-                                <div style="background: var(--bg-tertiary); padding: 8px; border-radius: 6px;">
-                                    <strong>${newDescriptions[index]}:</strong> ${status}
-                                </div>
-                            `;
+                            reportHTML += `<div style="background: var(--bg-tertiary); padding: 8px; border-radius: 6px;"><strong>${names[index] || 'Ponto '+(index+1)}:</strong> ${status}</div>`;
                         });
-                        
                         reportHTML += '</div>';
                     } else {
                         reportHTML += '<p>Nenhum dado encontrado para esta data.</p>';
                     }
                 }
-                
                 reportResult.innerHTML = reportHTML;
             }
             
-            // Funções utilitárias para datas
             function formatDate(date) {
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -1569,17 +1682,7 @@
                 return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             }
             
-            // Carregar dados iniciais
-            loadTeamData();
-            
-            // Inicializar a data do relatório como hoje
-            document.getElementById('report-date').value = formatDate(today);
-            document.getElementById('report-month').value = formatDate(today).substring(0, 7);
-            document.getElementById('report-year').value = today.getFullYear();
-            
-            // Implementação da funcionalidade de histórico
-            
-            // Alternar visibilidade do histórico
+            // Histórico
             historyToggle.addEventListener('click', () => {
                 historyContent.classList.toggle('show');
                 if (historyContent.classList.contains('show')) {
@@ -1590,20 +1693,15 @@
                 }
             });
             
-            // Carregar histórico
             function loadHistory() {
                 historyContent.innerHTML = '';
-                
                 const keys = Object.keys(localStorage);
                 const historyItems = [];
                 
                 keys.forEach(key => {
                     if (key.startsWith(`checkpoints_${currentTeam}_`)) {
                         const date = key.replace(`checkpoints_${currentTeam}_`, '');
-                        historyItems.push({
-                            date: date,
-                            data: JSON.parse(localStorage.getItem(key))
-                        });
+                        historyItems.push({ date: date, data: JSON.parse(localStorage.getItem(key)) });
                     }
                 });
                 
@@ -1629,56 +1727,37 @@
                             <span class="badge ${percentage >= meta ? 'badge-success' : 'badge-danger'}">${percentage >= meta ? 'Atingiu' : 'Não atingiu'}</span>
                         </div>
                         <div class="history-actions">
-                            <button class="history-btn edit" data-date="${item.date}">
-                                <i class="fas fa-edit"></i>
-                                Editar
-                            </button>
-                            <button class="history-btn delete" data-date="${item.date}">
-                                <i class="fas fa-trash"></i>
-                                Excluir
-                            </button>
+                            <button class="history-btn edit" data-date="${item.date}"><i class="fas fa-edit"></i> Editar</button>
+                            <button class="history-btn delete" data-date="${item.date}"><i class="fas fa-trash"></i> Excluir</button>
                         </div>
                     `;
-                    
                     historyContent.appendChild(historyItem);
                 });
                 
                 document.querySelectorAll('.history-btn.edit').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const date = btn.getAttribute('data-date');
-                        editHistory(date);
-                    });
+                    btn.addEventListener('click', () => { editHistory(btn.getAttribute('data-date')); });
                 });
                 
                 document.querySelectorAll('.history-btn.delete').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const date = btn.getAttribute('data-date');
-                        deleteHistory(date);
-                    });
+                    btn.addEventListener('click', () => { deleteHistory(btn.getAttribute('data-date')); });
                 });
             }
             
-            // Editar histórico
             function editHistory(date) {
                 verificationDateInput.value = date;
                 loadTeamData();
                 showNotification(`Editando dados de ${formatDateDisplay(date)}`);
             }
             
-            // Excluir histórico
             function deleteHistory(date) {
                 if (confirm(`Tem certeza que deseja excluir os dados de ${formatDateDisplay(date)}?`)) {
                     localStorage.removeItem(`checkpoints_${currentTeam}_${date}`);
                     loadHistory();
-                    showNotification(`Dados de ${formatDateDisplay(date)} excluídos com sucesso!`);
-                    
-                    if (verificationDateInput.value === date) {
-                        returnToToday();
-                    }
+                    showNotification(`Dados excluídos!`);
+                    if (verificationDateInput.value === date) returnToToday();
                 }
             }
             
-            // Voltar para a data atual
             returnTodayBtn.addEventListener('click', returnToToday);
             
             function returnToToday() {
@@ -1687,152 +1766,102 @@
                 showNotification('Voltando para os dados de hoje');
             }
             
-            // Exportar para CSV
-            exportCsvBtn.addEventListener('click', exportToCsv);
-            
-            function exportToCsv() {
+            // CSV EXPORT
+            exportCsvBtn.addEventListener('click', () => {
                 const keys = Object.keys(localStorage);
                 const teamKeys = keys.filter(key => key.startsWith('checkpoints_'));
+                if (teamKeys.length === 0) { showNotification('Nenhum dado disponível', true); return; }
                 
-                if (teamKeys.length === 0) {
-                    showNotification('Nenhum dado disponível para exportação', true);
-                    return;
-                }
-                
-                let csvContent = 'Equipe,Data,Pontos_Concluidos\n';
-                
+                let csvContent = 'Equipe_ID,Nome_Equipe,Data,Pontos_Concluidos\n';
                 teamKeys.forEach(key => {
                     const parts = key.split('_');
                     const team = parts[1];
                     const date = parts[2];
                     const data = JSON.parse(localStorage.getItem(key));
                     const completed = data.filter(Boolean).length;
-                    
-                    csvContent += `${team},${date},${completed}\n`;
+                    // Adiciona o Nome Personalizado no CSV para facilitar leitura
+                    csvContent += `${team},${getTeamDisplayName(team)},${date},${completed}\n`;
                 });
                 
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
-                link.setAttribute('href', url);
-                link.setAttribute('download', `controlpoint_export_${formatDate(new Date())}.csv`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
+                link.href = url;
+                link.download = `controlpoint_export_${formatDate(new Date())}.csv`;
                 link.click();
-                document.body.removeChild(link);
-                
-                showNotification('Dados exportados com sucesso!');
-            }
+            });
             
-            // Importar de CSV
-            importFile.addEventListener('change', handleCsvImport);
-            
-            function handleCsvImport(event) {
+            // CSV IMPORT (Simples, focado no padrão interno)
+            importFile.addEventListener('change', (event) => {
                 const file = event.target.files[0];
-                if (!file) {
-                    showNotification('Nenhum arquivo selecionado.', true);
-                    return;
-                }
-                
+                if (!file) return;
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    const contents = e.target.result;
-                    const lines = contents.split('\n');
-
-                    const header = lines[0].trim().split(',');
-                    const requiredHeader = ['Equipe', 'Data', 'Pontos_Concluidos'];
-                    if (JSON.stringify(header) !== JSON.stringify(requiredHeader)) {
-                        showNotification('Formato de CSV inválido. As colunas devem ser: Equipe,Data,Pontos_Concluidos', true);
-                        console.error('Erro de importação: Cabeçalho do CSV não corresponde ao esperado.', header, requiredHeader);
-                        return;
-                    }
-                    
-                    let importedCount = 0;
-                    
+                    const lines = e.target.result.split('\n');
+                    let count = 0;
+                    // Pula cabeçalho
                     for (let i = 1; i < lines.length; i++) {
                         const line = lines[i].trim();
-                        if (line === '') continue;
+                        if (!line) continue;
+                        const parts = line.split(',');
+                        // Suporta formato antigo (3 colunas) e novo (4 colunas)
+                        // Novo: ID, Nome, Data, Pontos
+                        // Antigo: ID, Data, Pontos
+                        let equipe, data, pontos;
                         
-                        const [equipe, data, pontos] = line.split(',');
-                        
+                        if (parts.length >= 4) {
+                            equipe = parts[0];
+                            data = parts[2];
+                            pontos = parts[3];
+                        } else {
+                            equipe = parts[0];
+                            data = parts[1];
+                            pontos = parts[2];
+                        }
+
                         if (equipe && data && pontos) {
                             const numPontos = parseInt(pontos);
-                            
-                            if (isNaN(numPontos) || numPontos < 0 || numPontos > 16) {
-                                console.warn(`Aviso: Pulando linha inválida. Pontos: ${pontos}`);
-                                continue;
+                            if (!isNaN(numPontos)) {
+                                const checkpts = Array(16).fill(false);
+                                for(let j=0; j<numPontos; j++) checkpts[j]=true;
+                                localStorage.setItem(`checkpoints_${equipe}_${data}`, JSON.stringify(checkpts));
+                                count++;
                             }
-
-                            const checkpoints = Array(16).fill(false);
-                            for (let j = 0; j < numPontos; j++) {
-                                checkpoints[j] = true;
-                            }
-                            
-                            const key = `checkpoints_${equipe}_${data}`;
-                            localStorage.setItem(key, JSON.stringify(checkpoints));
-                            importedCount++;
-                            console.log(`Dados importados: Chave = ${key}, Pontos = ${numPontos}`);
-                        } else {
-                            console.warn(`Aviso: Pulando linha com formato inválido: "${line}"`);
                         }
                     }
-                    
-                    if (importedCount > 0) {
-                        showNotification(`${importedCount} registros importados com sucesso!`);
+                    if(count > 0) {
+                        showNotification(`${count} registros importados!`);
                         loadHistory();
                         loadTeamData();
-                        
-                        console.log('Dados salvos no localStorage:');
-                        Object.keys(localStorage).filter(key => key.startsWith('checkpoints_')).forEach(key => console.log(key));
                     } else {
-                        showNotification('Nenhum registro válido encontrado no arquivo CSV.', true);
+                        showNotification('Nenhum registro válido encontrado.', true);
                     }
                 };
-                
-                reader.onerror = function() {
-                    showNotification('Erro ao ler o arquivo.', true);
-                };
-                
                 reader.readAsText(file);
-                
                 event.target.value = '';
-            }
+            });
 
-            // Lógica para tirar o print do relatório
             captureReportBtn.addEventListener('click', () => {
                 const reportContent = document.getElementById('report-result');
-                if (reportContent.innerHTML.includes("Nenhum dado encontrado") || reportContent.innerHTML.includes("Selecione os filtros")) {
-                    showNotification('Gere um relatório antes de tirar o print!', true);
-                    return;
+                if (reportContent.innerHTML.includes("Gerar Relatório")) {
+                    showNotification('Gere um relatório antes!', true); return;
                 }
-
-                html2canvas(reportContent, {
-                    scale: 6
-                }).then(canvas => {
+                html2canvas(reportContent, { scale: 2 }).then(canvas => {
                     const link = document.createElement('a');
-                    link.download = 'relatorio_controlpoint.png';
+                    link.download = 'relatorio.png';
                     link.href = canvas.toDataURL('image/png');
                     link.click();
-                    showNotification('Print do relatório salvo com sucesso!');
-                }).catch(err => {
-                    console.error('Erro ao capturar o relatório:', err);
-                    showNotification('Não foi possível tirar o print do relatório.', true);
                 });
             });
             
-            // Lógica para imprimir o relatório
             printReportBtn.addEventListener('click', () => {
-                const reportContent = document.getElementById('report-result');
-                if (reportContent.innerHTML.includes("Nenhum dado encontrado") || reportContent.innerHTML.includes("Selecione os filtros")) {
-                    showNotification('Gere um relatório antes de imprimir!', true);
-                    return;
-                }
-                
                 window.print();
             });
             
-            // Carregar histórico inicial
+            // Inicializar
+            loadTeamData();
             loadHistory();
+            updateUIWithConfig(); // Aplica nomes personalizados ao iniciar
         });
     </script>
 </body>
