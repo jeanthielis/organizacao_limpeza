@@ -185,7 +185,6 @@
             color: var(--accent);
         }
 
-        /* Estilo para botão de Configuração */
         #config-btn {
             background: transparent;
             color: var(--text-secondary);
@@ -198,7 +197,7 @@
             transform: rotate(90deg);
         }
 
-        /* Modal de Configuração */
+        /* Modal Comum */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -230,6 +229,11 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+        }
+
+        /* Modal Pequeno para Notas */
+        .modal-small {
+            max-width: 500px;
         }
         
         .modal-header {
@@ -359,6 +363,7 @@
             border-radius: 6px;
             border: 1px solid var(--border);
             transition: all 0.3s ease;
+            position: relative;
         }
         
         .checkpoint:hover {
@@ -378,6 +383,32 @@
             cursor: pointer;
             font-size: 14px;
             color: var(--text-primary);
+            flex: 1;
+        }
+
+        .note-btn {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            padding: 5px;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .note-btn:hover {
+            background: rgba(0,0,0,0.05);
+            color: var(--text-primary);
+            transform: none; /* Override general button transform */
+        }
+
+        .note-btn.has-note {
+            color: var(--accent);
+            background: rgba(0, 123, 255, 0.1);
         }
         
         .team-buttons {
@@ -665,6 +696,15 @@
             padding: 15px;
             position: relative;
         }
+
+        .report-note {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: 4px;
+            padding-left: 10px;
+            border-left: 2px solid var(--accent);
+        }
         
         /* ESTILOS PARA IMPRESSÃO */
         @media print {
@@ -861,7 +901,7 @@
                         <div class="filter-group">
                             <label for="report-type"><i class="fas fa-chart-line"></i> Tipo de Relatório:</label>
                             <select id="report-type">
-                                <option value="daily">Diário</option>
+                                <option value="daily">Diário (Detalhado)</option>
                                 <option value="monthly">Mensal (Gráfico)</option>
                                 <option value="ranking_historical">Ranking Histórico (Total)</option>
                                 <option value="monthly_plus_ranking">Mensal + Ranking (do Mês)</option> 
@@ -930,6 +970,23 @@
                         <p>Selecione os filtros e clique em "Gerar Relatório"</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="note-modal">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h3><i class="far fa-comment-dots"></i> Adicionar Observação</h3>
+                <button class="btn-secondary" id="close-note-btn" style="padding: 5px 10px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="note-item-title" style="margin-bottom: 10px; font-weight: bold;">Ponto de Verificação</p>
+                <textarea id="note-textarea" rows="4" style="width: 100%;" placeholder="Escreva o motivo da falha ou observação aqui... (Ex: Máquina parada, Falta de material)"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="clear-note-btn"><i class="fas fa-eraser"></i> Limpar</button>
+                <button id="save-note-btn"><i class="fas fa-check"></i> Salvar</button>
             </div>
         </div>
     </div>
@@ -1016,7 +1073,7 @@
             const savedConfig = localStorage.getItem('controlpoint_config');
             if (savedConfig) {
                 currentConfig = JSON.parse(savedConfig);
-                // Garantir compatibilidade se o array tiver tamanho diferente (caso futuro)
+                // Garantir compatibilidade
                 if (currentConfig.checkpointNames.length !== 16) {
                     currentConfig.checkpointNames = DEFAULT_CONFIG.checkpointNames;
                 }
@@ -1030,7 +1087,6 @@
             const checkpointsContainer = document.getElementById('checkpoints-container');
             const saveBtn = document.getElementById('save-btn');
             const teamButtonsContainer = document.getElementById('team-buttons-container');
-            // Select de equipes nos relatórios precisa ser dinâmico também
             const reportTeamSelect = document.getElementById('report-team');
 
             const reportType = document.getElementById('report-type');
@@ -1056,16 +1112,26 @@
             const verificationDateInput = document.getElementById('verification-date');
             const returnTodayBtn = document.getElementById('return-today');
             
-            // Elementos do Modal
+            // Elementos do Modal de Config
             const configBtn = document.getElementById('config-btn');
             const configModal = document.getElementById('config-modal');
             const closeConfigBtn = document.getElementById('close-config-btn');
             const saveConfigBtn = document.getElementById('save-config-btn');
             const resetConfigBtn = document.getElementById('reset-config-btn');
 
+            // Elementos do Modal de Notas
+            const noteModal = document.getElementById('note-modal');
+            const closeNoteBtn = document.getElementById('close-note-btn');
+            const saveNoteBtn = document.getElementById('save-note-btn');
+            const clearNoteBtn = document.getElementById('clear-note-btn');
+            const noteTextarea = document.getElementById('note-textarea');
+            const noteItemTitle = document.getElementById('note-item-title');
+            let currentNoteIndex = -1; // Rastreia qual item está sendo editado
+
             // Estado da aplicação
             let currentTeam = 'Equipe 1'; // ID interno sempre fixo
             let currentCheckpoints = Array(16).fill(false);
+            let currentNotes = Array(16).fill(""); // NOVO: Array para notas
             
             // --- INICIALIZAÇÃO DA DATA ---
             const today = new Date();
@@ -1076,9 +1142,7 @@
 
             // --- FUNÇÕES DE CONFIGURAÇÃO E NOMES ---
             
-            // Atualiza a interface com os nomes configurados
             function updateUIWithConfig() {
-                // Atualizar botões de equipe
                 const buttons = document.querySelectorAll('.team-btn');
                 buttons.forEach(btn => {
                     const teamId = btn.getAttribute('data-team');
@@ -1088,12 +1152,10 @@
                     }
                 });
 
-                // Atualizar título da seção de verificação
                 if (currentConfig.teamNames[currentTeam]) {
                     currentTeamDisplay.textContent = currentConfig.teamNames[currentTeam];
                 }
 
-                // Atualizar Select do Relatório
                 const options = reportTeamSelect.options;
                 for (let i = 0; i < options.length; i++) {
                     const val = options[i].value;
@@ -1102,96 +1164,91 @@
                     }
                 }
 
-                // Se os checkpoints já estiverem renderizados, atualizá-los
                 initializeCheckpoints();
             }
 
-            // Função helper para pegar nome de exibição
             function getTeamDisplayName(internalId) {
                 return currentConfig.teamNames[internalId] || internalId;
             }
 
-            // --- LÓGICA DO MODAL ---
-            configBtn.addEventListener('click', () => {
-                populateConfigModal();
-                configModal.classList.add('open');
-            });
-
-            closeConfigBtn.addEventListener('click', () => {
-                configModal.classList.remove('open');
-            });
-
-            // Fechar ao clicar fora
-            configModal.addEventListener('click', (e) => {
-                if (e.target === configModal) configModal.classList.remove('open');
-            });
-
+            // --- LÓGICA DO MODAL DE CONFIG ---
+            configBtn.addEventListener('click', () => { populateConfigModal(); configModal.classList.add('open'); });
+            closeConfigBtn.addEventListener('click', () => { configModal.classList.remove('open'); });
+            
             function populateConfigModal() {
                 const teamsGrid = document.getElementById('teams-config-grid');
                 const checksGrid = document.getElementById('checkpoints-config-grid');
-                
                 teamsGrid.innerHTML = '';
                 checksGrid.innerHTML = '';
 
-                // Inputs para Equipes
                 Object.keys(currentConfig.teamNames).forEach(key => {
                     const div = document.createElement('div');
-                    div.innerHTML = `
-                        <label>Nome para ${key}:</label>
-                        <input type="text" class="team-name-input" data-key="${key}" value="${currentConfig.teamNames[key]}">
-                    `;
+                    div.innerHTML = `<label>Nome para ${key}:</label><input type="text" class="team-name-input" data-key="${key}" value="${currentConfig.teamNames[key]}">`;
                     teamsGrid.appendChild(div);
                 });
 
-                // Inputs para Checkpoints
                 currentConfig.checkpointNames.forEach((name, index) => {
                     const div = document.createElement('div');
-                    div.innerHTML = `
-                        <label>Ponto ${index + 1}:</label>
-                        <input type="text" class="checkpoint-name-input" data-index="${index}" value="${name}">
-                    `;
+                    div.innerHTML = `<label>Ponto ${index + 1}:</label><input type="text" class="checkpoint-name-input" data-index="${index}" value="${name}">`;
                     checksGrid.appendChild(div);
                 });
             }
 
             saveConfigBtn.addEventListener('click', () => {
-                // Salvar Equipes
-                document.querySelectorAll('.team-name-input').forEach(input => {
-                    const key = input.getAttribute('data-key');
-                    currentConfig.teamNames[key] = input.value;
-                });
-
-                // Salvar Checkpoints
-                document.querySelectorAll('.checkpoint-name-input').forEach(input => {
-                    const idx = parseInt(input.getAttribute('data-index'));
-                    currentConfig.checkpointNames[idx] = input.value;
-                });
-
-                // Persistir no LocalStorage
+                document.querySelectorAll('.team-name-input').forEach(input => { currentConfig.teamNames[input.getAttribute('data-key')] = input.value; });
+                document.querySelectorAll('.checkpoint-name-input').forEach(input => { currentConfig.checkpointNames[parseInt(input.getAttribute('data-index'))] = input.value; });
                 localStorage.setItem('controlpoint_config', JSON.stringify(currentConfig));
-                
-                showNotification('Configurações salvas com sucesso!');
+                showNotification('Configurações salvas!');
                 configModal.classList.remove('open');
                 updateUIWithConfig();
-                
-                // Recarregar histórico para atualizar nomes se necessário
                 loadHistory(); 
             });
 
             resetConfigBtn.addEventListener('click', () => {
                 if(confirm('Tem certeza? Isso voltará os nomes para o padrão original.')) {
                     currentConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-                    populateConfigModal(); // Atualiza os inputs do modal visualmente
-                    // Não salva automaticamente, o usuário deve clicar em salvar se quiser confirmar
+                    populateConfigModal();
                 }
             });
 
-            // --- FIM LÓGICA MODAL ---
+            // --- LÓGICA DO MODAL DE NOTAS (NOVO) ---
+            function openNoteModal(index) {
+                currentNoteIndex = index;
+                const names = currentConfig.checkpointNames;
+                noteItemTitle.textContent = `Observação para: ${names[index]}`;
+                noteTextarea.value = currentNotes[index] || "";
+                noteModal.classList.add('open');
+                setTimeout(() => noteTextarea.focus(), 100);
+            }
 
-            // Adiciona listener para carregar os dados ao mudar a data
+            closeNoteBtn.addEventListener('click', () => noteModal.classList.remove('open'));
+            
+            saveNoteBtn.addEventListener('click', () => {
+                if (currentNoteIndex > -1) {
+                    currentNotes[currentNoteIndex] = noteTextarea.value.trim();
+                    // Atualiza visual do botão
+                    const btn = document.getElementById(`note-btn-${currentNoteIndex}`);
+                    if (btn) {
+                        if (currentNotes[currentNoteIndex]) btn.classList.add('has-note');
+                        else btn.classList.remove('has-note');
+                    }
+                }
+                noteModal.classList.remove('open');
+            });
+
+            clearNoteBtn.addEventListener('click', () => {
+                noteTextarea.value = "";
+            });
+
+            // Fechar modais ao clicar fora
+            window.addEventListener('click', (e) => {
+                if (e.target === configModal) configModal.classList.remove('open');
+                if (e.target === noteModal) noteModal.classList.remove('open');
+            });
+
+            // --- LÓGICA PRINCIPAL ---
             verificationDateInput.addEventListener('change', loadTeamData);
             
-            // Atualizar valor da meta ao mover o controle deslizante
             metaRangeEl.addEventListener('input', () => {
                 const newMeta = parseInt(metaRangeEl.value);
                 metaValueEl.textContent = `${newMeta}%`;
@@ -1199,9 +1256,7 @@
                 updateProgress();
             });
 
-            function getMeta() {
-                return parseInt(metaRangeEl.value);
-            }
+            function getMeta() { return parseInt(metaRangeEl.value); }
             
             function showNotification(message, isError = false) {
                 notificationMessage.textContent = message;
@@ -1210,9 +1265,7 @@
                 setTimeout(() => { notification.classList.remove('show'); }, 3000);
             }
 
-            // --- LÓGICA DO BOTÃO SELECIONAR TODOS ---
             let allCheckedState = false;
-
             toggleAllBtn.addEventListener('click', () => {
                 allCheckedState = !allCheckedState;
                 if (allCheckedState) {
@@ -1225,10 +1278,10 @@
                 initializeCheckpoints();
             });
             
-            // Inicializar pontos de verificação (USANDO NOMES DA CONFIG)
+            // Inicializar pontos (COM BOTÃO DE NOTA)
             function initializeCheckpoints() {
                 checkpointsContainer.innerHTML = '';
-                const names = currentConfig.checkpointNames; // Usa a config atual
+                const names = currentConfig.checkpointNames;
 
                 for (let i = 0; i < 16; i++) {
                     const checkpoint = document.createElement('div');
@@ -1249,10 +1302,22 @@
 
                     const label = document.createElement('label');
                     label.htmlFor = `point-${i+1}`;
-                    label.textContent = names[i] || `Ponto ${i+1}`; // Fallback
+                    label.textContent = names[i] || `Ponto ${i+1}`;
+
+                    // Botão de Nota
+                    const noteBtn = document.createElement('button');
+                    noteBtn.className = `note-btn ${currentNotes[i] ? 'has-note' : ''}`;
+                    noteBtn.id = `note-btn-${i}`;
+                    noteBtn.innerHTML = currentNotes[i] ? '<i class="fas fa-comment-dots"></i>' : '<i class="far fa-comment"></i>';
+                    noteBtn.title = "Adicionar observação/motivo";
+                    noteBtn.onclick = (e) => {
+                        e.stopPropagation(); // Evita clicar no div pai se houver
+                        openNoteModal(i);
+                    };
 
                     checkpoint.appendChild(checkbox);
                     checkpoint.appendChild(label);
+                    checkpoint.appendChild(noteBtn);
                     checkpointsContainer.appendChild(checkpoint);
                 }
                 updateProgress();
@@ -1283,21 +1348,15 @@
                 }
             }
             
-            // Trocar equipe
             const teamButtons = document.querySelectorAll('.team-btn');
             teamButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     teamButtons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
-                    
-                    // ID Interno ('Equipe 1')
                     currentTeam = button.getAttribute('data-team');
-                    // Display Name (Configurado)
                     currentTeamDisplay.textContent = getTeamDisplayName(currentTeam);
-                    
                     allCheckedState = false;
                     toggleAllBtn.innerHTML = '<i class="fas fa-check-double"></i> Selecionar Todos';
-
                     loadTeamData();
                     loadHistory();
                 });
@@ -1306,18 +1365,21 @@
             function loadTeamData() {
                 const selectedDate = verificationDateInput.value;
                 const savedData = localStorage.getItem(`checkpoints_${currentTeam}_${selectedDate}`);
+                const savedNotes = localStorage.getItem(`notes_${currentTeam}_${selectedDate}`); // Load notes
                 
-                if (savedData) {
-                    currentCheckpoints = JSON.parse(savedData);
-                } else {
-                    currentCheckpoints = Array(16).fill(false);
-                }
+                if (savedData) currentCheckpoints = JSON.parse(savedData);
+                else currentCheckpoints = Array(16).fill(false);
+
+                if (savedNotes) currentNotes = JSON.parse(savedNotes);
+                else currentNotes = Array(16).fill("");
+
                 initializeCheckpoints();
             }
             
             saveBtn.addEventListener('click', () => {
                 const selectedDate = verificationDateInput.value;
                 localStorage.setItem(`checkpoints_${currentTeam}_${selectedDate}`, JSON.stringify(currentCheckpoints));
+                localStorage.setItem(`notes_${currentTeam}_${selectedDate}`, JSON.stringify(currentNotes)); // Save notes
                 showNotification(`Dados de ${formatDateDisplay(selectedDate)} salvos com sucesso!`);
                 loadHistory();
             });
@@ -1327,17 +1389,11 @@
                 dateFilter.style.display = 'none';
                 monthFilter.style.display = 'none';
                 yearFilter.style.display = 'none';
-
-                if (type === 'daily') {
-                    dateFilter.style.display = 'flex';
-                } else if (type === 'monthly' || type === 'monthly_plus_ranking') { 
-                    monthFilter.style.display = 'flex';
-                } else if (type === 'yearly_ranking') {
-                    yearFilter.style.display = 'flex';
-                }
+                if (type === 'daily') dateFilter.style.display = 'flex';
+                else if (type === 'monthly' || type === 'monthly_plus_ranking') monthFilter.style.display = 'flex';
+                else if (type === 'yearly_ranking') yearFilter.style.display = 'flex';
             });
             
-            // Gerar relatório
             generateReportBtn.addEventListener('click', generateReport);
             
             function generateReport() {
@@ -1352,52 +1408,34 @@
                 setTimeout(() => {
                     if (type === 'daily') {
                         const date = document.getElementById('report-date').value;
-                        if (!date) {
-                            showNotification('Selecione uma data', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
-                            return;
-                        }
+                        if (!date) { showNotification('Selecione uma data', true); return; }
                         generateDailyReport(team, date);
-
                     } else if (type === 'monthly') {
                         const month = document.getElementById('report-month').value;
-                        if (!month) {
-                            showNotification('Selecione um mês', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
-                            return;
-                        }
+                        if (!month) { showNotification('Selecione um mês', true); return; }
                         generateMonthlyReport(team, month);
-
                     } else if (type === 'ranking_historical') { 
                         generateRankingReport('historical');
-
                     } else if (type === 'monthly_plus_ranking') { 
                         const month = document.getElementById('report-month').value;
-                        if (!month) {
-                            showNotification('Selecione um mês', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
-                            return;
-                        }
+                        if (!month) { showNotification('Selecione um mês', true); return; }
                         generateCombinedMonthlyRankingReport(team, month);
-
                     } else if (type === 'yearly_ranking') {
                         const year = document.getElementById('report-year').value;
-                        if (!year || year.length !== 4) {
-                            showNotification('Insira um ano válido', true);
-                            reportResult.innerHTML = '<p>Selecione os filtros...</p>';
-                            return;
-                        }
+                        if (!year || year.length !== 4) { showNotification('Insira um ano válido', true); return; }
                         generateRankingReport('yearly', year);
                     }
                 }, 500);
             }
             
-            // FUNÇÃO RANKING COM DISPLAY NAMES
+            // RELATÓRIOS (Sem grandes alterações de lógica, apenas exibição)
+            // ... (Funções getRankingReportHtml, getMonthlyReportHtmlAndConfig, etc mantidas iguais)
+            // ... Apenas generateDailyReport muda para mostrar notas
+            
             function getRankingReportHtml(filterType = 'historical', filterValue = '') {
                 const internalTeams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
                 const teamStats = [];
                 const meta = getMeta();
-                
                 let title = '', description = '';
 
                 if (filterType === 'monthly') {
@@ -1414,92 +1452,55 @@
                 internalTeams.forEach(tID => {
                     let totalPercentage = 0;
                     let count = 0;
-                    
                     for (let i = 0; i < localStorage.length; i++) {
                         const key = localStorage.key(i);
-                        
                         let includeRecord = false;
                         if (key.startsWith(`checkpoints_${tID}_`)) {
                             const dateFromKey = key.split('_')[2];
-                            
-                            if (filterType === 'historical') {
-                                includeRecord = true;
-                            } else if (filterType === 'monthly') {
-                                if (dateFromKey.startsWith(filterValue)) includeRecord = true;
-                            } else if (filterType === 'yearly') {
-                                if (dateFromKey.startsWith(filterValue)) includeRecord = true;
-                            }
+                            if (filterType === 'historical') includeRecord = true;
+                            else if (filterType === 'monthly' && dateFromKey.startsWith(filterValue)) includeRecord = true;
+                            else if (filterType === 'yearly' && dateFromKey.startsWith(filterValue)) includeRecord = true;
                         }
-
                         if (includeRecord) {
                             try {
                                 const data = JSON.parse(localStorage.getItem(key));
                                 if (Array.isArray(data) && data.length === 16) {
                                     const completed = data.filter(Boolean).length;
-                                    const percentage = (completed / 16) * 100;
-                                    totalPercentage += percentage;
+                                    totalPercentage += (completed / 16) * 100;
                                     count++;
                                 }
-                            } catch (e) { console.error(e); }
+                            } catch (e) {}
                         }
                     }
-                    
                     const average = count > 0 ? (totalPercentage / count) : 0;
-                    
-                    teamStats.push({
-                        name: getTeamDisplayName(tID), // Usa o nome personalizado
-                        average: average,
-                        records: count,
-                        displayRank: 0
-                    });
+                    teamStats.push({ name: getTeamDisplayName(tID), average: average, records: count, displayRank: 0 });
                 });
                 
                 teamStats.sort((a, b) => b.average - a.average);
-                
                 let currentRank = 1;
                 teamStats.forEach((stats, i) => {
-                    if (i === 0) {
-                        stats.displayRank = 1;
-                    } else {
-                        const currentAvg = parseFloat(stats.average.toFixed(2));
-                        const prevAvg = parseFloat(teamStats[i-1].average.toFixed(2));
-                        if (currentAvg < prevAvg) currentRank++; 
+                    if (i === 0) stats.displayRank = 1;
+                    else {
+                        if (parseFloat(stats.average.toFixed(2)) < parseFloat(teamStats[i-1].average.toFixed(2))) currentRank++; 
                         stats.displayRank = currentRank;
                     }
                 });
 
                 let reportHTML = `<div style="padding-top: 20px;"><h3>${title}</h3><p>${description}</p>`;
-                
-                if (teamStats.every(s => s.records === 0)) {
-                    reportHTML += '<p style="margin-top: 20px;">Nenhum registro encontrado.</p></div>';
-                    return reportHTML;
-                }
-
+                if (teamStats.every(s => s.records === 0)) return reportHTML + '<p>Nenhum registro encontrado.</p></div>';
                 reportHTML += `<table style="min-width: 100%;"><tr><th>Posição</th><th>Equipe</th><th>Média</th><th>Registros</th><th>Status (${meta}%)</th></tr>`;
-                
                 teamStats.forEach((stats) => {
                     const statusClass = stats.average >= meta ? 'status-success' : 'status-danger';
-                    const statusText = stats.average >= meta ? 'Meta atingida' : 'Meta não atingida';
-                    let medal = '';
-                    if (stats.displayRank === 1) medal = ' 🥇';
-                    else if (stats.displayRank === 2) medal = ' 🥈';
-                    else if (stats.displayRank === 3) medal = ' 🥉';
-
-                    reportHTML += `<tr><td><strong>${stats.displayRank}º</strong></td><td>${stats.name}${medal}</td><td>${stats.average.toFixed(2)}%</td><td>${stats.records}</td><td><span class="status-indicator ${statusClass}">${statusText}</span></td></tr>`;
+                    let medal = stats.displayRank === 1 ? ' 🥇' : stats.displayRank === 2 ? ' 🥈' : stats.displayRank === 3 ? ' 🥉' : '';
+                    reportHTML += `<tr><td><strong>${stats.displayRank}º</strong></td><td>${stats.name}${medal}</td><td>${stats.average.toFixed(2)}%</td><td>${stats.records}</td><td><span class="status-indicator ${statusClass}">${stats.average >= meta ? 'Meta atingida' : 'Meta não atingida'}</span></td></tr>`;
                 });
-                
-                reportHTML += '</table></div>';
-                return reportHTML;
+                return reportHTML + '</table></div>';
             }
             
-            // FUNÇÃO RELATÓRIO MENSAL COM DISPLAY NAMES
             function getMonthlyReportHtmlAndConfig(team, month, isCombined = false) {
                 const meta = getMeta();
                 const teamsToCompare = team === 'all' ? ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'] : [team];
-                
-                const labels = [];
-                const dataPoints = [];
-                const backgroundColors = [];
+                const labels = [], dataPoints = [], backgroundColors = [];
                 const canvasId = isCombined ? 'monthlyChartCombined' : 'monthlyChart';
                 
                 teamsToCompare.forEach(currentTeamID => {
@@ -1507,65 +1508,31 @@
                     const startDate = new Date(year, parseInt(monthStr) - 1, 1);
                     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
                     const totalDaysInMonth = endDate.getDate();
-
-                    let totalPercentage = 0;
-                    let dailyCount = 0;
+                    let totalPercentage = 0, dailyCount = 0;
 
                     for (let i = 1; i <= totalDaysInMonth; i++) {
                         const tempDate = new Date(startDate.getFullYear(), startDate.getMonth(), i);
                         const dateKey = formatDate(tempDate);
                         const data = localStorage.getItem(`checkpoints_${currentTeamID}_${dateKey}`);
-
                         if (data) {
                             const points = JSON.parse(data);
-                            const completed = points.filter(Boolean).length;
-                            const percentage = (completed / 16) * 100;
-                            totalPercentage += percentage;
+                            totalPercentage += (points.filter(Boolean).length / 16) * 100;
                             dailyCount++;
                         }
                     }
-
                     const monthlyAverage = dailyCount > 0 ? (totalPercentage / dailyCount) : 0;
-                    
-                    labels.push(getTeamDisplayName(currentTeamID)); // Label personalizado
+                    labels.push(getTeamDisplayName(currentTeamID));
                     dataPoints.push(monthlyAverage);
-                    
                     backgroundColors.push(monthlyAverage >= meta ? '#28a745' : '#dc3545');
                 });
                 
-                const htmlPlaceholder = `
-                    <h3><i class="fas fa-calendar"></i> Relatório Mensal - ${formatMonthDisplay(month)}</h3>
-                    <p>Média de desempenho das equipes.</p>
-                    <div class="chart-container" style="height: 350px;">
-                        <canvas id="${canvasId}"></canvas> 
-                    </div>
-                `;
-
+                const htmlPlaceholder = `<h3><i class="fas fa-calendar"></i> Relatório Mensal - ${formatMonthDisplay(month)}</h3><div class="chart-container" style="height: 350px;"><canvas id="${canvasId}"></canvas></div>`;
                 const config = {
                     type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Desempenho Médio (%)',
-                            data: dataPoints,
-                            backgroundColor: backgroundColors,
-                            borderColor: backgroundColors,
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, max: 150, title: { display: true, text: 'Desempenho (%)' } } },
-                        plugins: {
-                            tooltip: { mode: 'index', intersect: false },
-                            metaLine: { metaValue: meta, labelText: `Meta: ${meta}%`, lineColor: '#000', textColor: '#000' },
-                            datalabels: { anchor: 'end', align: 'top', color: '#000', formatter: (value) => value.toFixed(2) + '%', font: { weight: 'bold' } }
-                        }
-                    },
+                    data: { labels: labels, datasets: [{ label: 'Desempenho Médio (%)', data: dataPoints, backgroundColor: backgroundColors, borderColor: backgroundColors, borderWidth: 1 }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 150, title: { display: true, text: 'Desempenho (%)' } } }, plugins: { tooltip: { mode: 'index', intersect: false }, metaLine: { metaValue: meta, labelText: `Meta: ${meta}%`, lineColor: '#000', textColor: '#000' }, datalabels: { anchor: 'end', align: 'top', color: '#000', formatter: (value) => value.toFixed(2) + '%', font: { weight: 'bold' } } } },
                     canvasId: canvasId
                 };
-                
                 return { html: htmlPlaceholder, config: config };
             }
             
@@ -1574,51 +1541,33 @@
                 const rankingHtml = getRankingReportHtml('monthly', month);
                 reportResult.innerHTML = monthlyData.html + rankingHtml;
                 const ctx = document.getElementById(monthlyData.config.canvasId).getContext('2d');
-                performanceChart = new Chart(ctx, {
-                    type: monthlyData.config.type,
-                    data: monthlyData.config.data,
-                    options: monthlyData.config.options,
-                    plugins: [ChartDataLabels, metaLinePlugin]
-                });
+                performanceChart = new Chart(ctx, { type: monthlyData.config.type, data: monthlyData.config.data, options: monthlyData.config.options, plugins: [ChartDataLabels, metaLinePlugin] });
             }
 
-            function generateRankingReport(filterType, filterValue = '') {
-                reportResult.innerHTML = getRankingReportHtml(filterType, filterValue);
-            }
-
+            function generateRankingReport(filterType, filterValue = '') { reportResult.innerHTML = getRankingReportHtml(filterType, filterValue); }
             function generateMonthlyReport(team, month) {
                 const monthlyData = getMonthlyReportHtmlAndConfig(team, month, false);
                 reportResult.innerHTML = monthlyData.html;
                 const ctx = document.getElementById(monthlyData.config.canvasId).getContext('2d');
-                performanceChart = new Chart(ctx, {
-                    type: monthlyData.config.type,
-                    data: monthlyData.config.data,
-                    options: monthlyData.config.options,
-                    plugins: [ChartDataLabels, metaLinePlugin]
-                });
+                performanceChart = new Chart(ctx, { type: monthlyData.config.type, data: monthlyData.config.data, options: monthlyData.config.options, plugins: [ChartDataLabels, metaLinePlugin] });
             }
             
             function generateDailyReport(team, date) {
-                const names = currentConfig.checkpointNames; // Nomes personalizados
+                const names = currentConfig.checkpointNames;
                 let reportHTML = `<h3><i class="fas fa-calendar-day"></i> Relatório Diário - ${formatDateDisplay(date)}</h3>`;
                 const meta = getMeta();
                 
                 if (team === 'all') {
                     const internalTeams = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
                     reportHTML += '<table><tr><th>Equipe</th><th>Pontos Concluídos</th><th>Percentual</th><th>Status</th></tr>';
-                    
                     internalTeams.forEach(tID => {
                         const data = localStorage.getItem(`checkpoints_${tID}_${date}`);
                         const displayName = getTeamDisplayName(tID);
-                        
                         if (data) {
                             const points = JSON.parse(data);
                             const completed = points.filter(Boolean).length;
                             const percentage = (completed / 16) * 100;
-                            const status = percentage >= meta ? 
-                                '<span class="status-indicator status-success"><i class="fas fa-check-circle"></i> Atingiu</span>' : 
-                                '<span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span>';
-                            
+                            const status = percentage >= meta ? '<span class="status-indicator status-success"><i class="fas fa-check-circle"></i> Atingiu</span>' : '<span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span>';
                             reportHTML += `<tr><td>${displayName}</td><td>${completed}/16</td><td>${percentage.toFixed(2)}%</td><td>${status}</td></tr>`;
                         } else {
                             reportHTML += `<tr><td>${displayName}</td><td>Nenhum dado</td><td>0%</td><td><span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu</span></td></tr>`;
@@ -1627,15 +1576,16 @@
                     reportHTML += '</table>';
                 } else {
                     const data = localStorage.getItem(`checkpoints_${team}_${date}`);
+                    const savedNotes = localStorage.getItem(`notes_${team}_${date}`); // Carrega notas para o relatório
+                    const reportNotes = savedNotes ? JSON.parse(savedNotes) : Array(16).fill("");
+                    
                     const displayName = getTeamDisplayName(team);
                     
                     if (data) {
                         const points = JSON.parse(data);
                         const completed = points.filter(Boolean).length;
                         const percentage = (completed / 16) * 100;
-                        const status = percentage >= meta ? 
-                            '<span class="status-indicator status-success"><i class="fas fa-check-circle"></i> Atingiu a meta</span>' : 
-                            '<span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu a meta</span>';
+                        const status = percentage >= meta ? '<span class="status-indicator status-success"><i class="fas fa-check-circle"></i> Atingiu a meta</span>' : '<span class="status-indicator status-danger"><i class="fas fa-exclamation-circle"></i> Não atingiu a meta</span>';
                         
                         reportHTML += `
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
@@ -1645,15 +1595,17 @@
                                 <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px;"><h4><i class="fas fa-bullseye"></i> Status</h4><p>${status}</p></div>
                             </div>
                             <h4><i class="fas fa-list-check"></i> Detalhamento dos Pontos:</h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 12px;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 12px;">
                         `;
                         
                         points.forEach((point, index) => {
-                            const status = point ? 
-                                '<span class="status-indicator status-success"><i class="fas fa-check"></i> Concluído</span>' : 
-                                '<span class="status-indicator status-danger"><i class="fas fa-xmark"></i> Pendente</span>';
+                            const status = point ? '<span class="status-indicator status-success"><i class="fas fa-check"></i> Concluído</span>' : '<span class="status-indicator status-danger"><i class="fas fa-xmark"></i> Pendente</span>';
+                            const noteHtml = reportNotes[index] ? `<div class="report-note"><i class="fas fa-comment-dots"></i> ${reportNotes[index]}</div>` : '';
                             
-                            reportHTML += `<div style="background: var(--bg-tertiary); padding: 8px; border-radius: 6px;"><strong>${names[index] || 'Ponto '+(index+1)}:</strong> ${status}</div>`;
+                            reportHTML += `<div style="background: var(--bg-tertiary); padding: 10px; border-radius: 6px;">
+                                <strong>${names[index] || 'Ponto '+(index+1)}:</strong><br>${status}
+                                ${noteHtml}
+                            </div>`;
                         });
                         reportHTML += '</div>';
                     } else {
@@ -1663,26 +1615,10 @@
                 reportResult.innerHTML = reportHTML;
             }
             
-            function formatDate(date) {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            }
+            function formatDate(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+            function formatDateDisplay(dateString) { const [y, m, d] = dateString.split('-'); return new Date(y, m - 1, d).toLocaleDateString('pt-BR'); }
+            function formatMonthDisplay(monthString) { const [y, m] = monthString.split('-'); return new Date(y, m - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); }
             
-            function formatDateDisplay(dateString) {
-                const [year, month, day] = dateString.split('-');
-                const date = new Date(year, month - 1, day);
-                return date.toLocaleDateString('pt-BR');
-            }
-            
-            function formatMonthDisplay(monthString) {
-                const [year, month] = monthString.split('-');
-                const date = new Date(year, month - 1);
-                return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-            }
-            
-            // Histórico
             historyToggle.addEventListener('click', () => {
                 historyContent.classList.toggle('show');
                 if (historyContent.classList.contains('show')) {
@@ -1697,101 +1633,59 @@
                 historyContent.innerHTML = '';
                 const keys = Object.keys(localStorage);
                 const historyItems = [];
-                
                 keys.forEach(key => {
                     if (key.startsWith(`checkpoints_${currentTeam}_`)) {
                         const date = key.replace(`checkpoints_${currentTeam}_`, '');
                         historyItems.push({ date: date, data: JSON.parse(localStorage.getItem(key)) });
                     }
                 });
-                
                 historyItems.sort((a, b) => new Date(b.date) - new Date(a.date));
                 
-                if (historyItems.length === 0) {
-                    historyContent.innerHTML = '<p>Nenhum registro histórico encontrado.</p>';
-                    return;
-                }
+                if (historyItems.length === 0) { historyContent.innerHTML = '<p>Nenhum registro.</p>'; return; }
                 
                 const meta = getMeta();
                 historyItems.forEach(item => {
                     const completed = item.data.filter(Boolean).length;
                     const percentage = (completed / 16) * 100;
-                    
                     const historyItem = document.createElement('div');
                     historyItem.className = 'history-item';
-                    
-                    historyItem.innerHTML = `
-                        <div class="history-date">${formatDateDisplay(item.date)}</div>
-                        <div>
-                            <span>${completed}/16 (${percentage.toFixed(2)}%)</span>
-                            <span class="badge ${percentage >= meta ? 'badge-success' : 'badge-danger'}">${percentage >= meta ? 'Atingiu' : 'Não atingiu'}</span>
-                        </div>
-                        <div class="history-actions">
-                            <button class="history-btn edit" data-date="${item.date}"><i class="fas fa-edit"></i> Editar</button>
-                            <button class="history-btn delete" data-date="${item.date}"><i class="fas fa-trash"></i> Excluir</button>
-                        </div>
-                    `;
+                    historyItem.innerHTML = `<div class="history-date">${formatDateDisplay(item.date)}</div><div><span>${completed}/16 (${percentage.toFixed(2)}%)</span> <span class="badge ${percentage >= meta ? 'badge-success' : 'badge-danger'}">${percentage >= meta ? 'Atingiu' : 'Não atingiu'}</span></div><div class="history-actions"><button class="history-btn edit" data-date="${item.date}"><i class="fas fa-edit"></i> Editar</button><button class="history-btn delete" data-date="${item.date}"><i class="fas fa-trash"></i> Excluir</button></div>`;
                     historyContent.appendChild(historyItem);
                 });
-                
-                document.querySelectorAll('.history-btn.edit').forEach(btn => {
-                    btn.addEventListener('click', () => { editHistory(btn.getAttribute('data-date')); });
-                });
-                
-                document.querySelectorAll('.history-btn.delete').forEach(btn => {
-                    btn.addEventListener('click', () => { deleteHistory(btn.getAttribute('data-date')); });
-                });
+                document.querySelectorAll('.history-btn.edit').forEach(btn => btn.addEventListener('click', () => editHistory(btn.getAttribute('data-date'))));
+                document.querySelectorAll('.history-btn.delete').forEach(btn => btn.addEventListener('click', () => deleteHistory(btn.getAttribute('data-date'))));
             }
             
-            function editHistory(date) {
-                verificationDateInput.value = date;
-                loadTeamData();
-                showNotification(`Editando dados de ${formatDateDisplay(date)}`);
+            function editHistory(date) { verificationDateInput.value = date; loadTeamData(); showNotification(`Editando ${formatDateDisplay(date)}`); }
+            function deleteHistory(date) { 
+                if (confirm('Tem certeza?')) { 
+                    localStorage.removeItem(`checkpoints_${currentTeam}_${date}`); 
+                    localStorage.removeItem(`notes_${currentTeam}_${date}`); 
+                    loadHistory(); 
+                    showNotification('Excluído!'); 
+                    if (verificationDateInput.value === date) returnToToday(); 
+                } 
             }
+            function returnToToday() { verificationDateInput.value = formatDate(new Date()); loadTeamData(); showNotification('Hoje'); }
             
-            function deleteHistory(date) {
-                if (confirm(`Tem certeza que deseja excluir os dados de ${formatDateDisplay(date)}?`)) {
-                    localStorage.removeItem(`checkpoints_${currentTeam}_${date}`);
-                    loadHistory();
-                    showNotification(`Dados excluídos!`);
-                    if (verificationDateInput.value === date) returnToToday();
-                }
-            }
-            
-            returnTodayBtn.addEventListener('click', returnToToday);
-            
-            function returnToToday() {
-                verificationDateInput.value = formatDate(new Date());
-                loadTeamData();
-                showNotification('Voltando para os dados de hoje');
-            }
-            
-            // CSV EXPORT
             exportCsvBtn.addEventListener('click', () => {
                 const keys = Object.keys(localStorage);
                 const teamKeys = keys.filter(key => key.startsWith('checkpoints_'));
-                if (teamKeys.length === 0) { showNotification('Nenhum dado disponível', true); return; }
-                
+                if (teamKeys.length === 0) { showNotification('Nenhum dado', true); return; }
                 let csvContent = 'Equipe_ID,Nome_Equipe,Data,Pontos_Concluidos\n';
                 teamKeys.forEach(key => {
                     const parts = key.split('_');
                     const team = parts[1];
                     const date = parts[2];
                     const data = JSON.parse(localStorage.getItem(key));
-                    const completed = data.filter(Boolean).length;
-                    // Adiciona o Nome Personalizado no CSV para facilitar leitura
-                    csvContent += `${team},${getTeamDisplayName(team)},${date},${completed}\n`;
+                    csvContent += `${team},${getTeamDisplayName(team)},${date},${data.filter(Boolean).length}\n`;
                 });
-                
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
-                link.href = url;
-                link.download = `controlpoint_export_${formatDate(new Date())}.csv`;
+                link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
+                link.download = `controlpoint_export.csv`;
                 link.click();
             });
             
-            // CSV IMPORT (Simples, focado no padrão interno)
             importFile.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -1799,43 +1693,20 @@
                 reader.onload = function(e) {
                     const lines = e.target.result.split('\n');
                     let count = 0;
-                    // Pula cabeçalho
                     for (let i = 1; i < lines.length; i++) {
                         const line = lines[i].trim();
                         if (!line) continue;
                         const parts = line.split(',');
-                        // Suporta formato antigo (3 colunas) e novo (4 colunas)
-                        // Novo: ID, Nome, Data, Pontos
-                        // Antigo: ID, Data, Pontos
-                        let equipe, data, pontos;
-                        
-                        if (parts.length >= 4) {
-                            equipe = parts[0];
-                            data = parts[2];
-                            pontos = parts[3];
-                        } else {
-                            equipe = parts[0];
-                            data = parts[1];
-                            pontos = parts[2];
-                        }
-
-                        if (equipe && data && pontos) {
-                            const numPontos = parseInt(pontos);
-                            if (!isNaN(numPontos)) {
-                                const checkpts = Array(16).fill(false);
-                                for(let j=0; j<numPontos; j++) checkpts[j]=true;
-                                localStorage.setItem(`checkpoints_${equipe}_${data}`, JSON.stringify(checkpts));
-                                count++;
-                            }
+                        let equipe = parts[0], data = parts.length >= 4 ? parts[2] : parts[1], pontos = parts.length >= 4 ? parts[3] : parts[2];
+                        if (equipe && data && !isNaN(parseInt(pontos))) {
+                            const checkpts = Array(16).fill(false);
+                            for(let j=0; j<parseInt(pontos); j++) checkpts[j]=true;
+                            localStorage.setItem(`checkpoints_${equipe}_${data}`, JSON.stringify(checkpts));
+                            count++;
                         }
                     }
-                    if(count > 0) {
-                        showNotification(`${count} registros importados!`);
-                        loadHistory();
-                        loadTeamData();
-                    } else {
-                        showNotification('Nenhum registro válido encontrado.', true);
-                    }
+                    showNotification(count > 0 ? `${count} importados!` : 'Erro na importação', count === 0);
+                    if(count) { loadHistory(); loadTeamData(); }
                 };
                 reader.readAsText(file);
                 event.target.value = '';
@@ -1843,9 +1714,7 @@
 
             captureReportBtn.addEventListener('click', () => {
                 const reportContent = document.getElementById('report-result');
-                if (reportContent.innerHTML.includes("Gerar Relatório")) {
-                    showNotification('Gere um relatório antes!', true); return;
-                }
+                if (reportContent.innerHTML.includes("Gerar Relatório")) { showNotification('Gere um relatório antes!', true); return; }
                 html2canvas(reportContent, { scale: 2 }).then(canvas => {
                     const link = document.createElement('a');
                     link.download = 'relatorio.png';
@@ -1854,14 +1723,12 @@
                 });
             });
             
-            printReportBtn.addEventListener('click', () => {
-                window.print();
-            });
+            printReportBtn.addEventListener('click', () => window.print());
             
             // Inicializar
             loadTeamData();
             loadHistory();
-            updateUIWithConfig(); // Aplica nomes personalizados ao iniciar
+            updateUIWithConfig();
         });
     </script>
 </body>
