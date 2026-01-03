@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ControlPoint - Gestão de Qualidade</title>
+    <title>ControlPoint - Gestão Inteligente</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -114,11 +113,9 @@
         /* IMPRESSÃO (CSS ESPECÍFICO) */
         @media print {
             body { background: white; color: black; margin: 0; padding: 0; }
-            /* Esconde tudo na página por padrão */
             .container, header, .main-column:first-child, .filters, .report-actions, .logo, .action-bar, .team-buttons, #config-btn, #theme-toggle { 
                 display: none !important; 
             }
-            /* Garante que a coluna de relatório ocupe tudo */
             .main-content { display: block !important; }
             .main-column { width: 100% !important; margin: 0 !important; }
             .card { 
@@ -131,9 +128,7 @@
                 left: 0 !important;
                 width: 100% !important;
             }
-            /* Títulos do card e controles somem, só fica o #report-area */
             .card > h3, .card > div.filters, .card > div.report-actions { display: none !important; }
-            
             #report-area { 
                 display: block !important; 
                 margin: 0 !important; 
@@ -141,11 +136,8 @@
                 width: 100% !important;
                 padding: 20px !important;
             }
-            
             .chart-container { height: 400px !important; page-break-inside: avoid; }
             table { page-break-inside: avoid; width: 100% !important; }
-            
-            /* Ajustes de cor para impressão */
             .badge-success { border: 1px solid green; color: green; background: none; }
             .badge-danger { border: 1px solid red; color: red; background: none; }
         }
@@ -458,7 +450,51 @@
             });
 
             document.getElementById('export-btn').addEventListener('click', exportCSV);
-            document.getElementById('import-file').addEventListener('change', importCSV);
+            // IMPORTAÇÃO INTELIGENTE (Detecta formato)
+            document.getElementById('import-file').addEventListener('change', (e) => {
+                const f = e.target.files[0];
+                if(!f) return;
+                const r = new FileReader();
+                r.onload = async function(evt) {
+                    const lines = evt.target.result.split('\n').filter(l => l.trim() !== '');
+                    if (lines.length < 2) return;
+                    
+                    const header = lines[0].toLowerCase();
+                    // Detecta se é o formato antigo (Equipe, Data, Pontos)
+                    // Se não, assume formato padrão (Data, Equipe, Pontos)
+                    let colDate=0, colTeam=1, colPts=2;
+                    if(header.includes('equipe') && header.indexOf('equipe') < header.indexOf('data')) {
+                        colTeam=0; colDate=1; colPts=2;
+                    }
+
+                    let count = 0;
+                    for(let i=1; i<lines.length; i++) {
+                        const l = lines[i].trim();
+                        const p = l.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                        const c = p.map(s=>s.replace(/^"|"$/g,'').replace(/,$/,''));
+                        if(c.length<3) continue;
+                        
+                        const date = c[colDate];
+                        const tName = c[colTeam];
+                        const pts = parseInt(c[colPts]);
+                        
+                        if(!date.match(/^\d{4}-\d{2}-\d{2}$/)) continue; // Valida Data
+
+                        let tid = Object.keys(state.config.teams).find(k=>state.config.teams[k]===tName) || 't1';
+                        const checks = Array(16).fill(false);
+                        for(let j=0; j<pts; j++) checks[j]=true;
+                        
+                        await Storage.set('records', `${tid}_${date}`, { checks, notes: Array(16).fill(null), teamId: tid, date });
+                        count++;
+                    }
+                    alert(`${count} registros importados!`);
+                    refreshHistory();
+                    loadData();
+                    e.target.value = '';
+                };
+                r.readAsText(f);
+            });
+
             document.getElementById('toggle-history-btn').addEventListener('click', toggleHistory);
 
             document.getElementById('theme-toggle').addEventListener('click', () => {
@@ -733,34 +769,6 @@
             a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
             a.download = 'dados.csv';
             a.click();
-        }
-
-        function importCSV(e) {
-            const f = e.target.files[0];
-            if(!f) return;
-            const r = new FileReader();
-            r.onload = async function(evt) {
-                const lines = evt.target.result.split('\n');
-                let count = 0;
-                for(let i=1; i<lines.length; i++) {
-                    const l = lines[i].trim();
-                    if(!l) continue;
-                    const p = l.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-                    const c = p.map(s=>s.replace(/^"|"$/g,'').replace(/,$/,''));
-                    if(c.length<3) continue;
-                    const date = c[0];
-                    const tName = c[1];
-                    const pts = parseInt(c[2]);
-                    let tid = Object.keys(state.config.teams).find(k=>state.config.teams[k]===tName) || 't1';
-                    const checks = Array(16).fill(false);
-                    for(let j=0; j<pts; j++) checks[j]=true;
-                    await Storage.set('records', `${tid}_${date}`, { checks, notes: Array(16).fill(null), teamId: tid, date });
-                    count++;
-                }
-                alert(`${count} importados.`);
-                refreshHistory();
-            };
-            r.readAsText(f);
         }
 
         let curNote = -1;
