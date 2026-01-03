@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ControlPoint - Relatórios Avançados</title>
+    <title>ControlPoint - Relatórios Detalhados</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -106,12 +106,18 @@
         .badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
         .badge-success { background: rgba(40, 167, 69, 0.2); color: var(--success); }
         .badge-danger { background: rgba(220, 53, 69, 0.2); color: var(--danger); }
+
+        /* Report Specifics */
+        .report-item-row { padding: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+        .report-item-row:last-child { border-bottom: none; }
+        .report-note-box { background: rgba(0,0,0,0.05); padding: 5px 10px; border-radius: 4px; margin-top: 4px; font-size: 13px; color: var(--text-secondary); border-left: 3px solid var(--accent); }
         
         @media print {
             body { background: white; color: black; }
             header, .filters, .report-actions, .logo, .action-bar, .history-container, .team-buttons { display: none !important; }
             .card { box-shadow: none; border: none; }
             .chart-container { height: 400px !important; page-break-inside: avoid; }
+            .report-item-row { page-break-inside: avoid; }
         }
         @media (max-width: 768px) { .main-content { flex-direction: column; } .checkpoints-grid { grid-template-columns: 1fr 1fr; } }
     </style>
@@ -190,7 +196,7 @@
                     
                     <div style="display:grid; gap:10px; margin-top:15px;">
                         <select id="report-type">
-                            <option value="daily">Relatório Diário</option>
+                            <option value="daily">Relatório Diário (Detalhado)</option>
                             <option value="monthly">Mensal (Gráfico + Ranking)</option>
                             <option value="yearly">Anual (Gráfico + Ranking)</option>
                             <option value="pareto">Análise de Causas (Pareto)</option>
@@ -199,8 +205,7 @@
                         <div style="display:flex; gap:10px;">
                             <select id="report-team-filter">
                                 <option value="all">Todas as Equipes</option>
-                                </select>
-
+                            </select>
                             <input type="date" id="report-date" style="display:none;">
                             <input type="month" id="report-month" style="display:none;">
                             <input type="number" id="report-year" placeholder="Ano" min="2020" max="2030" style="display:none;">
@@ -325,24 +330,20 @@
 
         let chartInstance = null;
 
-        // --- PLUGIN PARA DESENHAR LINHA DA META ---
         const metaLinePlugin = {
             id: 'metaLine',
             afterDatasetsDraw(chart, args, options) {
                 const { ctx, chartArea: { left, right }, scales: { y } } = chart;
                 const metaValue = options.metaValue;
                 const yPixel = y.getPixelForValue(metaValue);
-                
                 ctx.save();
                 ctx.beginPath();
                 ctx.lineWidth = 2;
-                ctx.strokeStyle = '#000000'; // Cor da linha (preta)
-                ctx.setLineDash([5, 5]); // Pontilhada
+                ctx.strokeStyle = '#000000';
+                ctx.setLineDash([5, 5]);
                 ctx.moveTo(left, yPixel);
                 ctx.lineTo(right, yPixel);
                 ctx.stroke();
-                
-                // Texto da Meta
                 ctx.fillStyle = '#000000';
                 ctx.textAlign = 'right';
                 ctx.fillText(`Meta: ${metaValue}%`, right, yPixel - 5);
@@ -360,7 +361,6 @@
             const today = new Date();
             document.getElementById('date-input').value = today.toISOString().split('T')[0];
             
-            // Inicializar inputs de relatório
             document.getElementById('report-date').value = today.toISOString().split('T')[0];
             document.getElementById('report-month').value = today.toISOString().substring(0, 7);
             document.getElementById('report-year').value = today.getFullYear();
@@ -373,21 +373,16 @@
         function setupUI() {
             renderTeams();
             
-            // Controle de visualização de inputs de data baseado no tipo de relatório
             const reportType = document.getElementById('report-type');
             const toggleInputs = () => {
                 const val = reportType.value;
                 document.getElementById('report-date').style.display = val === 'daily' ? 'block' : 'none';
                 document.getElementById('report-month').style.display = (val === 'monthly' || val === 'pareto') ? 'block' : 'none';
                 document.getElementById('report-year').style.display = val === 'yearly' ? 'block' : 'none';
-                
-                // Filtro de equipe só faz sentido se não for comparativo (Daily e Pareto precisam, Monthly/Yearly comparam todas)
-                // Mas o usuário pode querer ver só uma no mensal. Vamos deixar.
             };
             reportType.addEventListener('change', toggleInputs);
-            toggleInputs(); // Init
+            toggleInputs();
 
-            // Inputs principais
             document.getElementById('date-input').addEventListener('change', loadData);
             document.getElementById('today-btn').addEventListener('click', () => {
                 document.getElementById('date-input').value = new Date().toISOString().split('T')[0];
@@ -505,7 +500,6 @@
             const allRecords = await Storage.listAll('records');
             if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
-            // Lógica Unificada para Mensal e Anual
             if (type === 'monthly' || type === 'yearly') {
                 const monthInput = document.getElementById('report-month').value;
                 const yearInput = document.getElementById('report-year').value;
@@ -514,22 +508,17 @@
 
                 if (!periodFilter) { area.innerHTML = '<p>Selecione o período correto.</p>'; return; }
 
-                // Agrupar dados
                 const stats = {};
-                // Inicializa todas as equipes
                 Object.keys(state.config.teams).forEach(tid => stats[tid] = { sum: 0, count: 0 });
 
                 allRecords.forEach(r => {
-                    // Filtro de data: Mensal (YYYY-MM) ou Anual (YYYY)
                     if (!r.date.startsWith(periodFilter)) return;
-                    
-                    if (!stats[r.teamId]) stats[r.teamId] = { sum: 0, count: 0 }; // Segurança
+                    if (!stats[r.teamId]) stats[r.teamId] = { sum: 0, count: 0 };
                     const pct = (r.checks.filter(Boolean).length / 16) * 100;
                     stats[r.teamId].sum += pct;
                     stats[r.teamId].count++;
                 });
 
-                // Preparar dados para o Gráfico e Tabela
                 const labels = [];
                 const values = [];
                 const colors = [];
@@ -538,82 +527,41 @@
                 Object.keys(stats).forEach(tid => {
                     const avg = stats[tid].count > 0 ? (stats[tid].sum / stats[tid].count) : 0;
                     const name = state.config.teams[tid];
-                    
-                    // Dados Gráfico
                     labels.push(name);
                     values.push(avg);
-                    // Regra de Cor: Verde se >= Meta, Vermelho se < Meta
                     colors.push(avg >= meta ? '#28a745' : '#dc3545');
-
-                    // Dados Tabela
                     tableData.push({ name, avg, count: stats[tid].count });
                 });
 
-                // Ordenar Tabela por Ranking
                 tableData.sort((a,b) => b.avg - a.avg);
-                // Ranking Denso
                 let rank = 1;
                 tableData.forEach((item, i) => {
                     if (i > 0 && item.avg < tableData[i-1].avg) rank++;
                     item.rank = rank;
                 });
 
-                // Renderizar HTML Combinado
                 let html = `<h3>Relatório ${periodLabel}</h3>`;
-                
-                // 1. Gráfico
                 html += `<div class="chart-container"><canvas id="mainChart"></canvas></div>`;
-                
-                // 2. Tabela
-                html += `<h4>Ranking Detalhado</h4>
-                         <table>
-                            <tr><th>Pos</th><th>Equipe</th><th>Média</th><th>Registros</th><th>Status</th></tr>`;
+                html += `<h4>Ranking Detalhado</h4><table><tr><th>Pos</th><th>Equipe</th><th>Média</th><th>Registros</th><th>Status</th></tr>`;
                 
                 tableData.forEach(item => {
                     const medal = item.rank===1 ? '🥇' : item.rank===2 ? '🥈' : item.rank===3 ? '🥉' : '';
                     const statusClass = item.avg >= meta ? 'badge-success' : 'badge-danger';
                     const statusText = item.avg >= meta ? 'Meta Batida' : 'Abaixo da Meta';
-                    
-                    html += `<tr>
-                        <td>${item.rank}º</td>
-                        <td>${item.name} ${medal}</td>
-                        <td>${item.avg.toFixed(1)}%</td>
-                        <td>${item.count}</td>
-                        <td><span class="badge ${statusClass}">${statusText}</span></td>
-                    </tr>`;
+                    html += `<tr><td>${item.rank}º</td><td>${item.name} ${medal}</td><td>${item.avg.toFixed(1)}%</td><td>${item.count}</td><td><span class="badge ${statusClass}">${statusText}</span></td></tr>`;
                 });
                 html += `</table>`;
-
                 area.innerHTML = html;
 
-                // Renderizar Gráfico
                 const ctx = document.getElementById('mainChart').getContext('2d');
                 chartInstance = new Chart(ctx, {
                     type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Média (%)',
-                            data: values,
-                            backgroundColor: colors,
-                            borderWidth: 1
-                        }]
-                    },
+                    data: { labels: labels, datasets: [{ label: 'Média (%)', data: values, backgroundColor: colors, borderWidth: 1 }] },
                     options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, max: 100 } },
-                        plugins: {
-                            legend: { display: false },
-                            datalabels: {
-                                anchor: 'end', align: 'top',
-                                formatter: (val) => val.toFixed(1) + '%',
-                                font: { weight: 'bold' }
-                            },
-                            metaLine: { metaValue: meta } // Passar a meta para o plugin customizado
-                        }
+                        responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } },
+                        plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', formatter: (val) => val.toFixed(1) + '%', font: { weight: 'bold' } }, metaLine: { metaValue: meta } }
                     },
-                    plugins: [metaLinePlugin] // Ativar o plugin
+                    plugins: [metaLinePlugin]
                 });
 
             } else if (type === 'daily') {
@@ -623,7 +571,6 @@
                 let html = `<h4>Relatório Diário - ${dateFilter.split('-').reverse().join('/')}</h4>`;
                 let found = false;
 
-                // Ordenar por equipe
                 const sortedRecords = allRecords.filter(r => r.date === dateFilter).sort((a,b) => a.teamId.localeCompare(b.teamId));
 
                 sortedRecords.forEach(r => {
@@ -639,16 +586,25 @@
                             <h4 style="margin:0;">${state.config.teams[r.teamId]}</h4>
                             <span class="badge ${statusClass}">${pct.toFixed(1)}%</span>
                         </div>
-                        <ul style="font-size:13px; padding-left:20px; color:var(--text-secondary);">`;
+                        <ul style="list-style:none; padding:0; margin:0;">`;
                     
-                    // Listar pontos com falha ou notas
-                    r.notes.forEach((n, i) => {
+                    state.config.points.forEach((pointName, i) => {
                         const isChecked = r.checks[i];
-                        if (!isChecked || (n && (n.reason || n.text))) {
-                            const icon = isChecked ? '<i class="fas fa-check" style="color:var(--success)"></i>' : '<i class="fas fa-times" style="color:var(--danger)"></i>';
-                            const noteTxt = n ? ` <span style="color:var(--text-primary);">[${n.reason || ''}] ${n.text || ''}</span>` : '';
-                            html += `<li style="margin-bottom:4px;">${icon} <b>${state.config.points[i]}</b>${noteTxt}</li>`;
+                        const note = r.notes[i];
+                        const icon = isChecked ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>' : '<i class="fas fa-times-circle" style="color:var(--danger)"></i>';
+                        const textStyle = isChecked ? 'color:var(--text-primary)' : 'color:var(--danger); font-weight:600;';
+                        
+                        let noteHtml = '';
+                        if (note && (note.reason || note.text)) {
+                            noteHtml = `<div class="report-note-box"><strong>${note.reason || 'Obs'}:</strong> ${note.text || ''}</div>`;
+                        } else if (!isChecked) {
+                            noteHtml = `<div class="report-note-box" style="border-left-color:var(--danger); font-style:italic;">Sem justificativa</div>`;
                         }
+
+                        html += `<li style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dashed var(--border);">
+                            <div style="display:flex; align-items:center; gap:8px;">${icon} <span style="${textStyle}">${pointName}</span></div>
+                            ${noteHtml}
+                        </li>`;
                     });
                     
                     html += `</ul></div>`;
@@ -658,7 +614,6 @@
                 area.innerHTML = html;
 
             } else if (type === 'pareto') {
-                // Pareto simples
                 const month = document.getElementById('report-month').value;
                 if (!month) { area.innerHTML = '<p>Selecione um mês.</p>'; return; }
                 const causes = {};
@@ -685,7 +640,6 @@
             }
         }
 
-        // --- HISTÓRICO & CSV ---
         function toggleHistory() {
             const list = document.getElementById('history-list');
             const btn = document.getElementById('toggle-history-btn');
@@ -751,13 +705,11 @@
             r.readAsText(f);
         }
 
-        // NOTES
         let curNote = -1;
         window.openNote = (i) => { curNote=i; const n = state.notes[i] || {reason:'', text:''}; document.getElementById('note-title').textContent = state.config.points[i]; document.getElementById('note-reason').value = n.reason; document.getElementById('note-text').value = n.text; document.getElementById('note-modal').classList.add('open'); };
         document.getElementById('save-note').onclick = () => { const r=document.getElementById('note-reason').value; const t=document.getElementById('note-text').value; state.notes[curNote] = (r||t) ? {reason:r, text:t} : null; document.getElementById('note-modal').classList.remove('open'); renderChecklist(); };
         document.getElementById('clear-note').onclick = () => { state.notes[curNote] = null; document.getElementById('note-modal').classList.remove('open'); renderChecklist(); };
 
-        // CONFIG
         function openConfig() {
             const td=document.getElementById('cfg-teams'); const pd=document.getElementById('cfg-points'); td.innerHTML=''; pd.innerHTML='';
             Object.keys(state.config.teams).forEach(k=>td.innerHTML+=`<input data-k="${k}" class="cfg-t" value="${state.config.teams[k]}">`);
