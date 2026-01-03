@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ControlPoint - Gestão Online</title>
+    <title>ControlPoint - Cloud & Histórico</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -15,7 +15,6 @@
 
     <style>
         :root {
-            /* TEMA CLARO */
             --bg-primary: #f0f2f5;
             --bg-secondary: #ffffff;
             --bg-tertiary: #f9f9f9;
@@ -30,7 +29,6 @@
             --modal-overlay: rgba(0, 0, 0, 0.5);
         }
 
-        /* TEMA ESCURO */
         [data-theme="dark"] {
             --bg-primary: #121212;
             --bg-secondary: #1e1e1e;
@@ -50,36 +48,33 @@
         body { background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; padding: 10px; transition: 0.3s; }
         .container { max-width: 1300px; margin: 0 auto; }
         
-        /* Layout */
+        /* Header & Layout */
         header { background: var(--bg-card); padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 4px 12px var(--shadow); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); }
         .logo { display: flex; gap: 10px; align-items: center; }
         .logo i { font-size: 2rem; color: var(--accent); }
         .main-content { display: flex; gap: 15px; flex-wrap: wrap; }
         .main-column { flex: 1; min-width: 300px; }
-        .card { background: var(--bg-card); border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 12px var(--shadow); border: 1px solid var(--border); }
+        .card { background: var(--bg-card); border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 12px var(--shadow); border: 1px solid var(--border); position: relative; }
         
-        /* Inputs & Buttons */
-        button { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+        /* Controls */
+        button { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
         button:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-danger { background: var(--danger); color: white; }
         .icon-btn { background: transparent; color: var(--text-secondary); font-size: 1.2rem; padding: 8px; }
         input, select, textarea { padding: 10px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; width: 100%; }
-        
-        /* Fixes for Dark Mode Inputs */
         [data-theme="dark"] input[type="date"], [data-theme="dark"] input[type="month"] { color-scheme: dark; }
 
-        /* Checklist Styles */
+        /* Checklist */
         .checkpoints-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0; }
         .checkpoint { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border); }
         .checkpoint label { flex: 1; cursor: pointer; font-size: 14px; }
         .checkpoint input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
-        
-        /* Note Button */
         .note-btn { background: transparent; color: var(--text-secondary); padding: 5px; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.6; }
         .note-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; color: var(--text-primary); }
         .note-btn.has-note { color: var(--accent); background: rgba(0, 123, 255, 0.1); opacity: 1; }
 
-        /* Progress Bar */
+        /* Progress */
         .progress-bar { height: 25px; background: var(--border); border-radius: 12px; position: relative; overflow: hidden; margin-top: 5px; }
         .progress-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.5s; }
         .progress-fill.danger { background: var(--danger); }
@@ -90,6 +85,14 @@
         .team-btn { padding: 15px; text-align: center; background: var(--bg-tertiary); border: 2px solid transparent; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }
         .team-btn.active { border-color: var(--accent); background: rgba(0, 123, 255, 0.05); }
 
+        /* History List */
+        .history-container { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 15px; }
+        .history-list { max-height: 250px; overflow-y: auto; display: none; margin-top: 10px; }
+        .history-list.show { display: block; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); font-size: 14px; background: var(--bg-tertiary); margin-bottom: 5px; border-radius: 4px; }
+        .history-actions { display: flex; gap: 5px; }
+        .history-btn { padding: 5px 8px; font-size: 12px; }
+
         /* Modals */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-overlay); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: 0.3s; }
         .modal-overlay.open { opacity: 1; pointer-events: all; }
@@ -97,7 +100,7 @@
         .modal-header, .modal-footer { padding: 15px; background: var(--bg-tertiary); display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 20px; overflow-y: auto; }
 
-        /* Chart & Print */
+        /* Misc */
         .chart-container { height: 300px; position: relative; margin: 20px 0; }
         .badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
         .badge-success { background: rgba(40, 167, 69, 0.2); color: var(--success); }
@@ -105,7 +108,7 @@
         
         @media print {
             body { background: white; color: black; }
-            header, .filters, .report-actions, .logo, .action-bar { display: none !important; }
+            header, .filters, .report-actions, .logo, .action-bar, .history-container, .team-buttons { display: none !important; }
             .card { box-shadow: none; border: none; }
             .chart-container { height: 400px !important; page-break-inside: avoid; }
         }
@@ -131,14 +134,14 @@
         <div class="main-content">
             <div class="main-column">
                 <div class="card">
-                    <h3><i class="fas fa-users"></i> Seleção de Equipe</h3>
+                    <h3><i class="fas fa-users"></i> Equipe</h3>
                     <div class="team-buttons" id="team-buttons-container"></div>
                 </div>
                 
                 <div class="card">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
                         <h3>Checklist: <span id="team-display">...</span></h3>
-                        <div class="badge badge-success" id="connection-status" style="display:none; background: var(--success); color: white;">Online (Nuvem)</div>
+                        <div class="badge badge-success" id="connection-status" style="display:none; background: var(--success); color: white;">Online</div>
                     </div>
                     
                     <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
@@ -169,6 +172,16 @@
                     <button id="save-btn" style="width:100%; margin-top:15px; justify-content:center;">
                         <i class="fas fa-save"></i> SALVAR DADOS
                     </button>
+
+                    <div class="history-container">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h4><i class="fas fa-history"></i> Histórico da Equipe</h4>
+                            <button class="icon-btn" id="toggle-history-btn" style="font-size: 1rem;"><i class="fas fa-chevron-down"></i></button>
+                        </div>
+                        <div class="history-list" id="history-list">
+                            <p style="text-align:center; padding:10px; color:#888;">Carregando histórico...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -197,6 +210,11 @@
                     <div class="report-actions" style="margin-top:10px; display:flex; gap:5px; flex-wrap:wrap;">
                         <button class="btn-secondary" id="print-btn" style="font-size:12px;"><i class="fas fa-print"></i></button>
                         <button class="btn-secondary" id="export-btn" style="font-size:12px;"><i class="fas fa-file-csv"></i> CSV</button>
+                        
+                        <label for="import-file" class="button btn-secondary" style="font-size:12px; cursor: pointer; display: flex; align-items: center; gap:8px; margin:0;">
+                            <i class="fas fa-file-import"></i> Importar CSV
+                        </label>
+                        <input type="file" id="import-file" accept=".csv" style="display: none;">
                     </div>
 
                     <div id="report-area" style="margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
@@ -209,58 +227,32 @@
 
     <div class="modal-overlay" id="note-modal">
         <div class="modal">
-            <div class="modal-header">
-                <h3>Detalhes da Falha</h3>
-                <button class="icon-btn close-modal"><i class="fas fa-times"></i></button>
-            </div>
+            <div class="modal-header"><h3>Detalhes</h3><button class="icon-btn close-modal"><i class="fas fa-times"></i></button></div>
             <div class="modal-body">
                 <h4 id="note-title" style="color:var(--accent); margin-bottom:10px;"></h4>
-                <label>Motivo Principal (Estatística):</label>
-                <select id="note-reason" style="margin-bottom:15px;">
-                    <option value="">-- Selecione --</option>
-                    <option value="Manutenção">Manutenção / Quebra</option>
-                    <option value="Operacional">Falha Operacional</option>
-                    <option value="Material">Falta de Material</option>
-                    <option value="Pessoal">Falta de Pessoal</option>
-                    <option value="Qualidade">Problema de Qualidade</option>
-                    <option value="Limpeza">Falta de Limpeza</option>
-                    <option value="Outros">Outros</option>
-                </select>
-                <label>Observação:</label>
-                <textarea id="note-text" rows="3"></textarea>
+                <label>Motivo:</label>
+                <select id="note-reason" style="margin-bottom:15px;"><option value="">-- Selecione --</option><option value="Manutenção">Manutenção / Quebra</option><option value="Operacional">Falha Operacional</option><option value="Material">Falta de Material</option><option value="Pessoal">Falta de Pessoal</option><option value="Qualidade">Problema de Qualidade</option><option value="Limpeza">Falta de Limpeza</option><option value="Outros">Outros</option></select>
+                <label>Observação:</label><textarea id="note-text" rows="3"></textarea>
             </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" id="clear-note"><i class="fas fa-trash"></i> Apagar</button>
-                <button id="save-note"><i class="fas fa-check"></i> Salvar</button>
-            </div>
+            <div class="modal-footer"><button class="btn-secondary" id="clear-note">Apagar</button><button id="save-note">Salvar</button></div>
         </div>
     </div>
 
     <div class="modal-overlay" id="config-modal">
         <div class="modal" style="max-width:800px;">
-            <div class="modal-header">
-                <h3>Configurações</h3>
-                <button class="icon-btn close-modal"><i class="fas fa-times"></i></button>
-            </div>
+            <div class="modal-header"><h3>Configurações</h3><button class="icon-btn close-modal"><i class="fas fa-times"></i></button></div>
             <div class="modal-body">
-                <h4>Equipes</h4>
-                <div id="cfg-teams" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px;"></div>
-                <h4>Pontos de Verificação</h4>
-                <div id="cfg-points" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
+                <h4>Equipes</h4><div id="cfg-teams" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px;"></div>
+                <h4>Pontos</h4><div id="cfg-points" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
             </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" id="reset-cfg">Restaurar Padrão</button>
-                <button id="save-cfg">Salvar Alterações</button>
-            </div>
+            <div class="modal-footer"><button class="btn-secondary" id="reset-cfg">Restaurar</button><button id="save-cfg">Salvar</button></div>
         </div>
     </div>
 
-    <div id="toast" style="position:fixed; top:20px; right:20px; background:var(--success); color:white; padding:15px; border-radius:6px; transform:translateX(150%); transition:0.3s; z-index:3000;">
-        Salvo com sucesso!
-    </div>
+    <div id="toast" style="position:fixed; top:20px; right:20px; background:var(--success); color:white; padding:15px; border-radius:6px; transform:translateX(150%); transition:0.3s; z-index:3000;">Salvo com sucesso!</div>
 
     <script>
-        // SUAS CHAVES DO FIREBASE (Já configuradas)
+        // CONFIGURAÇÃO DO FIREBASE (SUAS CHAVES)
         const firebaseConfig = {
             apiKey: "AIzaSyAzkGqL3ezapXtGvSXcwBFiXnrEuAvrnpQ",
             authDomain: "controlpoint-1728a.firebaseapp.com",
@@ -274,33 +266,24 @@
         let db = null;
         let isCloud = false;
 
-        // INICIALIZAÇÃO FIREBASE
         try {
             if (typeof firebaseConfig !== 'undefined') {
                 firebase.initializeApp(firebaseConfig);
                 db = firebase.firestore();
                 isCloud = true;
                 console.log("ControlPoint: Conectado à Nuvem ☁️");
-                // Atualiza visual
-                setTimeout(() => {
-                    const status = document.getElementById('connection-status');
-                    status.style.display = 'block';
-                    status.textContent = "Online (Nuvem)";
-                    status.className = "badge badge-success";
-                }, 1000);
+                setTimeout(() => { document.getElementById('connection-status').style.display = 'block'; }, 1000);
             }
-        } catch (e) {
-            console.error("Erro Firebase:", e);
-        }
+        } catch (e) { console.error("Erro Firebase:", e); }
 
-        // SISTEMA DE ARMAZENAMENTO (Híbrido)
+        // ADAPTADOR DE ARMAZENAMENTO ATUALIZADO (SUPORTE A DELETE E IMPORTAÇÃO)
         const Storage = {
             async get(collection, docId) {
                 if (isCloud && db) {
                     try {
                         const doc = await db.collection(collection).doc(docId).get();
                         return doc.exists ? doc.data().value : null;
-                    } catch(e) { console.error(e); return localStorage.getItem(`${collection}_${docId}`); }
+                    } catch(e) { return localStorage.getItem(`${collection}_${docId}`) ? JSON.parse(localStorage.getItem(`${collection}_${docId}`)) : null; }
                 } else {
                     const val = localStorage.getItem(`${collection}_${docId}`);
                     return val ? JSON.parse(val) : null;
@@ -308,26 +291,29 @@
             },
             async set(collection, docId, data) {
                 if (isCloud && db) {
-                    try {
-                        await db.collection(collection).doc(docId).set({ value: data, updatedAt: new Date() });
-                    } catch(e) { 
-                        console.error("Erro ao salvar nuvem:", e);
-                        alert("Erro de permissão: Verifique se o Banco de Dados Firestore está criado e no modo de TESTE no console do Firebase.");
-                    }
+                    try { await db.collection(collection).doc(docId).set({ value: data, updatedAt: new Date(), teamId: data.teamId, date: data.date }); } catch(e) { console.error(e); }
                 }
                 localStorage.setItem(`${collection}_${docId}`, JSON.stringify(data));
             },
-            async listAll(collection, filterPrefix) {
-                // Para relatórios, tentamos listar da nuvem ou fallback local
+            async remove(collection, docId) {
+                if (isCloud && db) {
+                    try { await db.collection(collection).doc(docId).delete(); } catch(e) { console.error(e); }
+                }
+                localStorage.removeItem(`${collection}_${docId}`);
+            },
+            async listAll(collection) {
                 if (isCloud && db && collection === 'records') {
+                    // Tenta buscar da nuvem para o histórico
                     try {
                         const snapshot = await db.collection(collection).get();
-                        const cloudKeys = snapshot.docs.map(doc => `${collection}_${doc.id}`);
-                        const localKeys = Object.keys(localStorage).filter(k => k.startsWith(collection));
-                        return [...new Set([...cloudKeys, ...localKeys])];
-                    } catch(e) { console.error(e); }
+                        const cloudDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data().value }));
+                        return cloudDocs;
+                    } catch(e) { 
+                        // Fallback local
+                        return Object.keys(localStorage).filter(k => k.startsWith(collection)).map(k => JSON.parse(localStorage.getItem(k)));
+                    }
                 }
-                return Object.keys(localStorage).filter(k => k.startsWith(collection));
+                return Object.keys(localStorage).filter(k => k.startsWith(collection)).map(k => JSON.parse(localStorage.getItem(k)));
             }
         };
 
@@ -352,7 +338,6 @@
         let chartInstance = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Carregar Configurações (Preferência Nuvem)
             const savedCfg = await Storage.get('settings', 'config');
             if (savedCfg) state.config = savedCfg;
             
@@ -365,6 +350,7 @@
             
             setupUI();
             await loadData();
+            refreshHistory();
         });
 
         function setupUI() {
@@ -395,6 +381,9 @@
             document.getElementById('generate-btn').addEventListener('click', generateReport);
             document.getElementById('print-btn').addEventListener('click', () => window.print());
             document.getElementById('export-btn').addEventListener('click', exportCSV);
+            
+            // IMPORTAR
+            document.getElementById('import-file').addEventListener('change', importCSV);
 
             document.getElementById('theme-toggle').addEventListener('click', () => {
                 const isDark = document.body.getAttribute('data-theme') === 'dark';
@@ -404,20 +393,27 @@
 
             document.getElementById('config-btn').addEventListener('click', openConfig);
             document.getElementById('save-cfg').addEventListener('click', saveConfig);
-            document.getElementById('reset-cfg').addEventListener('click', () => {
-                state.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-                openConfig(); 
-            });
+            document.getElementById('reset-cfg').addEventListener('click', () => { state.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); openConfig(); });
+            document.querySelectorAll('.close-modal').forEach(b => b.onclick = (e) => e.target.closest('.modal-overlay').classList.remove('open'));
 
-            document.querySelectorAll('.close-modal').forEach(b => b.onclick = (e) => {
-                e.target.closest('.modal-overlay').classList.remove('open');
+            // HISTÓRICO TOGGLE
+            document.getElementById('toggle-history-btn').addEventListener('click', () => {
+                const list = document.getElementById('history-list');
+                const btn = document.getElementById('toggle-history-btn');
+                if (list.classList.contains('show')) {
+                    list.classList.remove('show');
+                    btn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+                } else {
+                    list.classList.add('show');
+                    btn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+                    refreshHistory();
+                }
             });
         }
 
         function renderTeams() {
             const container = document.getElementById('team-buttons-container');
             const select = document.getElementById('report-team-filter');
-            
             container.innerHTML = '';
             select.innerHTML = '<option value="all">Todas as Equipes</option>';
 
@@ -426,7 +422,7 @@
                 const btn = document.createElement('div');
                 btn.className = `team-btn ${key === state.currentTeam ? 'active' : ''}`;
                 btn.innerHTML = `<i class="fas fa-user-group"></i><span>${name}</span>`;
-                btn.onclick = () => { state.currentTeam = key; renderTeams(); loadData(); };
+                btn.onclick = () => { state.currentTeam = key; renderTeams(); loadData(); refreshHistory(); };
                 container.appendChild(btn);
 
                 const opt = document.createElement('option');
@@ -457,21 +453,126 @@
         async function saveData() {
             const date = document.getElementById('date-input').value;
             const docId = `${state.currentTeam}_${date}`;
-            const payload = {
-                checks: state.checks,
-                notes: state.notes,
-                teamId: state.currentTeam,
-                date: date
-            };
-
+            const payload = { checks: state.checks, notes: state.notes, teamId: state.currentTeam, date: date };
             const btn = document.getElementById('save-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando na Nuvem...';
             
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
             await Storage.set('records', docId, payload);
+            btn.innerHTML = '<i class="fas fa-save"></i> SALVAR DADOS';
             
-            btn.innerHTML = originalText;
             showToast();
+            refreshHistory();
+        }
+
+        // --- LÓGICA DE HISTÓRICO (RECUPERADA) ---
+        async function refreshHistory() {
+            const list = document.getElementById('history-list');
+            if (!list.classList.contains('show')) return;
+            
+            list.innerHTML = '<p style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Atualizando...</p>';
+            
+            // Busca todos e filtra localmente (mais simples para "Test Mode")
+            const allRecords = await Storage.listAll('records');
+            const teamRecords = allRecords.filter(r => r.teamId === state.currentTeam);
+            
+            // Ordernar por data (Decrescente)
+            teamRecords.sort((a,b) => b.date.localeCompare(a.date));
+
+            list.innerHTML = '';
+            if (teamRecords.length === 0) {
+                list.innerHTML = '<p style="text-align:center; color:#888;">Nenhum registro encontrado.</p>';
+                return;
+            }
+
+            teamRecords.forEach(r => {
+                const pct = ((r.checks.filter(Boolean).length / 16) * 100).toFixed(1);
+                const isMeta = pct >= state.meta;
+                const dateDisplay = r.date.split('-').reverse().join('/');
+
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <div>
+                        <strong>${dateDisplay}</strong>
+                        <span class="badge ${isMeta ? 'badge-success' : 'badge-danger'}" style="margin-left:5px;">${pct}%</span>
+                    </div>
+                    <div class="history-actions">
+                        <button class="btn-secondary history-btn" title="Editar" onclick="editDate('${r.date}')"><i class="fas fa-pen"></i></button>
+                        <button class="btn-danger history-btn" title="Excluir" onclick="deleteDate('${r.date}')"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        window.editDate = (date) => {
+            document.getElementById('date-input').value = date;
+            loadData();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Se estiver no mobile, fecha o histórico para ver o editor
+            if (window.innerWidth < 768) document.getElementById('history-list').classList.remove('show');
+        };
+
+        window.deleteDate = async (date) => {
+            if (confirm(`Deseja apagar permanentemente o registro de ${date}?`)) {
+                await Storage.remove('records', `${state.currentTeam}_${date}`);
+                refreshHistory();
+                if (document.getElementById('date-input').value === date) loadData(); // Limpa a tela se estiver vendo o excluído
+                showToast("Registro excluído.");
+            }
+        };
+
+        // --- LÓGICA DE IMPORTAÇÃO (RECUPERADA) ---
+        function importCSV(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const text = event.target.result;
+                const lines = text.split('\n');
+                let count = 0;
+
+                // Esperado: Data,Equipe,Pontos_OK,Notas
+                // Ignorar cabeçalho
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    
+                    // Regex para lidar com as aspas das Notas
+                    const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                    const cleanParts = parts.map(p => p.replace(/^"|"$/g, '').replace(/,$/, '')); // Remove aspas e virgulas extras
+                    
+                    if (cleanParts.length < 3) continue;
+
+                    const date = cleanParts[0]; // YYYY-MM-DD
+                    const teamName = cleanParts[1];
+                    const pointsOk = parseInt(cleanParts[2]);
+                    
+                    // Encontrar ID da equipe pelo nome
+                    let teamId = Object.keys(state.config.teams).find(k => state.config.teams[k] === teamName);
+                    if (!teamId) teamId = 't1'; // Fallback
+
+                    // Recriar objeto
+                    const checks = Array(16).fill(false);
+                    for (let j = 0; j < pointsOk; j++) checks[j] = true;
+
+                    // Tentar parsear notas se existirem
+                    // (Importação básica: recupera a contagem. Notas complexas são difíceis de parsear de volta do CSV simples, então deixamos array vazio ou null)
+                    const notes = Array(16).fill(null);
+
+                    await Storage.set('records', `${teamId}_${date}`, {
+                        checks, notes, teamId, date
+                    });
+                    count++;
+                }
+
+                alert(`${count} registros importados com sucesso!`);
+                refreshHistory();
+                loadData();
+                e.target.value = ''; // Reset input
+            };
+            reader.readAsText(file);
         }
 
         function renderChecklist() {
@@ -578,25 +679,15 @@
 
             if (!month) { alert('Selecione um mês'); return; }
 
-            area.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Buscando dados na nuvem...</p></div>';
+            area.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Buscando dados...</p></div>';
 
             const rawData = [];
+            const allRecords = await Storage.listAll('records');
             
-            // Buscar chaves (híbrido nuvem/local)
-            const keys = await Storage.listAll('records');
-            
-            for (const key of keys) {
-                const parts = key.split('_');
-                if (parts.length < 3) continue;
-                const t = parts[1];
-                const d = parts[2];
-                
-                if (!d.startsWith(month)) continue;
-                if (teamFilter !== 'all' && t !== teamFilter) continue;
-
-                // Busca o documento completo
-                const record = await Storage.get('records', `${t}_${d}`);
-                if(record) rawData.push(record);
+            for (const r of allRecords) {
+                if (!r.date.startsWith(month)) continue;
+                if (teamFilter !== 'all' && r.teamId !== teamFilter) continue;
+                rawData.push(r);
             }
 
             if (rawData.length === 0) {
@@ -678,29 +769,27 @@
                     name: state.config.teams[k],
                     avg: stats[k].sum / stats[k].count
                 })).sort((a,b) => b.avg - a.avg);
+                let rank = 1;
+                list.forEach((item, i) => {
+                    if (i > 0 && item.avg < list[i-1].avg) rank++;
+                    item.rank = rank;
+                });
                 let html = `<h4>Ranking do Mês</h4><table style="width:100%; text-align:left; margin-top:10px;"><tr><th>Pos</th><th>Equipe</th><th>Média</th></tr>`;
                 list.forEach((item, i) => {
-                    let medal = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : '';
-                    html += `<tr><td>${i+1}º</td><td>${item.name} ${medal}</td><td>${item.avg.toFixed(1)}%</td></tr>`;
+                    let medal = item.rank===1 ? '🥇' : item.rank===2 ? '🥈' : item.rank===3 ? '🥉' : '';
+                    html += `<tr><td>${item.rank}º</td><td>${item.name} ${medal}</td><td>${item.avg.toFixed(1)}%</td></tr>`;
                 });
                 area.innerHTML = html + '</table>';
             }
         }
 
         async function exportCSV() {
-            const keys = await Storage.listAll('records');
+            const allRecords = await Storage.listAll('records');
             let csv = "Data,Equipe,Pontos_OK,Notas\n";
-            for (const k of keys) {
-                const parts = k.split('_');
-                if (parts.length < 3) continue;
-                const t = parts[1];
-                const d = parts[2];
-                const r = await Storage.get('records', `${t}_${d}`);
-                if (r) {
-                    const ok = r.checks.filter(Boolean).length;
-                    const notes = r.notes.filter(n => n && n.reason).map(n => n.reason).join(' | ');
-                    csv += `${r.date},${state.config.teams[r.teamId]},${ok},"${notes}"\n`;
-                }
+            for (const r of allRecords) {
+                const ok = r.checks.filter(Boolean).length;
+                const notes = r.notes.filter(n => n && n.reason).map(n => n.reason).join(' | ');
+                csv += `${r.date},${state.config.teams[r.teamId]},${ok},"${notes}"\n`;
             }
             const blob = new Blob([csv], {type:'text/csv'});
             const url = URL.createObjectURL(blob);
@@ -709,8 +798,9 @@
             a.click();
         }
 
-        function showToast() {
+        function showToast(msg = "Salvo com sucesso!") {
             const t = document.getElementById('toast');
+            t.textContent = msg;
             t.style.transform = 'translateX(0)';
             setTimeout(() => t.style.transform = 'translateX(150%)', 3000);
         }
