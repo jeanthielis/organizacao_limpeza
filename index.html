@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ControlPoint - Relatórios Detalhados</title>
+    <title>ControlPoint - Gestão de Qualidade</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -106,18 +107,47 @@
         .badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
         .badge-success { background: rgba(40, 167, 69, 0.2); color: var(--success); }
         .badge-danger { background: rgba(220, 53, 69, 0.2); color: var(--danger); }
-
-        /* Report Specifics */
+        
         .report-item-row { padding: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
-        .report-item-row:last-child { border-bottom: none; }
         .report-note-box { background: rgba(0,0,0,0.05); padding: 5px 10px; border-radius: 4px; margin-top: 4px; font-size: 13px; color: var(--text-secondary); border-left: 3px solid var(--accent); }
         
+        /* IMPRESSÃO (CSS ESPECÍFICO) */
         @media print {
-            body { background: white; color: black; }
-            header, .filters, .report-actions, .logo, .action-bar, .history-container, .team-buttons { display: none !important; }
-            .card { box-shadow: none; border: none; }
+            body { background: white; color: black; margin: 0; padding: 0; }
+            /* Esconde tudo na página por padrão */
+            .container, header, .main-column:first-child, .filters, .report-actions, .logo, .action-bar, .team-buttons, #config-btn, #theme-toggle { 
+                display: none !important; 
+            }
+            /* Garante que a coluna de relatório ocupe tudo */
+            .main-content { display: block !important; }
+            .main-column { width: 100% !important; margin: 0 !important; }
+            .card { 
+                box-shadow: none !important; 
+                border: none !important; 
+                padding: 0 !important; 
+                margin: 0 !important; 
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+            }
+            /* Títulos do card e controles somem, só fica o #report-area */
+            .card > h3, .card > div.filters, .card > div.report-actions { display: none !important; }
+            
+            #report-area { 
+                display: block !important; 
+                margin: 0 !important; 
+                border: none !important; 
+                width: 100% !important;
+                padding: 20px !important;
+            }
+            
             .chart-container { height: 400px !important; page-break-inside: avoid; }
-            .report-item-row { page-break-inside: avoid; }
+            table { page-break-inside: avoid; width: 100% !important; }
+            
+            /* Ajustes de cor para impressão */
+            .badge-success { border: 1px solid green; color: green; background: none; }
+            .badge-danger { border: 1px solid red; color: red; background: none; }
         }
         @media (max-width: 768px) { .main-content { flex-direction: column; } .checkpoints-grid { grid-template-columns: 1fr 1fr; } }
     </style>
@@ -194,7 +224,7 @@
                 <div class="card">
                     <h3><i class="fas fa-chart-pie"></i> Relatórios</h3>
                     
-                    <div style="display:grid; gap:10px; margin-top:15px;">
+                    <div style="display:grid; gap:10px; margin-top:15px;" class="filters">
                         <select id="report-type">
                             <option value="daily">Relatório Diário (Detalhado)</option>
                             <option value="monthly">Mensal (Gráfico + Ranking)</option>
@@ -215,10 +245,11 @@
                     </div>
                     
                     <div class="report-actions" style="margin-top:10px; display:flex; gap:5px; flex-wrap:wrap;">
-                        <button class="btn-secondary" id="print-btn" style="font-size:12px;"><i class="fas fa-print"></i></button>
+                        <button class="btn-secondary" id="print-btn" style="font-size:12px;"><i class="fas fa-print"></i> Imprimir</button>
+                        <button class="btn-secondary" id="capture-btn" style="font-size:12px;"><i class="fas fa-camera"></i> Print (Img)</button>
                         <button class="btn-secondary" id="export-btn" style="font-size:12px;"><i class="fas fa-file-csv"></i> CSV</button>
                         <label for="import-file" class="button btn-secondary" style="font-size:12px; cursor: pointer; display: flex; align-items: center; gap:8px; margin:0;">
-                            <i class="fas fa-file-import"></i> Importar CSV
+                            <i class="fas fa-file-import"></i> Importar
                         </label>
                         <input type="file" id="import-file" accept=".csv" style="display: none;">
                     </div>
@@ -236,9 +267,21 @@
             <div class="modal-header"><h3>Detalhes</h3><button class="icon-btn close-modal"><i class="fas fa-times"></i></button></div>
             <div class="modal-body">
                 <h4 id="note-title" style="color:var(--accent); margin-bottom:10px;"></h4>
-                <label>Motivo:</label>
-                <select id="note-reason" style="margin-bottom:15px;"><option value="">-- Selecione --</option><option value="Manutenção">Manutenção / Quebra</option><option value="Operacional">Falha Operacional</option><option value="Material">Falta de Material</option><option value="Pessoal">Falta de Pessoal</option><option value="Qualidade">Problema de Qualidade</option><option value="Limpeza">Falta de Limpeza</option><option value="Outros">Outros</option></select>
-                <label>Observação:</label><textarea id="note-text" rows="3"></textarea>
+                <label>Motivo da Falha:</label>
+                <select id="note-reason" style="margin-bottom:15px; font-weight:bold;">
+                    <option value="">-- Selecione o Motivo --</option>
+                    <option value="Palete sem identificação">Palete sem identificação</option>
+                    <option value="Área desorganizada">Área desorganizada</option>
+                    <option value="Palete sem etiqueta de retido ou liberado">Palete sem etiqueta de retido ou liberado</option>
+                    <option value="Manutenção">Manutenção / Quebra</option>
+                    <option value="Operacional">Falha Operacional / Procedimento</option>
+                    <option value="Material">Falta de Material / Insumo</option>
+                    <option value="Limpeza">Falta de Limpeza</option>
+                    <option value="Pessoal">Falta de Pessoal / Ausência</option>
+                    <option value="Qualidade">Problema de Qualidade Anterior</option>
+                    <option value="Outros">Outros</option>
+                </select>
+                <label>Observação Adicional:</label><textarea id="note-text" rows="3"></textarea>
             </div>
             <div class="modal-footer"><button class="btn-secondary" id="clear-note">Apagar</button><button id="save-note">Salvar</button></div>
         </div>
@@ -258,7 +301,7 @@
     <div id="toast" style="position:fixed; top:20px; right:20px; background:var(--success); color:white; padding:15px; border-radius:6px; transform:translateX(150%); transition:0.3s; z-index:3000;">Salvo com sucesso!</div>
 
     <script>
-        // CONFIGURAÇÃO FIREBASE
+        // FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyAzkGqL3ezapXtGvSXcwBFiXnrEuAvrnpQ",
             authDomain: "controlpoint-1728a.firebaseapp.com",
@@ -399,6 +442,21 @@
             document.getElementById('toggle-all').addEventListener('click', toggleAllChecks);
             document.getElementById('generate-btn').addEventListener('click', generateReport);
             document.getElementById('print-btn').addEventListener('click', () => window.print());
+            
+            // Botão de Captura (Print Imagem)
+            document.getElementById('capture-btn').addEventListener('click', () => {
+                const area = document.getElementById('report-area');
+                if(!area.innerText.trim() || area.innerText.includes('Selecione')) {
+                    alert('Gere um relatório primeiro!'); return;
+                }
+                html2canvas(area, { scale: 2 }).then(canvas => {
+                    const a = document.createElement('a');
+                    a.download = 'relatorio.png';
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                });
+            });
+
             document.getElementById('export-btn').addEventListener('click', exportCSV);
             document.getElementById('import-file').addEventListener('change', importCSV);
             document.getElementById('toggle-history-btn').addEventListener('click', toggleHistory);
