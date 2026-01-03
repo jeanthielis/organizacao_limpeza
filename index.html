@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ControlPoint - Cloud & Histórico</title>
+    <title>ControlPoint - Relatórios Avançados</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -48,7 +48,7 @@
         body { background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; padding: 10px; transition: 0.3s; }
         .container { max-width: 1300px; margin: 0 auto; }
         
-        /* Header & Layout */
+        /* Layout */
         header { background: var(--bg-card); padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 4px 12px var(--shadow); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); }
         .logo { display: flex; gap: 10px; align-items: center; }
         .logo i { font-size: 2rem; color: var(--accent); }
@@ -56,14 +56,15 @@
         .main-column { flex: 1; min-width: 300px; }
         .card { background: var(--bg-card); border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 12px var(--shadow); border: 1px solid var(--border); position: relative; }
         
-        /* Controls */
+        /* UI Elements */
         button { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
         button:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
         .btn-danger { background: var(--danger); color: white; }
         .icon-btn { background: transparent; color: var(--text-secondary); font-size: 1.2rem; padding: 8px; }
+        
         input, select, textarea { padding: 10px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; width: 100%; }
-        [data-theme="dark"] input[type="date"], [data-theme="dark"] input[type="month"] { color-scheme: dark; }
+        [data-theme="dark"] input[type="date"], [data-theme="dark"] input[type="month"], [data-theme="dark"] input[type="number"] { color-scheme: dark; }
 
         /* Checklist */
         .checkpoints-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0; }
@@ -71,7 +72,6 @@
         .checkpoint label { flex: 1; cursor: pointer; font-size: 14px; }
         .checkpoint input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
         .note-btn { background: transparent; color: var(--text-secondary); padding: 5px; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.6; }
-        .note-btn:hover { background: rgba(0,0,0,0.1); opacity: 1; color: var(--text-primary); }
         .note-btn.has-note { color: var(--accent); background: rgba(0, 123, 255, 0.1); opacity: 1; }
 
         /* Progress */
@@ -85,13 +85,11 @@
         .team-btn { padding: 15px; text-align: center; background: var(--bg-tertiary); border: 2px solid transparent; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }
         .team-btn.active { border-color: var(--accent); background: rgba(0, 123, 255, 0.05); }
 
-        /* History List */
+        /* History */
         .history-container { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 15px; }
         .history-list { max-height: 250px; overflow-y: auto; display: none; margin-top: 10px; }
         .history-list.show { display: block; }
         .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); font-size: 14px; background: var(--bg-tertiary); margin-bottom: 5px; border-radius: 4px; }
-        .history-actions { display: flex; gap: 5px; }
-        .history-btn { padding: 5px 8px; font-size: 12px; }
 
         /* Modals */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-overlay); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: 0.3s; }
@@ -100,8 +98,11 @@
         .modal-header, .modal-footer { padding: 15px; background: var(--bg-tertiary); display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 20px; overflow-y: auto; }
 
-        /* Misc */
-        .chart-container { height: 300px; position: relative; margin: 20px 0; }
+        /* Charts & Reports */
+        .chart-container { height: 350px; position: relative; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+        th { background: var(--bg-tertiary); font-weight: 600; }
         .badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
         .badge-success { background: rgba(40, 167, 69, 0.2); color: var(--success); }
         .badge-danger { background: rgba(220, 53, 69, 0.2); color: var(--danger); }
@@ -175,33 +176,34 @@
 
                     <div class="history-container">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4><i class="fas fa-history"></i> Histórico da Equipe</h4>
+                            <h4><i class="fas fa-history"></i> Histórico</h4>
                             <button class="icon-btn" id="toggle-history-btn" style="font-size: 1rem;"><i class="fas fa-chevron-down"></i></button>
                         </div>
-                        <div class="history-list" id="history-list">
-                            <p style="text-align:center; padding:10px; color:#888;">Carregando histórico...</p>
-                        </div>
+                        <div class="history-list" id="history-list"></div>
                     </div>
                 </div>
             </div>
 
             <div class="main-column">
                 <div class="card">
-                    <h3><i class="fas fa-chart-pie"></i> Relatórios & Análises</h3>
+                    <h3><i class="fas fa-chart-pie"></i> Relatórios</h3>
                     
                     <div style="display:grid; gap:10px; margin-top:15px;">
                         <select id="report-type">
-                            <option value="pareto">Análise de Causas (Pareto)</option>
                             <option value="daily">Relatório Diário</option>
-                            <option value="monthly">Desempenho Mensal</option>
-                            <option value="ranking">Ranking das Equipes</option>
+                            <option value="monthly">Mensal (Gráfico + Ranking)</option>
+                            <option value="yearly">Anual (Gráfico + Ranking)</option>
+                            <option value="pareto">Análise de Causas (Pareto)</option>
                         </select>
                         
                         <div style="display:flex; gap:10px;">
                             <select id="report-team-filter">
                                 <option value="all">Todas as Equipes</option>
-                            </select>
-                            <input type="month" id="report-month">
+                                </select>
+
+                            <input type="date" id="report-date" style="display:none;">
+                            <input type="month" id="report-month" style="display:none;">
+                            <input type="number" id="report-year" placeholder="Ano" min="2020" max="2030" style="display:none;">
                         </div>
 
                         <button id="generate-btn"><i class="fas fa-search"></i> Gerar Relatório</button>
@@ -210,7 +212,6 @@
                     <div class="report-actions" style="margin-top:10px; display:flex; gap:5px; flex-wrap:wrap;">
                         <button class="btn-secondary" id="print-btn" style="font-size:12px;"><i class="fas fa-print"></i></button>
                         <button class="btn-secondary" id="export-btn" style="font-size:12px;"><i class="fas fa-file-csv"></i> CSV</button>
-                        
                         <label for="import-file" class="button btn-secondary" style="font-size:12px; cursor: pointer; display: flex; align-items: center; gap:8px; margin:0;">
                             <i class="fas fa-file-import"></i> Importar CSV
                         </label>
@@ -252,7 +253,7 @@
     <div id="toast" style="position:fixed; top:20px; right:20px; background:var(--success); color:white; padding:15px; border-radius:6px; transform:translateX(150%); transition:0.3s; z-index:3000;">Salvo com sucesso!</div>
 
     <script>
-        // CONFIGURAÇÃO DO FIREBASE (SUAS CHAVES)
+        // CONFIGURAÇÃO FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyAzkGqL3ezapXtGvSXcwBFiXnrEuAvrnpQ",
             authDomain: "controlpoint-1728a.firebaseapp.com",
@@ -271,52 +272,39 @@
                 firebase.initializeApp(firebaseConfig);
                 db = firebase.firestore();
                 isCloud = true;
-                console.log("ControlPoint: Conectado à Nuvem ☁️");
+                console.log("Conectado à Nuvem");
                 setTimeout(() => { document.getElementById('connection-status').style.display = 'block'; }, 1000);
             }
         } catch (e) { console.error("Erro Firebase:", e); }
 
-        // ADAPTADOR DE ARMAZENAMENTO ATUALIZADO (SUPORTE A DELETE E IMPORTAÇÃO)
         const Storage = {
-            async get(collection, docId) {
+            async get(col, id) {
                 if (isCloud && db) {
+                    try { const d = await db.collection(col).doc(id).get(); return d.exists ? d.data().value : null; } 
+                    catch(e) { return JSON.parse(localStorage.getItem(`${col}_${id}`)); }
+                }
+                return JSON.parse(localStorage.getItem(`${col}_${id}`));
+            },
+            async set(col, id, val) {
+                if (isCloud && db) try { await db.collection(col).doc(id).set({ value: val, teamId: val.teamId, date: val.date }); } catch(e){}
+                localStorage.setItem(`${col}_${id}`, JSON.stringify(val));
+            },
+            async remove(col, id) {
+                if (isCloud && db) try { await db.collection(col).doc(id).delete(); } catch(e){}
+                localStorage.removeItem(`${col}_${id}`);
+            },
+            async listAll(col) {
+                if (isCloud && db && col === 'records') {
                     try {
-                        const doc = await db.collection(collection).doc(docId).get();
-                        return doc.exists ? doc.data().value : null;
-                    } catch(e) { return localStorage.getItem(`${collection}_${docId}`) ? JSON.parse(localStorage.getItem(`${collection}_${docId}`)) : null; }
-                } else {
-                    const val = localStorage.getItem(`${collection}_${docId}`);
-                    return val ? JSON.parse(val) : null;
+                        const snap = await db.collection(col).get();
+                        return snap.docs.map(doc => doc.data().value);
+                    } catch(e) { return Object.keys(localStorage).filter(k=>k.startsWith(col)).map(k=>JSON.parse(localStorage.getItem(k))); }
                 }
-            },
-            async set(collection, docId, data) {
-                if (isCloud && db) {
-                    try { await db.collection(collection).doc(docId).set({ value: data, updatedAt: new Date(), teamId: data.teamId, date: data.date }); } catch(e) { console.error(e); }
-                }
-                localStorage.setItem(`${collection}_${docId}`, JSON.stringify(data));
-            },
-            async remove(collection, docId) {
-                if (isCloud && db) {
-                    try { await db.collection(collection).doc(docId).delete(); } catch(e) { console.error(e); }
-                }
-                localStorage.removeItem(`${collection}_${docId}`);
-            },
-            async listAll(collection) {
-                if (isCloud && db && collection === 'records') {
-                    // Tenta buscar da nuvem para o histórico
-                    try {
-                        const snapshot = await db.collection(collection).get();
-                        const cloudDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data().value }));
-                        return cloudDocs;
-                    } catch(e) { 
-                        // Fallback local
-                        return Object.keys(localStorage).filter(k => k.startsWith(collection)).map(k => JSON.parse(localStorage.getItem(k)));
-                    }
-                }
-                return Object.keys(localStorage).filter(k => k.startsWith(collection)).map(k => JSON.parse(localStorage.getItem(k)));
+                return Object.keys(localStorage).filter(k=>k.startsWith(col)).map(k=>JSON.parse(localStorage.getItem(k)));
             }
         };
 
+        // DADOS PADRÃO
         const DEFAULT_CONFIG = {
             teams: { 't1': 'Equipe 1', 't2': 'Equipe 2', 't3': 'Equipe 3', 't4': 'Equipe 4' },
             points: [
@@ -337,6 +325,31 @@
 
         let chartInstance = null;
 
+        // --- PLUGIN PARA DESENHAR LINHA DA META ---
+        const metaLinePlugin = {
+            id: 'metaLine',
+            afterDatasetsDraw(chart, args, options) {
+                const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+                const metaValue = options.metaValue;
+                const yPixel = y.getPixelForValue(metaValue);
+                
+                ctx.save();
+                ctx.beginPath();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#000000'; // Cor da linha (preta)
+                ctx.setLineDash([5, 5]); // Pontilhada
+                ctx.moveTo(left, yPixel);
+                ctx.lineTo(right, yPixel);
+                ctx.stroke();
+                
+                // Texto da Meta
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'right';
+                ctx.fillText(`Meta: ${metaValue}%`, right, yPixel - 5);
+                ctx.restore();
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', async () => {
             const savedCfg = await Storage.get('settings', 'config');
             if (savedCfg) state.config = savedCfg;
@@ -344,10 +357,14 @@
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') document.body.setAttribute('data-theme', 'dark');
 
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('date-input').value = today;
-            document.getElementById('report-month').value = today.substring(0, 7);
+            const today = new Date();
+            document.getElementById('date-input').value = today.toISOString().split('T')[0];
             
+            // Inicializar inputs de relatório
+            document.getElementById('report-date').value = today.toISOString().split('T')[0];
+            document.getElementById('report-month').value = today.toISOString().substring(0, 7);
+            document.getElementById('report-year').value = today.getFullYear();
+
             setupUI();
             await loadData();
             refreshHistory();
@@ -356,6 +373,21 @@
         function setupUI() {
             renderTeams();
             
+            // Controle de visualização de inputs de data baseado no tipo de relatório
+            const reportType = document.getElementById('report-type');
+            const toggleInputs = () => {
+                const val = reportType.value;
+                document.getElementById('report-date').style.display = val === 'daily' ? 'block' : 'none';
+                document.getElementById('report-month').style.display = (val === 'monthly' || val === 'pareto') ? 'block' : 'none';
+                document.getElementById('report-year').style.display = val === 'yearly' ? 'block' : 'none';
+                
+                // Filtro de equipe só faz sentido se não for comparativo (Daily e Pareto precisam, Monthly/Yearly comparam todas)
+                // Mas o usuário pode querer ver só uma no mensal. Vamos deixar.
+            };
+            reportType.addEventListener('change', toggleInputs);
+            toggleInputs(); // Init
+
+            // Inputs principais
             document.getElementById('date-input').addEventListener('change', loadData);
             document.getElementById('today-btn').addEventListener('click', () => {
                 document.getElementById('date-input').value = new Date().toISOString().split('T')[0];
@@ -369,21 +401,12 @@
             });
 
             document.getElementById('save-btn').addEventListener('click', saveData);
-
-            let allOn = false;
-            document.getElementById('toggle-all').addEventListener('click', () => {
-                allOn = !allOn;
-                state.checks.fill(allOn);
-                renderChecklist();
-                updateProgress();
-            });
-
+            document.getElementById('toggle-all').addEventListener('click', toggleAllChecks);
             document.getElementById('generate-btn').addEventListener('click', generateReport);
             document.getElementById('print-btn').addEventListener('click', () => window.print());
             document.getElementById('export-btn').addEventListener('click', exportCSV);
-            
-            // IMPORTAR
             document.getElementById('import-file').addEventListener('change', importCSV);
+            document.getElementById('toggle-history-btn').addEventListener('click', toggleHistory);
 
             document.getElementById('theme-toggle').addEventListener('click', () => {
                 const isDark = document.body.getAttribute('data-theme') === 'dark';
@@ -395,20 +418,14 @@
             document.getElementById('save-cfg').addEventListener('click', saveConfig);
             document.getElementById('reset-cfg').addEventListener('click', () => { state.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); openConfig(); });
             document.querySelectorAll('.close-modal').forEach(b => b.onclick = (e) => e.target.closest('.modal-overlay').classList.remove('open'));
+        }
 
-            // HISTÓRICO TOGGLE
-            document.getElementById('toggle-history-btn').addEventListener('click', () => {
-                const list = document.getElementById('history-list');
-                const btn = document.getElementById('toggle-history-btn');
-                if (list.classList.contains('show')) {
-                    list.classList.remove('show');
-                    btn.innerHTML = '<i class="fas fa-chevron-down"></i>';
-                } else {
-                    list.classList.add('show');
-                    btn.innerHTML = '<i class="fas fa-chevron-up"></i>';
-                    refreshHistory();
-                }
-            });
+        let allOn = false;
+        function toggleAllChecks() {
+            allOn = !allOn;
+            state.checks.fill(allOn);
+            renderChecklist();
+            updateProgress();
         }
 
         function renderTeams() {
@@ -436,16 +453,10 @@
         async function loadData() {
             const date = document.getElementById('date-input').value;
             const docId = `${state.currentTeam}_${date}`;
-            
             state.checks.fill(false);
             state.notes.fill(null);
-
             const data = await Storage.get('records', docId);
-            if (data) {
-                state.checks = data.checks || state.checks;
-                state.notes = data.notes || state.notes;
-            }
-
+            if (data) { state.checks = data.checks || state.checks; state.notes = data.notes || state.notes; }
             renderChecklist();
             updateProgress();
         }
@@ -453,357 +464,315 @@
         async function saveData() {
             const date = document.getElementById('date-input').value;
             const docId = `${state.currentTeam}_${date}`;
-            const payload = { checks: state.checks, notes: state.notes, teamId: state.currentTeam, date: date };
             const btn = document.getElementById('save-btn');
-            
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
-            await Storage.set('records', docId, payload);
+            await Storage.set('records', docId, { checks: state.checks, notes: state.notes, teamId: state.currentTeam, date: date });
             btn.innerHTML = '<i class="fas fa-save"></i> SALVAR DADOS';
-            
             showToast();
             refreshHistory();
-        }
-
-        // --- LÓGICA DE HISTÓRICO (RECUPERADA) ---
-        async function refreshHistory() {
-            const list = document.getElementById('history-list');
-            if (!list.classList.contains('show')) return;
-            
-            list.innerHTML = '<p style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> Atualizando...</p>';
-            
-            // Busca todos e filtra localmente (mais simples para "Test Mode")
-            const allRecords = await Storage.listAll('records');
-            const teamRecords = allRecords.filter(r => r.teamId === state.currentTeam);
-            
-            // Ordernar por data (Decrescente)
-            teamRecords.sort((a,b) => b.date.localeCompare(a.date));
-
-            list.innerHTML = '';
-            if (teamRecords.length === 0) {
-                list.innerHTML = '<p style="text-align:center; color:#888;">Nenhum registro encontrado.</p>';
-                return;
-            }
-
-            teamRecords.forEach(r => {
-                const pct = ((r.checks.filter(Boolean).length / 16) * 100).toFixed(1);
-                const isMeta = pct >= state.meta;
-                const dateDisplay = r.date.split('-').reverse().join('/');
-
-                const item = document.createElement('div');
-                item.className = 'history-item';
-                item.innerHTML = `
-                    <div>
-                        <strong>${dateDisplay}</strong>
-                        <span class="badge ${isMeta ? 'badge-success' : 'badge-danger'}" style="margin-left:5px;">${pct}%</span>
-                    </div>
-                    <div class="history-actions">
-                        <button class="btn-secondary history-btn" title="Editar" onclick="editDate('${r.date}')"><i class="fas fa-pen"></i></button>
-                        <button class="btn-danger history-btn" title="Excluir" onclick="deleteDate('${r.date}')"><i class="fas fa-trash"></i></button>
-                    </div>
-                `;
-                list.appendChild(item);
-            });
-        }
-
-        window.editDate = (date) => {
-            document.getElementById('date-input').value = date;
-            loadData();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            // Se estiver no mobile, fecha o histórico para ver o editor
-            if (window.innerWidth < 768) document.getElementById('history-list').classList.remove('show');
-        };
-
-        window.deleteDate = async (date) => {
-            if (confirm(`Deseja apagar permanentemente o registro de ${date}?`)) {
-                await Storage.remove('records', `${state.currentTeam}_${date}`);
-                refreshHistory();
-                if (document.getElementById('date-input').value === date) loadData(); // Limpa a tela se estiver vendo o excluído
-                showToast("Registro excluído.");
-            }
-        };
-
-        // --- LÓGICA DE IMPORTAÇÃO (RECUPERADA) ---
-        function importCSV(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const text = event.target.result;
-                const lines = text.split('\n');
-                let count = 0;
-
-                // Esperado: Data,Equipe,Pontos_OK,Notas
-                // Ignorar cabeçalho
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line) continue;
-                    
-                    // Regex para lidar com as aspas das Notas
-                    const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-                    const cleanParts = parts.map(p => p.replace(/^"|"$/g, '').replace(/,$/, '')); // Remove aspas e virgulas extras
-                    
-                    if (cleanParts.length < 3) continue;
-
-                    const date = cleanParts[0]; // YYYY-MM-DD
-                    const teamName = cleanParts[1];
-                    const pointsOk = parseInt(cleanParts[2]);
-                    
-                    // Encontrar ID da equipe pelo nome
-                    let teamId = Object.keys(state.config.teams).find(k => state.config.teams[k] === teamName);
-                    if (!teamId) teamId = 't1'; // Fallback
-
-                    // Recriar objeto
-                    const checks = Array(16).fill(false);
-                    for (let j = 0; j < pointsOk; j++) checks[j] = true;
-
-                    // Tentar parsear notas se existirem
-                    // (Importação básica: recupera a contagem. Notas complexas são difíceis de parsear de volta do CSV simples, então deixamos array vazio ou null)
-                    const notes = Array(16).fill(null);
-
-                    await Storage.set('records', `${teamId}_${date}`, {
-                        checks, notes, teamId, date
-                    });
-                    count++;
-                }
-
-                alert(`${count} registros importados com sucesso!`);
-                refreshHistory();
-                loadData();
-                e.target.value = ''; // Reset input
-            };
-            reader.readAsText(file);
         }
 
         function renderChecklist() {
             const div = document.getElementById('checklist-container');
             div.innerHTML = '';
-            
             state.config.points.forEach((label, i) => {
                 const el = document.createElement('div');
                 el.className = 'checkpoint';
                 const hasNote = state.notes[i] && (state.notes[i].reason || state.notes[i].text);
-
-                el.innerHTML = `
-                    <input type="checkbox" id="chk-${i}" ${state.checks[i] ? 'checked' : ''}>
-                    <label for="chk-${i}">${label}</label>
-                    <button class="note-btn ${hasNote ? 'has-note' : ''}" onclick="openNote(${i})">
-                        <i class="${hasNote ? 'fas fa-comment-dots' : 'far fa-comment'}"></i>
-                    </button>
-                `;
-                el.querySelector('input').onchange = (e) => {
-                    state.checks[i] = e.target.checked;
-                    updateProgress();
-                };
+                el.innerHTML = `<input type="checkbox" id="chk-${i}" ${state.checks[i] ? 'checked' : ''}><label for="chk-${i}">${label}</label><button class="note-btn ${hasNote ? 'has-note' : ''}" onclick="openNote(${i})"><i class="${hasNote ? 'fas fa-comment-dots' : 'far fa-comment'}"></i></button>`;
+                el.querySelector('input').onchange = (e) => { state.checks[i] = e.target.checked; updateProgress(); };
                 div.appendChild(el);
             });
         }
 
         function updateProgress() {
-            const total = state.checks.length;
-            const checked = state.checks.filter(Boolean).length;
-            const pct = (checked / total) * 100;
+            const pct = (state.checks.filter(Boolean).length / 16) * 100;
             const fill = document.querySelector('.progress-fill');
-            const text = document.querySelector('.progress-text');
-            const status = document.getElementById('status-text');
-
+            document.querySelector('.progress-text').textContent = pct.toFixed(1) + '%';
             fill.style.width = pct + '%';
-            text.textContent = pct.toFixed(1) + '%';
-            
-            if (pct >= state.meta) {
-                fill.className = 'progress-fill';
-                status.innerHTML = '<span class="badge badge-success">Meta Batida</span>';
-            } else {
-                fill.className = 'progress-fill danger';
-                status.innerHTML = '<span class="badge badge-danger">Abaixo da Meta</span>';
-            }
+            if (pct >= state.meta) { fill.className = 'progress-fill'; document.getElementById('status-text').innerHTML = '<span class="badge badge-success">Meta Batida</span>'; }
+            else { fill.className = 'progress-fill danger'; document.getElementById('status-text').innerHTML = '<span class="badge badge-danger">Abaixo da Meta</span>'; }
         }
 
-        let currentNoteIdx = -1;
-        function openNote(i) {
-            currentNoteIdx = i;
-            const note = state.notes[i] || { reason: '', text: '' };
-            document.getElementById('note-title').textContent = state.config.points[i];
-            document.getElementById('note-reason').value = note.reason;
-            document.getElementById('note-text').value = note.text;
-            document.getElementById('note-modal').classList.add('open');
-        }
-
-        document.getElementById('save-note').onclick = () => {
-            const reason = document.getElementById('note-reason').value;
-            const text = document.getElementById('note-text').value;
-            if (reason || text) state.notes[currentNoteIdx] = { reason, text };
-            else state.notes[currentNoteIdx] = null;
-            document.getElementById('note-modal').classList.remove('open');
-            renderChecklist();
-        };
-
-        document.getElementById('clear-note').onclick = () => {
-            state.notes[currentNoteIdx] = null;
-            document.getElementById('note-modal').classList.remove('open');
-            renderChecklist();
-        };
-
-        function openConfig() {
-            const teamDiv = document.getElementById('cfg-teams');
-            const pointDiv = document.getElementById('cfg-points');
-            teamDiv.innerHTML = ''; pointDiv.innerHTML = '';
-
-            Object.keys(state.config.teams).forEach(k => {
-                teamDiv.innerHTML += `<input type="text" data-key="${k}" class="cfg-team-input" value="${state.config.teams[k]}">`;
-            });
-            state.config.points.forEach((p, i) => {
-                pointDiv.innerHTML += `<input type="text" data-idx="${i}" class="cfg-point-input" value="${p}">`;
-            });
-            document.getElementById('config-modal').classList.add('open');
-        }
-
-        async function saveConfig() {
-            const teams = {};
-            document.querySelectorAll('.cfg-team-input').forEach(el => teams[el.dataset.key] = el.value);
-            const points = [];
-            document.querySelectorAll('.cfg-point-input').forEach(el => points[el.dataset.idx] = el.value);
-            const sortedPoints = Array.from(document.querySelectorAll('.cfg-point-input')).map(e => e.value);
-
-            state.config = { teams, points: sortedPoints };
-            await Storage.set('settings', 'config', state.config);
-            document.getElementById('config-modal').classList.remove('open');
-            setupUI();
-        }
-
+        // RELATÓRIOS
         async function generateReport() {
             const type = document.getElementById('report-type').value;
-            const teamFilter = document.getElementById('report-team-filter').value;
-            const month = document.getElementById('report-month').value;
             const area = document.getElementById('report-area');
-
-            if (!month) { alert('Selecione um mês'); return; }
-
-            area.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Buscando dados...</p></div>';
-
-            const rawData = [];
-            const allRecords = await Storage.listAll('records');
+            const meta = parseInt(state.meta);
             
-            for (const r of allRecords) {
-                if (!r.date.startsWith(month)) continue;
-                if (teamFilter !== 'all' && r.teamId !== teamFilter) continue;
-                rawData.push(r);
-            }
-
-            if (rawData.length === 0) {
-                area.innerHTML = '<p style="text-align:center;">Nenhum dado encontrado neste período.</p>';
-                return;
-            }
-
+            area.innerHTML = '<div style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Processando...</p></div>';
+            
+            const allRecords = await Storage.listAll('records');
             if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
-            if (type === 'pareto') {
-                const causes = {};
-                let total = 0;
-                rawData.forEach(r => {
-                    if (r.notes) {
-                        r.notes.forEach(n => {
-                            if (n && n.reason) {
-                                causes[n.reason] = (causes[n.reason] || 0) + 1;
-                                total++;
-                            }
-                        });
-                    }
+            // Lógica Unificada para Mensal e Anual
+            if (type === 'monthly' || type === 'yearly') {
+                const monthInput = document.getElementById('report-month').value;
+                const yearInput = document.getElementById('report-year').value;
+                const periodFilter = type === 'monthly' ? monthInput : yearInput;
+                const periodLabel = type === 'monthly' ? `Mensal (${monthInput})` : `Anual (${yearInput})`;
+
+                if (!periodFilter) { area.innerHTML = '<p>Selecione o período correto.</p>'; return; }
+
+                // Agrupar dados
+                const stats = {};
+                // Inicializa todas as equipes
+                Object.keys(state.config.teams).forEach(tid => stats[tid] = { sum: 0, count: 0 });
+
+                allRecords.forEach(r => {
+                    // Filtro de data: Mensal (YYYY-MM) ou Anual (YYYY)
+                    if (!r.date.startsWith(periodFilter)) return;
+                    
+                    if (!stats[r.teamId]) stats[r.teamId] = { sum: 0, count: 0 }; // Segurança
+                    const pct = (r.checks.filter(Boolean).length / 16) * 100;
+                    stats[r.teamId].sum += pct;
+                    stats[r.teamId].count++;
                 });
-                const sorted = Object.entries(causes).sort((a,b) => b[1] - a[1]);
-                if (total === 0) { area.innerHTML = '<p>Nenhuma falha justificada.</p>'; return; }
-                area.innerHTML = `<h4>Causas de Falha (Pareto)</h4><div class="chart-container"><canvas id="chart"></canvas></div>`;
-                const ctx = document.getElementById('chart').getContext('2d');
+
+                // Preparar dados para o Gráfico e Tabela
+                const labels = [];
+                const values = [];
+                const colors = [];
+                const tableData = [];
+
+                Object.keys(stats).forEach(tid => {
+                    const avg = stats[tid].count > 0 ? (stats[tid].sum / stats[tid].count) : 0;
+                    const name = state.config.teams[tid];
+                    
+                    // Dados Gráfico
+                    labels.push(name);
+                    values.push(avg);
+                    // Regra de Cor: Verde se >= Meta, Vermelho se < Meta
+                    colors.push(avg >= meta ? '#28a745' : '#dc3545');
+
+                    // Dados Tabela
+                    tableData.push({ name, avg, count: stats[tid].count });
+                });
+
+                // Ordenar Tabela por Ranking
+                tableData.sort((a,b) => b.avg - a.avg);
+                // Ranking Denso
+                let rank = 1;
+                tableData.forEach((item, i) => {
+                    if (i > 0 && item.avg < tableData[i-1].avg) rank++;
+                    item.rank = rank;
+                });
+
+                // Renderizar HTML Combinado
+                let html = `<h3>Relatório ${periodLabel}</h3>`;
+                
+                // 1. Gráfico
+                html += `<div class="chart-container"><canvas id="mainChart"></canvas></div>`;
+                
+                // 2. Tabela
+                html += `<h4>Ranking Detalhado</h4>
+                         <table>
+                            <tr><th>Pos</th><th>Equipe</th><th>Média</th><th>Registros</th><th>Status</th></tr>`;
+                
+                tableData.forEach(item => {
+                    const medal = item.rank===1 ? '🥇' : item.rank===2 ? '🥈' : item.rank===3 ? '🥉' : '';
+                    const statusClass = item.avg >= meta ? 'badge-success' : 'badge-danger';
+                    const statusText = item.avg >= meta ? 'Meta Batida' : 'Abaixo da Meta';
+                    
+                    html += `<tr>
+                        <td>${item.rank}º</td>
+                        <td>${item.name} ${medal}</td>
+                        <td>${item.avg.toFixed(1)}%</td>
+                        <td>${item.count}</td>
+                        <td><span class="badge ${statusClass}">${statusText}</span></td>
+                    </tr>`;
+                });
+                html += `</table>`;
+
+                area.innerHTML = html;
+
+                // Renderizar Gráfico
+                const ctx = document.getElementById('mainChart').getContext('2d');
                 chartInstance = new Chart(ctx, {
                     type: 'bar',
-                    data: { labels: sorted.map(x => x[0]), datasets: [{ label: 'Ocorrências', data: sorted.map(x => x[1]), backgroundColor: '#dc3545' }] },
-                    options: { maintainAspectRatio: false }
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Média (%)',
+                            data: values,
+                            backgroundColor: colors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true, max: 100 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top',
+                                formatter: (val) => val.toFixed(1) + '%',
+                                font: { weight: 'bold' }
+                            },
+                            metaLine: { metaValue: meta } // Passar a meta para o plugin customizado
+                        }
+                    },
+                    plugins: [metaLinePlugin] // Ativar o plugin
                 });
 
             } else if (type === 'daily') {
-                let html = `<h4>Detalhado Diário</h4>`;
-                rawData.sort((a,b) => a.date.localeCompare(b.date));
-                rawData.forEach(r => {
+                const dateFilter = document.getElementById('report-date').value;
+                const teamFilter = document.getElementById('report-team-filter').value;
+                
+                let html = `<h4>Relatório Diário - ${dateFilter.split('-').reverse().join('/')}</h4>`;
+                let found = false;
+
+                // Ordenar por equipe
+                const sortedRecords = allRecords.filter(r => r.date === dateFilter).sort((a,b) => a.teamId.localeCompare(b.teamId));
+
+                sortedRecords.forEach(r => {
+                    if (teamFilter !== 'all' && r.teamId !== teamFilter) return;
+                    found = true;
+                    
                     const ok = r.checks.filter(Boolean).length;
                     const pct = (ok / 16) * 100;
-                    html += `<div style="border-bottom:1px solid var(--border); padding:10px 0;">
-                        <strong>${r.date.split('-').reverse().join('/')}</strong> - ${state.config.teams[r.teamId]} 
-                        <span class="badge ${pct >= 93 ? 'badge-success' : 'badge-danger'}">${pct.toFixed(1)}%</span>
-                        <ul style="font-size:12px; color:var(--text-secondary); margin-top:5px; padding-left:20px;">`;
+                    const statusClass = pct >= meta ? 'badge-success' : 'badge-danger';
+                    
+                    html += `<div style="border:1px solid var(--border); border-radius:8px; padding:15px; margin-bottom:15px; background:var(--bg-tertiary);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h4 style="margin:0;">${state.config.teams[r.teamId]}</h4>
+                            <span class="badge ${statusClass}">${pct.toFixed(1)}%</span>
+                        </div>
+                        <ul style="font-size:13px; padding-left:20px; color:var(--text-secondary);">`;
+                    
+                    // Listar pontos com falha ou notas
                     r.notes.forEach((n, i) => {
-                        if (n && (n.reason || n.text)) {
-                            html += `<li><b>${state.config.points[i]}:</b> [${n.reason}] ${n.text}</li>`;
+                        const isChecked = r.checks[i];
+                        if (!isChecked || (n && (n.reason || n.text))) {
+                            const icon = isChecked ? '<i class="fas fa-check" style="color:var(--success)"></i>' : '<i class="fas fa-times" style="color:var(--danger)"></i>';
+                            const noteTxt = n ? ` <span style="color:var(--text-primary);">[${n.reason || ''}] ${n.text || ''}</span>` : '';
+                            html += `<li style="margin-bottom:4px;">${icon} <b>${state.config.points[i]}</b>${noteTxt}</li>`;
                         }
                     });
+                    
                     html += `</ul></div>`;
                 });
+
+                if (!found) html += '<p>Nenhum registro para esta data.</p>';
                 area.innerHTML = html;
 
-            } else if (type === 'monthly') {
-                const stats = {};
-                rawData.forEach(r => {
-                    if (!stats[r.teamId]) stats[r.teamId] = { sum: 0, count: 0 };
-                    const pct = (r.checks.filter(Boolean).length / 16) * 100;
-                    stats[r.teamId].sum += pct;
-                    stats[r.teamId].count++;
+            } else if (type === 'pareto') {
+                // Pareto simples
+                const month = document.getElementById('report-month').value;
+                if (!month) { area.innerHTML = '<p>Selecione um mês.</p>'; return; }
+                const causes = {};
+                let total = 0;
+                allRecords.forEach(r => {
+                    if (r.date.startsWith(month) && r.notes) {
+                        r.notes.forEach(n => {
+                            if (n && n.reason) { causes[n.reason] = (causes[n.reason] || 0) + 1; total++; }
+                        });
+                    }
                 });
-                const labels = Object.keys(stats).map(k => state.config.teams[k]);
-                const data = Object.values(stats).map(v => (v.sum / v.count).toFixed(1));
-                area.innerHTML = `<h4>Média Mensal</h4><div class="chart-container"><canvas id="chart"></canvas></div>`;
-                const ctx = document.getElementById('chart').getContext('2d');
+                
+                if (total === 0) { area.innerHTML = '<p>Nenhuma falha justificada neste mês.</p>'; return; }
+                
+                const sorted = Object.entries(causes).sort((a,b) => b[1] - a[1]);
+                area.innerHTML = `<h4>Causas de Falha (${month})</h4><div class="chart-container"><canvas id="paretoChart"></canvas></div>`;
+                
+                const ctx = document.getElementById('paretoChart').getContext('2d');
                 chartInstance = new Chart(ctx, {
                     type: 'bar',
-                    data: { labels: labels, datasets: [{ label: 'Média %', data: data, backgroundColor: '#007bff' }] },
-                    options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } }
+                    data: { labels: sorted.map(x=>x[0]), datasets: [{ label: 'Qtd', data: sorted.map(x=>x[1]), backgroundColor: '#dc3545' }] },
+                    options: { maintainAspectRatio: false }
                 });
-
-            } else if (type === 'ranking') {
-                 const stats = {};
-                rawData.forEach(r => {
-                    if (!stats[r.teamId]) stats[r.teamId] = { sum: 0, count: 0 };
-                    const pct = (r.checks.filter(Boolean).length / 16) * 100;
-                    stats[r.teamId].sum += pct;
-                    stats[r.teamId].count++;
-                });
-                const list = Object.keys(stats).map(k => ({
-                    name: state.config.teams[k],
-                    avg: stats[k].sum / stats[k].count
-                })).sort((a,b) => b.avg - a.avg);
-                let rank = 1;
-                list.forEach((item, i) => {
-                    if (i > 0 && item.avg < list[i-1].avg) rank++;
-                    item.rank = rank;
-                });
-                let html = `<h4>Ranking do Mês</h4><table style="width:100%; text-align:left; margin-top:10px;"><tr><th>Pos</th><th>Equipe</th><th>Média</th></tr>`;
-                list.forEach((item, i) => {
-                    let medal = item.rank===1 ? '🥇' : item.rank===2 ? '🥈' : item.rank===3 ? '🥉' : '';
-                    html += `<tr><td>${item.rank}º</td><td>${item.name} ${medal}</td><td>${item.avg.toFixed(1)}%</td></tr>`;
-                });
-                area.innerHTML = html + '</table>';
             }
         }
 
+        // --- HISTÓRICO & CSV ---
+        function toggleHistory() {
+            const list = document.getElementById('history-list');
+            const btn = document.getElementById('toggle-history-btn');
+            if (list.classList.contains('show')) { list.classList.remove('show'); btn.innerHTML = '<i class="fas fa-chevron-down"></i>'; }
+            else { list.classList.add('show'); btn.innerHTML = '<i class="fas fa-chevron-up"></i>'; refreshHistory(); }
+        }
+
+        async function refreshHistory() {
+            const list = document.getElementById('history-list');
+            if (!list.classList.contains('show')) return;
+            list.innerHTML = '<p>Carregando...</p>';
+            const all = await Storage.listAll('records');
+            const filtered = all.filter(r => r.teamId === state.currentTeam).sort((a,b) => b.date.localeCompare(a.date));
+            list.innerHTML = '';
+            if (filtered.length === 0) { list.innerHTML = '<p>Vazio.</p>'; return; }
+            filtered.forEach(r => {
+                const pct = ((r.checks.filter(Boolean).length / 16) * 100).toFixed(1);
+                list.innerHTML += `<div class="history-item"><div><strong>${r.date.split('-').reverse().join('/')}</strong> <span class="badge ${pct>=state.meta?'badge-success':'badge-danger'}">${pct}%</span></div><div class="history-actions"><button class="btn-secondary" onclick="editDate('${r.date}')"><i class="fas fa-pen"></i></button><button class="btn-danger" onclick="deleteDate('${r.date}')"><i class="fas fa-trash"></i></button></div></div>`;
+            });
+        }
+        window.editDate = (d) => { document.getElementById('date-input').value = d; loadData(); window.scrollTo(0,0); };
+        window.deleteDate = async (d) => { if(confirm('Apagar?')) { await Storage.remove('records', `${state.currentTeam}_${d}`); refreshHistory(); if(document.getElementById('date-input').value===d) loadData(); }};
+
         async function exportCSV() {
-            const allRecords = await Storage.listAll('records');
+            const all = await Storage.listAll('records');
             let csv = "Data,Equipe,Pontos_OK,Notas\n";
-            for (const r of allRecords) {
+            for (const r of all) {
                 const ok = r.checks.filter(Boolean).length;
-                const notes = r.notes.filter(n => n && n.reason).map(n => n.reason).join(' | ');
+                const notes = r.notes.filter(n=>n&&n.reason).map(n=>n.reason).join(' | ');
                 csv += `${r.date},${state.config.teams[r.teamId]},${ok},"${notes}"\n`;
             }
-            const blob = new Blob([csv], {type:'text/csv'});
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = 'dados_controlpoint.csv';
+            a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+            a.download = 'dados.csv';
             a.click();
         }
 
-        function showToast(msg = "Salvo com sucesso!") {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.style.transform = 'translateX(0)';
-            setTimeout(() => t.style.transform = 'translateX(150%)', 3000);
+        function importCSV(e) {
+            const f = e.target.files[0];
+            if(!f) return;
+            const r = new FileReader();
+            r.onload = async function(evt) {
+                const lines = evt.target.result.split('\n');
+                let count = 0;
+                for(let i=1; i<lines.length; i++) {
+                    const l = lines[i].trim();
+                    if(!l) continue;
+                    const p = l.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                    const c = p.map(s=>s.replace(/^"|"$/g,'').replace(/,$/,''));
+                    if(c.length<3) continue;
+                    const date = c[0];
+                    const tName = c[1];
+                    const pts = parseInt(c[2]);
+                    let tid = Object.keys(state.config.teams).find(k=>state.config.teams[k]===tName) || 't1';
+                    const checks = Array(16).fill(false);
+                    for(let j=0; j<pts; j++) checks[j]=true;
+                    await Storage.set('records', `${tid}_${date}`, { checks, notes: Array(16).fill(null), teamId: tid, date });
+                    count++;
+                }
+                alert(`${count} importados.`);
+                refreshHistory();
+            };
+            r.readAsText(f);
         }
+
+        // NOTES
+        let curNote = -1;
+        window.openNote = (i) => { curNote=i; const n = state.notes[i] || {reason:'', text:''}; document.getElementById('note-title').textContent = state.config.points[i]; document.getElementById('note-reason').value = n.reason; document.getElementById('note-text').value = n.text; document.getElementById('note-modal').classList.add('open'); };
+        document.getElementById('save-note').onclick = () => { const r=document.getElementById('note-reason').value; const t=document.getElementById('note-text').value; state.notes[curNote] = (r||t) ? {reason:r, text:t} : null; document.getElementById('note-modal').classList.remove('open'); renderChecklist(); };
+        document.getElementById('clear-note').onclick = () => { state.notes[curNote] = null; document.getElementById('note-modal').classList.remove('open'); renderChecklist(); };
+
+        // CONFIG
+        function openConfig() {
+            const td=document.getElementById('cfg-teams'); const pd=document.getElementById('cfg-points'); td.innerHTML=''; pd.innerHTML='';
+            Object.keys(state.config.teams).forEach(k=>td.innerHTML+=`<input data-k="${k}" class="cfg-t" value="${state.config.teams[k]}">`);
+            state.config.points.forEach((p,i)=>pd.innerHTML+=`<input data-i="${i}" class="cfg-p" value="${p}">`);
+            document.getElementById('config-modal').classList.add('open');
+        }
+        async function saveConfig() {
+            const teams={}; document.querySelectorAll('.cfg-t').forEach(e=>teams[e.dataset.k]=e.value);
+            const points=Array.from(document.querySelectorAll('.cfg-p')).map(e=>e.value);
+            state.config={teams,points}; await Storage.set('settings', 'config', state.config);
+            document.getElementById('config-modal').classList.remove('open');
+            renderTeams(); loadData();
+        }
+
+        function showToast() { const t = document.getElementById('toast'); t.style.transform='translateX(0)'; setTimeout(()=>t.style.transform='translateX(150%)', 3000); }
     </script>
 </body>
 </html>
