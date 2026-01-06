@@ -142,6 +142,32 @@
             .badge-danger { border: 1px solid red; color: red; background: none; }
         }
         @media (max-width: 768px) { .main-content { flex-direction: column; } .checkpoints-grid { grid-template-columns: 1fr 1fr; } }
+
+        /* --- ESTILO PARA CAPTURA COMPACTA (WHATSAPP) --- */
+        .compact-mode {
+            width: 400px !important; /* Largura ideal para celular */
+            min-width: 400px !important;
+            max-width: 400px !important;
+            padding: 20px !important;
+            background-color: #ffffff !important; /* Fundo branco fixo */
+            color: #000000 !important;
+            margin: 0 auto !important;
+            border: 1px solid #ddd !important;
+        }
+
+        /* Ajuste do gráfico para não sobrepor */
+        .compact-mode .chart-container {
+            height: 250px !important; 
+            margin-bottom: 50px !important; /* Espaço extra para segurança */
+            position: relative !important;
+            page-break-inside: avoid;
+        }
+
+        /* Ajustes de fonte */
+        .compact-mode h3 { font-size: 20px !important; text-align: center; margin-bottom: 15px !important; }
+        .compact-mode h4 { font-size: 16px !important; margin-top: 20px !important; }
+        .compact-mode table { font-size: 13px !important; width: 100% !important; margin-top: 10px !important; }
+        .compact-mode th, .compact-mode td { padding: 6px !important; }
     </style>
 </head>
 <body>
@@ -151,7 +177,7 @@
                 <i class="fas fa-chart-line"></i>
                 <div>
                     <h1>ControlPoint</h1>
-                    <p style="font-size: 12px; opacity: 0.8;">Versão 5.0</p>
+                    <p style="font-size: 12px; opacity: 0.8;">Versão 6.0</p>
                 </div>
             </div>
             <div style="display: flex; gap: 10px;">
@@ -435,18 +461,52 @@
             document.getElementById('generate-btn').addEventListener('click', generateReport);
             document.getElementById('print-btn').addEventListener('click', () => window.print());
             
-            // Botão de Captura (Print Imagem)
+            // --- BOTÃO DE CAPTURA OTIMIZADO PARA WHATSAPP ---
             document.getElementById('capture-btn').addEventListener('click', () => {
                 const area = document.getElementById('report-area');
+                
+                // Validação
                 if(!area.innerText.trim() || area.innerText.includes('Selecione')) {
                     alert('Gere um relatório primeiro!'); return;
                 }
-                html2canvas(area, { scale: 2 }).then(canvas => {
-                    const a = document.createElement('a');
-                    a.download = 'relatorio.png';
-                    a.href = canvas.toDataURL('image/png');
-                    a.click();
-                });
+
+                const btn = document.getElementById('capture-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-camera"></i> Gerando...';
+
+                // 1. Salva estilo original e aplica modo compacto
+                const originalStyle = area.getAttribute('style'); 
+                area.classList.add('compact-mode');
+                
+                // Pequeno delay para o navegador renderizar o layout novo antes do print
+                setTimeout(() => {
+                    html2canvas(area, { 
+                        scale: 2, // Alta qualidade
+                        backgroundColor: '#ffffff', // Força fundo branco
+                        useCORS: true,
+                        logging: false
+                    }).then(canvas => {
+                        // 2. Download da imagem
+                        const a = document.createElement('a');
+                        a.download = `relatorio_${new Date().toISOString().split('T')[0]}.png`;
+                        a.href = canvas.toDataURL('image/png');
+                        a.click();
+
+                        // 3. Restaura o layout original
+                        area.classList.remove('compact-mode');
+                        if (originalStyle) {
+                            area.setAttribute('style', originalStyle);
+                        } else {
+                            area.removeAttribute('style');
+                            // Re-aplica estilo padrão da div se necessário
+                            area.style.marginTop = "20px";
+                            area.style.borderTop = "1px solid var(--border)";
+                            area.style.paddingTop = "20px";
+                        }
+                        
+                        btn.innerHTML = originalText;
+                    });
+                }, 100); // 100ms de pausa
             });
 
             document.getElementById('export-btn').addEventListener('click', exportCSV);
