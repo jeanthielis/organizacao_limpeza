@@ -110,7 +110,65 @@
         .report-item-row { padding: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
         .report-note-box { background: rgba(0,0,0,0.05); padding: 5px 10px; border-radius: 4px; margin-top: 4px; font-size: 13px; color: var(--text-secondary); border-left: 3px solid var(--accent); }
         
-        /* IMPRESSÃO (CSS ESPECÍFICO) */
+        /* ESTILO DE SNAPSHOT (WHATSAPP COMPACTO) 
+           Ativado via JS apenas no momento da foto 
+        */
+        .whatsapp-snapshot {
+            background: #ffffff !important;
+            color: #000000 !important;
+            width: 500px !important; /* Largura fixa ideal para celular */
+            max-width: 500px !important;
+            padding: 15px !important;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            font-family: Arial, sans-serif !important;
+        }
+
+        .whatsapp-snapshot h3, .whatsapp-snapshot h4 {
+            color: #333 !important;
+            margin-bottom: 10px !important;
+            font-size: 16px !important;
+        }
+
+        /* Compacta a lista vertical em duas colunas */
+        .whatsapp-snapshot ul {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            column-gap: 15px !important;
+            row-gap: 0 !important;
+        }
+
+        /* Ajusta cada item da lista */
+        .whatsapp-snapshot li {
+            font-size: 11px !important;
+            padding: 4px 0 !important;
+            margin: 0 !important;
+            border-bottom: 1px solid #eee !important;
+            display: flex !important;
+            flex-direction: column !important; /* Permite que notas fiquem abaixo */
+            align-items: flex-start !important;
+        }
+
+        .whatsapp-snapshot .report-note-box {
+            font-size: 10px !important;
+            padding: 2px 5px !important;
+            margin-top: 2px !important;
+            width: 100% !important;
+        }
+
+        .whatsapp-snapshot .badge {
+            font-size: 12px !important;
+            border: 1px solid #ccc !important;
+        }
+
+        /* Se tiver gráfico no print, força o tamanho */
+        .whatsapp-snapshot .chart-container {
+            height: 250px !important;
+            width: 100% !important;
+        }
+
+        /* IMPRESSÃO PADRÃO (Impressora) */
         @media print {
             body { background: white; color: black; margin: 0; padding: 0; }
             .container, header, .main-column:first-child, .filters, .report-actions, .logo, .action-bar, .team-buttons, #config-btn, #theme-toggle { 
@@ -138,8 +196,6 @@
             }
             .chart-container { height: 400px !important; page-break-inside: avoid; }
             table { page-break-inside: avoid; width: 100% !important; }
-            .badge-success { border: 1px solid green; color: green; background: none; }
-            .badge-danger { border: 1px solid red; color: red; background: none; }
         }
         @media (max-width: 768px) { .main-content { flex-direction: column; } .checkpoints-grid { grid-template-columns: 1fr 1fr; } }
     </style>
@@ -238,7 +294,7 @@
                     
                     <div class="report-actions" style="margin-top:10px; display:flex; gap:5px; flex-wrap:wrap;">
                         <button class="btn-secondary" id="print-btn" style="font-size:12px;"><i class="fas fa-print"></i> Imprimir</button>
-                        <button class="btn-secondary" id="capture-btn" style="font-size:12px;"><i class="fas fa-camera"></i> Print (Img)</button>
+                        <button class="btn-secondary" id="capture-btn" style="font-size:12px; background: #25D366; color: white; border: none;"><i class="fas fa-camera"></i> Print WhatsApp</button>
                         <button class="btn-secondary" id="export-btn" style="font-size:12px;"><i class="fas fa-file-csv"></i> CSV</button>
                         <label for="import-file" class="button btn-secondary" style="font-size:12px; cursor: pointer; display: flex; align-items: center; gap:8px; margin:0;">
                             <i class="fas fa-file-import"></i> Importar
@@ -293,7 +349,7 @@
     <div id="toast" style="position:fixed; top:20px; right:20px; background:var(--success); color:white; padding:15px; border-radius:6px; transform:translateX(150%); transition:0.3s; z-index:3000;">Salvo com sucesso!</div>
 
     <script>
-        // FIREBASE
+        // FIREBASE (Configuração mantida)
         const firebaseConfig = {
             apiKey: "AIzaSyAzkGqL3ezapXtGvSXcwBFiXnrEuAvrnpQ",
             authDomain: "controlpoint-1728a.firebaseapp.com",
@@ -435,22 +491,39 @@
             document.getElementById('generate-btn').addEventListener('click', generateReport);
             document.getElementById('print-btn').addEventListener('click', () => window.print());
             
-            // Botão de Captura (Print Imagem)
+            // Botão de Captura Modificado (OTIMIZADO PARA WHATSAPP)
             document.getElementById('capture-btn').addEventListener('click', () => {
                 const area = document.getElementById('report-area');
                 if(!area.innerText.trim() || area.innerText.includes('Selecione')) {
                     alert('Gere um relatório primeiro!'); return;
                 }
-                html2canvas(area, { scale: 2 }).then(canvas => {
+
+                // 1. Aplica o estilo compacto
+                area.classList.add('whatsapp-snapshot');
+                
+                // 2. Garante que estamos no topo para renderizar correto
+                window.scrollTo(0, 0);
+
+                // 3. Gera a imagem com escala reduzida para arquivo menor, mas suficiente
+                html2canvas(area, { 
+                    scale: 2, // Boa qualidade
+                    backgroundColor: '#ffffff'
+                }).then(canvas => {
+                    // 4. Remove o estilo para voltar ao normal na tela
+                    area.classList.remove('whatsapp-snapshot');
+
                     const a = document.createElement('a');
-                    a.download = 'relatorio.png';
+                    a.download = `relatorio_zap_${new Date().getTime()}.png`;
                     a.href = canvas.toDataURL('image/png');
                     a.click();
+                }).catch(err => {
+                    console.error(err);
+                    area.classList.remove('whatsapp-snapshot');
                 });
             });
 
             document.getElementById('export-btn').addEventListener('click', exportCSV);
-            // IMPORTAÇÃO INTELIGENTE (Detecta formato)
+            
             document.getElementById('import-file').addEventListener('change', (e) => {
                 const f = e.target.files[0];
                 if(!f) return;
@@ -460,8 +533,6 @@
                     if (lines.length < 2) return;
                     
                     const header = lines[0].toLowerCase();
-                    // Detecta se é o formato antigo (Equipe, Data, Pontos)
-                    // Se não, assume formato padrão (Data, Equipe, Pontos)
                     let colDate=0, colTeam=1, colPts=2;
                     if(header.includes('equipe') && header.indexOf('equipe') < header.indexOf('data')) {
                         colTeam=0; colDate=1; colPts=2;
@@ -478,7 +549,7 @@
                         const tName = c[colTeam];
                         const pts = parseInt(c[colPts]);
                         
-                        if(!date.match(/^\d{4}-\d{2}-\d{2}$/)) continue; // Valida Data
+                        if(!date.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
 
                         let tid = Object.keys(state.config.teams).find(k=>state.config.teams[k]===tName) || 't1';
                         const checks = Array(16).fill(false);
@@ -583,7 +654,7 @@
             else { fill.className = 'progress-fill danger'; document.getElementById('status-text').innerHTML = '<span class="badge badge-danger">Abaixo da Meta</span>'; }
         }
 
-        // RELATÓRIOS
+        // RELATÓRIOS (Sem mudanças lógicas, apenas o HTML gerado é estilizado pelo CSS novo)
         async function generateReport() {
             const type = document.getElementById('report-type').value;
             const area = document.getElementById('report-area');
@@ -675,7 +746,8 @@
                     const pct = (ok / 16) * 100;
                     const statusClass = pct >= meta ? 'badge-success' : 'badge-danger';
                     
-                    html += `<div style="border:1px solid var(--border); border-radius:8px; padding:15px; margin-bottom:15px; background:var(--bg-tertiary);">
+                    // Removido style inline que atrapalha o override da classe snapshot
+                    html += `<div style="border:1px solid var(--border); border-radius:8px; padding:15px; margin-bottom:15px; background:var(--bg-tertiary);" class="report-block">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                             <h4 style="margin:0;">${state.config.teams[r.teamId]}</h4>
                             <span class="badge ${statusClass}">${pct.toFixed(1)}%</span>
