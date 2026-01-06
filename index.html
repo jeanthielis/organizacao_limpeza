@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ControlPoint - Gestão Inteligente</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -44,12 +44,12 @@
             --modal-overlay: rgba(0, 0, 0, 0.8);
         }
         
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; padding: 10px; transition: 0.3s; }
-        .container { max-width: 1300px; margin: 0 auto; }
+        .container { max-width: 1300px; margin: 0 auto; padding-bottom: 50px; }
         
         /* Layout */
-        header { background: var(--bg-card); padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 4px 12px var(--shadow); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); }
+        header { background: var(--bg-card); padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 4px 12px var(--shadow); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); z-index: 100; }
         .logo { display: flex; gap: 10px; align-items: center; }
         .logo i { font-size: 2rem; color: var(--accent); }
         .main-content { display: flex; gap: 15px; flex-wrap: wrap; }
@@ -57,20 +57,22 @@
         .card { background: var(--bg-card); border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 12px var(--shadow); border: 1px solid var(--border); position: relative; }
         
         /* UI Elements */
-        button { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+        button { background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; }
         button:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
         .btn-danger { background: var(--danger); color: white; }
         .icon-btn { background: transparent; color: var(--text-secondary); font-size: 1.2rem; padding: 8px; }
         
-        input, select, textarea { padding: 10px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; width: 100%; }
+        input, select, textarea { padding: 10px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; width: 100%; outline: none; }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent); }
         [data-theme="dark"] input[type="date"], [data-theme="dark"] input[type="month"], [data-theme="dark"] input[type="number"] { color-scheme: dark; }
 
         /* Checklist */
         .checkpoints-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 15px 0; }
-        .checkpoint { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border); }
-        .checkpoint label { flex: 1; cursor: pointer; font-size: 14px; }
-        .checkpoint input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+        .checkpoint { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border); transition: 0.2s; }
+        .checkpoint:active { transform: scale(0.98); }
+        .checkpoint label { flex: 1; cursor: pointer; font-size: 14px; user-select: none; }
+        .checkpoint input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; }
         .note-btn { background: transparent; color: var(--text-secondary); padding: 5px; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.6; }
         .note-btn.has-note { color: var(--accent); background: rgba(0, 123, 255, 0.1); opacity: 1; }
 
@@ -82,7 +84,7 @@
 
         /* Teams */
         .team-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .team-btn { padding: 15px; text-align: center; background: var(--bg-tertiary); border: 2px solid transparent; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .team-btn { padding: 15px; text-align: center; background: var(--bg-tertiary); border: 2px solid transparent; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; user-select: none; }
         .team-btn.active { border-color: var(--accent); background: rgba(0, 123, 255, 0.05); }
 
         /* History */
@@ -109,61 +111,96 @@
         
         .report-item-row { padding: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
         .report-note-box { background: rgba(0,0,0,0.05); padding: 5px 10px; border-radius: 4px; margin-top: 4px; font-size: 13px; color: var(--text-secondary); border-left: 3px solid var(--accent); }
+
+        /* --- OTIMIZAÇÃO MOBILE (CSS NOVO) --- */
+        @media (max-width: 768px) {
+            /* Remove margens para aproveitar tela inteira */
+            body { padding: 5px; }
+            .container { padding-bottom: 80px; width: 100%; }
+            .main-content { flex-direction: column; gap: 10px; }
+            .main-column { min-width: 100%; }
+            
+            /* Cabeçalho Fixo (Sticky) */
+            header {
+                position: sticky;
+                top: 0;
+                margin: -5px -5px 10px -5px; /* Compensa padding do body */
+                border-radius: 0 0 10px 10px;
+                z-index: 1500;
+                padding: 10px 15px;
+            }
+            header h1 { font-size: 1.2rem; }
+            header p { display: none; } /* Esconde versão */
+
+            /* Aumenta área de toque (Touch Targets) */
+            button, .team-btn, select, input {
+                min-height: 48px; /* Altura confortável para o dedo */
+                font-size: 16px; /* Evita zoom no iOS */
+            }
+            
+            /* Checklist em coluna única (Lista) */
+            .checkpoints-grid {
+                grid-template-columns: 1fr; 
+                gap: 8px;
+            }
+            .checkpoint { padding: 12px; }
+            .checkpoint input[type="checkbox"] {
+                width: 24px; height: 24px; /* Checkbox maior */
+                margin-right: 10px;
+            }
+            .checkpoint label { font-size: 15px; font-weight: 500; }
+
+            /* Ações de Relatório em grade */
+            .report-actions {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            
+            /* Tabelas responsivas (com rolagem lateral se precisar) */
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            
+            /* Ajuste Modal */
+            .modal {
+                width: 100%;
+                height: 100%;
+                max-height: 100vh;
+                border-radius: 0;
+                border: none;
+            }
+        }
         
-        /* IMPRESSÃO (CSS ESPECÍFICO) */
+        /* IMPRESSÃO & CAPTURA */
         @media print {
             body { background: white; color: black; margin: 0; padding: 0; }
-            .container, header, .main-column:first-child, .filters, .report-actions, .logo, .action-bar, .team-buttons, #config-btn, #theme-toggle { 
+            .container, header, .main-column:first-child, .filters, .report-actions, .logo, .action-bar, .team-buttons, #config-btn, #theme-toggle, #toast { 
                 display: none !important; 
             }
             .main-content { display: block !important; }
             .main-column { width: 100% !important; margin: 0 !important; }
             .card { 
-                box-shadow: none !important; 
-                border: none !important; 
-                padding: 0 !important; 
-                margin: 0 !important; 
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: 100% !important;
+                box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; 
+                position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important;
             }
             .card > h3, .card > div.filters, .card > div.report-actions { display: none !important; }
-            #report-area { 
-                display: block !important; 
-                margin: 0 !important; 
-                border: none !important; 
-                width: 100% !important;
-                padding: 20px !important;
-            }
+            #report-area { display: block !important; margin: 0 !important; border: none !important; width: 100% !important; padding: 20px !important; }
             .chart-container { height: 400px !important; page-break-inside: avoid; }
             table { page-break-inside: avoid; width: 100% !important; }
             .badge-success { border: 1px solid green; color: green; background: none; }
             .badge-danger { border: 1px solid red; color: red; background: none; }
         }
-        @media (max-width: 768px) { .main-content { flex-direction: column; } .checkpoints-grid { grid-template-columns: 1fr 1fr; } }
 
-        /* --- ESTILO PARA CAPTURA COMPACTA (WHATSAPP) --- */
+        /* --- MODO CAPTURA COMPACTA (WHATSAPP) --- */
         .compact-mode {
-            width: 400px !important; /* Largura ideal para celular */
-            min-width: 400px !important;
-            max-width: 400px !important;
-            padding: 20px !important;
-            background-color: #ffffff !important; /* Fundo branco fixo */
-            color: #000000 !important;
-            margin: 0 auto !important;
-            border: 1px solid #ddd !important;
+            width: 400px !important; min-width: 400px !important; max-width: 400px !important;
+            padding: 20px !important; background-color: #ffffff !important; color: #000000 !important;
+            margin: 0 auto !important; border: 1px solid #ddd !important;
         }
-
-        /* Ajuste do gráfico para não sobrepor */
-        .compact-mode .chart-container {
-            height: 250px !important; 
-            margin-bottom: 50px !important; /* Espaço extra para segurança */
-            position: relative !important;
-            page-break-inside: avoid;
-        }
-
-        /* Ajustes de fonte */
+        .compact-mode .chart-container { height: 250px !important; margin-bottom: 50px !important; position: relative !important; page-break-inside: avoid; }
         .compact-mode h3 { font-size: 20px !important; text-align: center; margin-bottom: 15px !important; }
         .compact-mode h4 { font-size: 16px !important; margin-top: 20px !important; }
         .compact-mode table { font-size: 13px !important; width: 100% !important; margin-top: 10px !important; }
@@ -177,7 +214,7 @@
                 <i class="fas fa-chart-line"></i>
                 <div>
                     <h1>ControlPoint</h1>
-                    <p style="font-size: 12px; opacity: 0.8;">Versão 6.0</p>
+                    <p style="font-size: 12px; opacity: 0.8;">Versão 5.1 Mobile</p>
                 </div>
             </div>
             <div style="display: flex; gap: 10px;">
@@ -266,7 +303,7 @@
                         <button class="btn-secondary" id="print-btn" style="font-size:12px;"><i class="fas fa-print"></i> Imprimir</button>
                         <button class="btn-secondary" id="capture-btn" style="font-size:12px;"><i class="fas fa-camera"></i> Print (Img)</button>
                         <button class="btn-secondary" id="export-btn" style="font-size:12px;"><i class="fas fa-file-csv"></i> CSV</button>
-                        <label for="import-file" class="button btn-secondary" style="font-size:12px; cursor: pointer; display: flex; align-items: center; gap:8px; margin:0;">
+                        <label for="import-file" class="button btn-secondary" style="font-size:12px; cursor: pointer; display: flex; align-items: center; justify-content:center; gap:8px; margin:0;">
                             <i class="fas fa-file-import"></i> Importar
                         </label>
                         <input type="file" id="import-file" accept=".csv" style="display: none;">
@@ -316,7 +353,7 @@
         </div>
     </div>
 
-    <div id="toast" style="position:fixed; top:20px; right:20px; background:var(--success); color:white; padding:15px; border-radius:6px; transform:translateX(150%); transition:0.3s; z-index:3000;">Salvo com sucesso!</div>
+    <div id="toast" style="position:fixed; top:20px; right:20px; background:var(--success); color:white; padding:15px; border-radius:6px; transform:translateX(150%); transition:0.3s; z-index:3000; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">Salvo com sucesso!</div>
 
     <script>
         // FIREBASE
@@ -498,7 +535,6 @@
                             area.setAttribute('style', originalStyle);
                         } else {
                             area.removeAttribute('style');
-                            // Re-aplica estilo padrão da div se necessário
                             area.style.marginTop = "20px";
                             area.style.borderTop = "1px solid var(--border)";
                             area.style.paddingTop = "20px";
@@ -506,11 +542,11 @@
                         
                         btn.innerHTML = originalText;
                     });
-                }, 100); // 100ms de pausa
+                }, 100); 
             });
 
             document.getElementById('export-btn').addEventListener('click', exportCSV);
-            // IMPORTAÇÃO INTELIGENTE (Detecta formato)
+            // IMPORTAÇÃO INTELIGENTE
             document.getElementById('import-file').addEventListener('change', (e) => {
                 const f = e.target.files[0];
                 if(!f) return;
@@ -520,8 +556,6 @@
                     if (lines.length < 2) return;
                     
                     const header = lines[0].toLowerCase();
-                    // Detecta se é o formato antigo (Equipe, Data, Pontos)
-                    // Se não, assume formato padrão (Data, Equipe, Pontos)
                     let colDate=0, colTeam=1, colPts=2;
                     if(header.includes('equipe') && header.indexOf('equipe') < header.indexOf('data')) {
                         colTeam=0; colDate=1; colPts=2;
@@ -538,7 +572,7 @@
                         const tName = c[colTeam];
                         const pts = parseInt(c[colPts]);
                         
-                        if(!date.match(/^\d{4}-\d{2}-\d{2}$/)) continue; // Valida Data
+                        if(!date.match(/^\d{4}-\d{2}-\d{2}$/)) continue; 
 
                         let tid = Object.keys(state.config.teams).find(k=>state.config.teams[k]===tName) || 't1';
                         const checks = Array(16).fill(false);
