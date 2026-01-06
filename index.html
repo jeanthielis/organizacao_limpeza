@@ -723,7 +723,7 @@
                     type: 'bar',
                     data: { labels: labels, datasets: [{ label: 'Média (%)', data: values, backgroundColor: colors, borderWidth: 1 }] },
                     options: {
-                        responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } },
+                        responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 150 } },
                         plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', formatter: (val) => val.toFixed(1) + '%', font: { weight: 'bold' } }, metaLine: { metaValue: meta } }
                     },
                     plugins: [metaLinePlugin]
