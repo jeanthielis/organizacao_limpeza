@@ -12,10 +12,9 @@ createApp({
         const isDarkMode = ref(localStorage.getItem('darkMode') === 'true');
         
         const currentView = ref('inspection');
-        // ATUALIZADO: Adicionado item 'history' no menu
         const menuItems = [
             { id: 'inspection', label: 'Inspeção', icon: 'fas fa-tasks' },
-            { id: 'history', label: 'Histórico', icon: 'fas fa-history' }, // Novo item
+            { id: 'history', label: 'Histórico', icon: 'fas fa-history' },
             { id: 'reports', label: 'Relatórios', icon: 'fas fa-chart-pie' },
             { id: 'admin', label: 'Admin', icon: 'fas fa-cogs' },
         ];
@@ -29,7 +28,7 @@ createApp({
         const meta = ref(93); 
         const inspectionObservation = ref(''); 
 
-        // === HISTÓRICO (NOVO) ===
+        // === HISTÓRICO ===
         const historyList = ref([]);
         const loadingHistory = ref(false);
         const historyMonth = ref(new Date().toISOString().slice(0, 7));
@@ -66,7 +65,6 @@ createApp({
             }
         }, { immediate: true });
 
-        // ATUALIZADO: Carrega histórico quando entra na tela ou muda o mês
         watch([currentView, reportType, reportMonth, reportYear, dailyDate, historyMonth], () => {
             if (currentView.value === 'reports') loadReports();
             if (currentView.value === 'history') loadHistory();
@@ -88,7 +86,7 @@ createApp({
             }
         });
 
-        // === FUNÇÕES ===
+        // === FUNÇÕES GERAIS ===
         const toggleDarkMode = () => isDarkMode.value = !isDarkMode.value;
         const toggleAllPoints = () => {
             const targetState = !allSelected.value;
@@ -198,7 +196,6 @@ createApp({
             } catch (e) { alert("Erro: " + e.message); } finally { saving.value = false; }
         };
 
-        // === NOVA FUNÇÃO: CARREGAR HISTÓRICO ===
         const loadHistory = async () => {
             if (!db || !user.value) return;
             loadingHistory.value = true;
@@ -206,14 +203,12 @@ createApp({
             try {
                 const startStr = historyMonth.value + "-01";
                 const endStr = historyMonth.value + "-31";
-                // Filtra pelo mês selecionado
                 const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
                 const snapshot = await getDocs(q);
                 
                 let list = [];
                 snapshot.forEach(doc => list.push(doc.data()));
                 
-                // Ordena por data (mais recente primeiro)
                 list.sort((a, b) => {
                     if (a.date !== b.date) return b.date.localeCompare(a.date);
                     return a.team.localeCompare(b.team);
@@ -223,14 +218,34 @@ createApp({
             } catch (e) { console.error(e); } finally { loadingHistory.value = false; }
         };
 
-        // === NOVA FUNÇÃO: EDITAR PELO HISTÓRICO ===
         const editFromHistory = (item) => {
-            // Define os parâmetros para a tela de inspeção
             currentTeam.value = item.team;
             currentDate.value = item.date;
-            // Muda a tela
             currentView.value = 'inspection';
-            // O watcher do currentTeam/currentDate vai disparar o carregamento automaticamente
+        };
+
+        // === NOVA FUNÇÃO: EXCLUIR INSPEÇÃO ===
+        const deleteInspection = async (item) => {
+            if(!confirm(`Tem certeza que deseja excluir a inspeção da ${item.team} do dia ${item.date.split('-').reverse().join('/')}?`)) return;
+
+            try {
+                // Reconstrói o ID usado no banco
+                const docId = `${item.team}_${item.date}`;
+                
+                // Deleta do Firestore
+                await deleteDoc(doc(db, "inspections", docId));
+                
+                // Remove da lista visualmente
+                historyList.value = historyList.value.filter(i => !(i.team === item.team && i.date === item.date));
+                
+                // Limpa do cache local se existir
+                localStorage.removeItem(`cp_temp_${docId}`);
+                
+                alert("Registro excluído com sucesso.");
+            } catch (e) {
+                console.error(e);
+                alert("Erro ao excluir: " + e.message);
+            }
         };
 
         // === RELATÓRIOS ===
@@ -380,8 +395,8 @@ createApp({
             isDarkMode, toggleDarkMode, toggleAllPoints, allSelected, inspectionObservation,
             reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
             generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
-            // NOVOS RETORNOS PARA O HISTÓRICO
-            historyList, loadingHistory, historyMonth, editFromHistory
+            // NOVOS RETORNOS
+            historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection // <--- Adicionado
         };
     }
 }).mount('#app')
