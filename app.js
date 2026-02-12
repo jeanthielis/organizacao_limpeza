@@ -1,5 +1,6 @@
 import { createApp, ref, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
-import { db, auth, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from './firebase.js'
+// Adicionado 'getDoc' aos imports do firebase.js
+import { db, auth, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, getDoc } from './firebase.js'
 
 createApp({
     setup() {
@@ -24,7 +25,10 @@ createApp({
         const points = ref([]); 
         const loadingPoints = ref(false);
         const saving = ref(false);
-        const meta = 93;
+        
+        // ALTERAÇÃO: Meta agora é reativa (ref) para permitir edição
+        const meta = ref(93); 
+        
         const inspectionObservation = ref(''); 
 
         // === ADMIN ===
@@ -36,11 +40,10 @@ createApp({
         const reportMonth = ref(new Date().toISOString().slice(0, 7));
         const reportYear = ref(new Date().getFullYear());
         const dailyDate = ref(new Date().toISOString().split('T')[0]);
-        // Removemos dailyTeam pois agora mostra todas
         
         const loadingReports = ref(false);
         const teamStats = ref([]);
-        const dailyDataList = ref([]); // Mudei de dailyData (objeto) para lista
+        const dailyDataList = ref([]);
         let chartInstance = null;
 
         // === COMPUTED ===
@@ -74,7 +77,10 @@ createApp({
             if (auth) {
                 onAuthStateChanged(auth, (u) => {
                     user.value = u;
-                    if (u) loadMasterPoints();
+                    if (u) {
+                        loadMasterPoints();
+                        loadMeta(); // Carrega a meta ao iniciar
+                    }
                 });
             }
         });
@@ -98,6 +104,31 @@ createApp({
         };
         const logout = () => signOut(auth);
 
+        // === NOVA FUNÇÃO: CARREGAR META DO FIREBASE ===
+        const loadMeta = async () => {
+            if (!db) return;
+            try {
+                const docRef = doc(db, "config_geral", "meta_padrao");
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    meta.value = snap.data().valor;
+                }
+            } catch (e) { console.log("Usando meta padrão 93%"); }
+        };
+
+        // === NOVA FUNÇÃO: SALVAR META NO FIREBASE ===
+        const saveMeta = async () => {
+            if (!db) return;
+            try {
+                await setDoc(doc(db, "config_geral", "meta_padrao"), { valor: meta.value });
+                alert("Nova meta definida com sucesso!");
+                // Recarrega gráficos se estiver na tela de relatórios
+                if (currentView.value === 'reports' && reportType.value !== 'daily') {
+                   renderChart(reportType.value === 'annual' ? 'line' : 'bar');
+                }
+            } catch (e) { alert("Erro ao salvar meta: " + e.message); }
+        };
+
         // === LÓGICA DE DADOS ===
         const loadMasterPoints = async () => {
             if (!db || !user.value) return;
@@ -115,27 +146,50 @@ createApp({
             } catch (e) { console.error(e); } finally { loadingPoints.value = false; }
         };
 
+        // === ATUALIZADO: LÓGICA DE CARREGAMENTO PARA EDIÇÃO ===
         const initializeChecklist = async () => {
+            // 1. Cria estrutura base (zerada)
             const basePoints = pointsConfig.value.map(p => ({ 
                 id: p.id, name: p.name, checked: false, obs: '', showObs: false 
             }));
             inspectionObservation.value = '';
+
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
-                const localSaved = localStorage.getItem(`cp_temp_${docId}`);
-                if (localSaved) {
-                    const savedData = JSON.parse(localSaved);
+                
+                // Prioridade 1: Buscar no Firebase (Modo Edição)
+                // Se já existe registro salvo, carrega ele
+                const docRef = doc(db, "inspections", docId);
+                let sourceData = null;
+                
+                // Tenta buscar online
+                try {
+                   const docSnap = await getDoc(docRef);
+                   if (docSnap.exists()) {
+                       sourceData = docSnap.data();
+                   }
+                } catch(err) { console.log("Erro ao buscar inspeção online ou offline:", err); }
+
+                // Prioridade 2: Se não tem no banco, tenta rascunho local (LocalStorage)
+                if (!sourceData) {
+                    const localSaved = localStorage.getItem(`cp_temp_${docId}`);
+                    if (localSaved) sourceData = JSON.parse(localSaved);
+                }
+
+                // Aplica os dados encontrados (seja do banco ou local)
+                if (sourceData) {
                     basePoints.forEach(p => {
-                        const found = savedData.points.find(sp => sp.name === p.name);
+                        const found = sourceData.points.find(sp => sp.name === p.name);
                         if (found) {
                             p.checked = found.checked;
                             p.obs = found.obs || '';
                             if(p.obs) p.showObs = true;
                         }
                     });
-                    if(savedData.observation) inspectionObservation.value = savedData.observation;
+                    if(sourceData.observation) inspectionObservation.value = sourceData.observation;
                 }
             } catch (e) { console.error(e) }
+            
             points.value = basePoints;
         };
 
@@ -188,8 +242,6 @@ createApp({
                     // ALGORITMO DE RANKING DENSO (EMPATES)
                     let currentRank = 1;
                     for (let i = 0; i < sortedStats.length; i++) {
-                        // Se não for o primeiro e a média for menor que o anterior, aumenta o rank
-                        // Se for igual, mantém o mesmo rank (empate)
                         if (i > 0 && sortedStats[i].average < sortedStats[i-1].average) {
                             currentRank++; 
                         }
@@ -221,18 +273,13 @@ createApp({
                     loadingReports.value = false;
                     setTimeout(() => renderChart('line'), 100);
                 }
-                // 3. DIÁRIO (Todas as Equipes)
+                // 3. DIÁRIO
                 else if (reportType.value === 'daily') {
-                    // Busca apenas pela DATA, sem filtro de equipe
                     const q = query(collection(db, "inspections"), where("date", "==", dailyDate.value));
                     const snapshot = await getDocs(q);
-                    
                     let list = [];
                     snapshot.forEach(doc => list.push(doc.data()));
-                    
-                    // Ordena por nome da equipe
                     list.sort((a, b) => a.team.localeCompare(b.team));
-                    
                     dailyDataList.value = list;
                     loadingReports.value = false;
                 }
@@ -248,11 +295,14 @@ createApp({
 
             const textColor = isDarkMode.value ? '#94a3b8' : '#64748b';
             const ChartConstructor = window.Chart;
+            // Usa o valor atual da meta (meta.value)
+            const currentMeta = meta.value;
 
             if (type === 'bar') {
                 const labels = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
                 const data = labels.map(t => { const s = teamStats.value.find(x => x.name === t); return s ? s.average : 0; });
-                const colors = data.map(v => v >= meta ? '#10b981' : '#ef4444');
+                // Cores dinâmicas baseadas na meta atual
+                const colors = data.map(v => v >= currentMeta ? '#10b981' : '#ef4444');
                 
                 new ChartConstructor(ctx, {
                     type: 'bar',
@@ -260,7 +310,7 @@ createApp({
                         labels: labels,
                         datasets: [
                             { label: 'Média (%)', data: data, backgroundColor: colors, borderRadius: 5, order: 2 },
-                            { type: 'line', label: `Meta: ${meta}%`, data: [meta,meta,meta,meta], borderColor: isDarkMode.value?'#fff':'#333', borderDash:[5,5], borderWidth: 3, pointRadius: 0, order: 1 }
+                            { type: 'line', label: `Meta: ${currentMeta}%`, data: [currentMeta,currentMeta,currentMeta,currentMeta], borderColor: isDarkMode.value?'#fff':'#333', borderDash:[5,5], borderWidth: 3, pointRadius: 0, order: 1 }
                         ]
                     },
                     options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 150, ticks:{color:textColor} }, x:{ticks:{color:textColor}} }, plugins:{ legend:{ display: true, position: 'bottom', labels:{color:textColor}} } }
@@ -281,7 +331,6 @@ createApp({
             const element = document.getElementById('reportContent');
             if(!element) return;
             try {
-                // Aumentei Scale para 4 (Melhor Qualidade)
                 const canvas = await window.html2canvas(element, { scale: 4, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
                 const imgData = canvas.toDataURL('image/png');
                 const { jsPDF } = window.jspdf;
@@ -297,7 +346,6 @@ createApp({
             const element = document.getElementById('reportContent');
             if(!element) return;
             try {
-                // Aumentei Scale para 4 (Melhor Qualidade)
                 const canvas = await window.html2canvas(element, { scale: 4, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
                 const link = document.createElement('a');
                 link.download = `Print_${reportType.value}.png`;
@@ -318,7 +366,8 @@ createApp({
             pointsConfig, newPointName, addPoint, deletePoint, 
             isDarkMode, toggleDarkMode, toggleAllPoints, allSelected, inspectionObservation,
             reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
-            generatePDF, takeScreenshot, saveInspection, togglePoint
+            generatePDF, takeScreenshot, saveInspection, togglePoint,
+            saveMeta // Expondo a função para salvar a meta
         };
     }
 }).mount('#app')
