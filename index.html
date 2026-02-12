@@ -152,9 +152,13 @@
                             </div>
                         </div>
 
-                        <div class="fixed bottom-20 right-4 md:static md:flex md:justify-end z-30">
-                            <button @click="saveInspection" :disabled="saving" class="shadow-lg bg-primary text-white font-bold py-3 px-6 rounded-full flex items-center gap-2 hover:bg-blue-600"><i class="fas fa-save"></i> {{ saving ? 'Salvando...' : 'Salvar' }}</button>
+                        <div class="fixed bottom-24 right-6 md:bottom-10 md:right-10 z-50">
+                            <button @click="saveInspection" :disabled="saving" class="shadow-2xl bg-primary text-white font-bold py-4 px-6 rounded-full flex items-center gap-3 hover:bg-blue-600 transition-all hover:scale-105">
+                                <i class="fas fa-save text-xl"></i> 
+                                <span class="text-lg">{{ saving ? 'Salvando...' : 'Salvar' }}</span>
+                            </button>
                         </div>
+
                     </div>
 
                     <div v-if="currentView === 'history'" class="space-y-6">
