@@ -34,7 +34,6 @@
         [v-cloak] { display: none; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         body, div, nav, aside { transition: background-color 0.3s, color 0.3s; }
-        /* Classe para forçar quebra de página no PDF se necessário */
         .page-break { page-break-before: always; }
     </style>
 </head>
@@ -155,6 +154,49 @@
 
                         <div class="fixed bottom-20 right-4 md:static md:flex md:justify-end z-30">
                             <button @click="saveInspection" :disabled="saving" class="shadow-lg bg-primary text-white font-bold py-3 px-6 rounded-full flex items-center gap-2 hover:bg-blue-600"><i class="fas fa-save"></i> {{ saving ? 'Salvando...' : 'Salvar' }}</button>
+                        </div>
+                    </div>
+
+                    <div v-if="currentView === 'history'" class="space-y-6">
+                        <div class="bg-white dark:bg-darkcard p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800 dark:text-white">Histórico de Inspeções</h2>
+                                <p class="text-sm text-slate-500">Selecione o mês para visualizar ou editar registros</p>
+                            </div>
+                            <input type="month" v-model="historyMonth" class="bg-slate-50 dark:bg-slate-700 dark:text-white border dark:border-slate-600 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary">
+                        </div>
+
+                        <div v-if="loadingHistory" class="text-center py-10"><i class="fas fa-circle-notch fa-spin text-3xl text-primary"></i></div>
+
+                        <div v-else-if="historyList.length === 0" class="text-center py-10 text-slate-500 bg-white dark:bg-darkcard rounded-2xl border dark:border-slate-700">
+                            <i class="fas fa-folder-open text-4xl mb-3 opacity-50"></i>
+                            <p>Nenhuma inspeção encontrada neste mês.</p>
+                        </div>
+
+                        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div v-for="(item, index) in historyList" :key="index" class="bg-white dark:bg-darkcard rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 hover:shadow-md transition-shadow">
+                                <div class="flex justify-between items-start mb-3">
+                                    <span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-primary text-xs font-bold rounded-lg">{{ item.team }}</span>
+                                    <span class="text-sm text-slate-500 dark:text-slate-400"><i class="far fa-calendar-alt mr-1"></i> {{ item.date.split('-').reverse().join('/') }}</span>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <div class="flex items-end gap-2 mb-1">
+                                        <span class="text-3xl font-bold" :class="item.score >= meta ? 'text-success' : 'text-danger'">{{ item.score.toFixed(0) }}%</span>
+                                        <span class="text-xs text-slate-400 mb-1">aproveitamento</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                                        <div class="h-full rounded-full" :class="item.score >= meta ? 'bg-success' : 'bg-danger'" :style="{width: item.score + '%'}"></div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between pt-3 border-t dark:border-slate-700">
+                                    <span class="text-xs text-slate-400 truncate max-w-[150px]"><i class="fas fa-user mr-1"></i> {{ item.user.split('@')[0] }}</span>
+                                    <button @click="editFromHistory(item)" class="text-sm font-medium text-primary hover:text-blue-600 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                                        Editar <i class="fas fa-pen ml-1"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
