@@ -104,7 +104,7 @@
                             <div class="flex flex-col md:flex-row justify-between gap-4 mb-6">
                                 <div>
                                     <h2 class="text-xl font-bold text-slate-800 dark:text-white">Verificação</h2>
-                                    <p class="text-sm text-slate-500">Selecione equipe e data</p>
+                                    <p class="text-sm text-slate-500">Selecione equipe e data (Edição automática se já existir)</p>
                                 </div>
                                 <div class="flex gap-2">
                                     <select v-model="currentTeam" class="bg-slate-50 dark:bg-slate-700 dark:text-white border dark:border-slate-600 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary"><option>Equipe 1</option><option>Equipe 2</option><option>Equipe 3</option><option>Equipe 4</option></select>
@@ -154,7 +154,7 @@
                         </div>
 
                         <div class="fixed bottom-20 right-4 md:static md:flex md:justify-end z-30">
-                            <button @click="saveInspection" :disabled="saving" class="shadow-lg bg-primary text-white font-bold py-3 px-6 rounded-full flex items-center gap-2 hover:bg-blue-600"><i class="fas fa-save"></i> Salvar</button>
+                            <button @click="saveInspection" :disabled="saving" class="shadow-lg bg-primary text-white font-bold py-3 px-6 rounded-full flex items-center gap-2 hover:bg-blue-600"><i class="fas fa-save"></i> {{ saving ? 'Salvando...' : 'Salvar' }}</button>
                         </div>
                     </div>
 
@@ -171,7 +171,7 @@
                                     <h2 class="text-xl font-bold text-slate-800 dark:text-white">
                                         {{ reportType === 'monthly' ? 'Desempenho Mensal' : reportType === 'annual' ? 'Evolução Anual' : 'Relatório Diário' }}
                                     </h2>
-                                    <p class="text-sm text-slate-500">Métricas de qualidade</p>
+                                    <p class="text-sm text-slate-500">Métricas de qualidade (Meta: {{ meta }}%)</p>
                                 </div>
                                 <div class="flex gap-2">
                                     <input v-if="reportType === 'monthly'" type="month" v-model="reportMonth" class="bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg p-2 text-sm outline-none">
@@ -259,10 +259,39 @@
                     </div>
 
                     <div v-if="currentView === 'admin'" class="max-w-2xl mx-auto space-y-6">
+                        
+                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h2 class="text-xl font-bold dark:text-white mb-4">Meta Global</h2>
+                            <div class="flex items-center gap-4">
+                                <div class="flex-1">
+                                    <input type="range" v-model="meta" min="50" max="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <div class="flex justify-between text-xs text-slate-400 mt-1">
+                                        <span>50%</span>
+                                        <span>100%</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl font-bold text-primary">{{ meta }}%</span>
+                                    <button @click="saveMeta" class="bg-primary text-white p-2 rounded-lg hover:bg-blue-600 transition-colors" title="Salvar Meta">
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-2">Isso define a linha de corte para todas as equipes nos gráficos.</p>
+                        </div>
+
                         <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                             <h2 class="text-xl font-bold dark:text-white mb-4">Gerenciar Pontos</h2>
-                            <div class="flex gap-2 mb-6"><input v-model="newPointName" @keyup.enter="addPoint" type="text" placeholder="Nome do novo ponto..." class="flex-1 p-3 border dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-lg"><button @click="addPoint" class="bg-success text-white px-4 rounded-lg"><i class="fas fa-plus"></i></button></div>
-                            <div class="space-y-2"><div v-for="(point, index) in pointsConfig" :key="point.id" class="flex justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border dark:border-slate-700"><span class="dark:text-white">{{ point.name }}</span><button @click="deletePoint(point.id)" class="text-danger"><i class="fas fa-trash-alt"></i></button></div></div>
+                            <div class="flex gap-2 mb-6">
+                                <input v-model="newPointName" @keyup.enter="addPoint" type="text" placeholder="Nome do novo ponto..." class="flex-1 p-3 border dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-primary">
+                                <button @click="addPoint" class="bg-success text-white px-4 rounded-lg hover:bg-green-600"><i class="fas fa-plus"></i></button>
+                            </div>
+                            <div class="space-y-2">
+                                <div v-for="(point, index) in pointsConfig" :key="point.id" class="flex justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border dark:border-slate-700">
+                                    <span class="dark:text-white">{{ point.name }}</span>
+                                    <button @click="deletePoint(point.id)" class="text-danger hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -276,13 +305,13 @@
 
     <script type="module" src="./app.js"></script>
     <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then((reg) => console.log('Service Worker registado:', reg.scope))
-        .catch((err) => console.log('Falha no Service Worker:', err));
-    });
-  }
-</script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then((reg) => console.log('Service Worker registado:', reg.scope))
+            .catch((err) => console.log('Falha no Service Worker:', err));
+        });
+      }
+    </script>
 </body>
 </html>
