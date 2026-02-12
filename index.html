@@ -192,9 +192,14 @@
 
                                 <div class="flex items-center justify-between pt-3 border-t dark:border-slate-700">
                                     <span class="text-xs text-slate-400 truncate max-w-[150px]"><i class="fas fa-user mr-1"></i> {{ item.user.split('@')[0] }}</span>
-                                    <button @click="editFromHistory(item)" class="text-sm font-medium text-primary hover:text-blue-600 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                                        Editar <i class="fas fa-pen ml-1"></i>
-                                    </button>
+                                    <div class="flex gap-2">
+                                        <button @click="deleteInspection(item)" class="text-sm font-medium text-danger hover:text-red-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Excluir">
+                                            Excluir <i class="fas fa-trash-alt ml-1"></i>
+                                        </button>
+                                        <button @click="editFromHistory(item)" class="text-sm font-medium text-primary hover:text-blue-600 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Editar">
+                                            Editar <i class="fas fa-pen ml-1"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
