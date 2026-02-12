@@ -2,6 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
 import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc,where } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 
 // --- SUBSTITUA PELAS SUAS CHAVES DO FIREBASE CONSOLE ---
 const firebaseConfig = {
@@ -38,6 +39,7 @@ export {
     query,
     setDoc,
     where,
+    getDoc,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     onAuthStateChanged,
