@@ -1,5 +1,4 @@
 import { createApp, ref, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
-// Adicionado 'getDoc' aos imports do firebase.js
 import { db, auth, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, getDoc } from './firebase.js'
 
 createApp({
@@ -13,8 +12,10 @@ createApp({
         const isDarkMode = ref(localStorage.getItem('darkMode') === 'true');
         
         const currentView = ref('inspection');
+        // ATUALIZADO: Adicionado item 'history' no menu
         const menuItems = [
             { id: 'inspection', label: 'Inspeção', icon: 'fas fa-tasks' },
+            { id: 'history', label: 'Histórico', icon: 'fas fa-history' }, // Novo item
             { id: 'reports', label: 'Relatórios', icon: 'fas fa-chart-pie' },
             { id: 'admin', label: 'Admin', icon: 'fas fa-cogs' },
         ];
@@ -25,11 +26,13 @@ createApp({
         const points = ref([]); 
         const loadingPoints = ref(false);
         const saving = ref(false);
-        
-        // ALTERAÇÃO: Meta agora é reativa (ref) para permitir edição
         const meta = ref(93); 
-        
         const inspectionObservation = ref(''); 
+
+        // === HISTÓRICO (NOVO) ===
+        const historyList = ref([]);
+        const loadingHistory = ref(false);
+        const historyMonth = ref(new Date().toISOString().slice(0, 7));
 
         // === ADMIN ===
         const pointsConfig = ref([]); 
@@ -40,11 +43,9 @@ createApp({
         const reportMonth = ref(new Date().toISOString().slice(0, 7));
         const reportYear = ref(new Date().getFullYear());
         const dailyDate = ref(new Date().toISOString().split('T')[0]);
-        
         const loadingReports = ref(false);
         const teamStats = ref([]);
         const dailyDataList = ref([]);
-        let chartInstance = null;
 
         // === COMPUTED ===
         const progress = computed(() => {
@@ -65,8 +66,10 @@ createApp({
             }
         }, { immediate: true });
 
-        watch([currentView, reportType, reportMonth, reportYear, dailyDate], () => {
+        // ATUALIZADO: Carrega histórico quando entra na tela ou muda o mês
+        watch([currentView, reportType, reportMonth, reportYear, dailyDate, historyMonth], () => {
             if (currentView.value === 'reports') loadReports();
+            if (currentView.value === 'history') loadHistory();
         });
 
         watch([currentTeam, currentDate], () => initializeChecklist());
@@ -79,7 +82,7 @@ createApp({
                     user.value = u;
                     if (u) {
                         loadMasterPoints();
-                        loadMeta(); // Carrega a meta ao iniciar
+                        loadMeta();
                     }
                 });
             }
@@ -104,25 +107,20 @@ createApp({
         };
         const logout = () => signOut(auth);
 
-        // === NOVA FUNÇÃO: CARREGAR META DO FIREBASE ===
         const loadMeta = async () => {
             if (!db) return;
             try {
                 const docRef = doc(db, "config_geral", "meta_padrao");
                 const snap = await getDoc(docRef);
-                if (snap.exists()) {
-                    meta.value = snap.data().valor;
-                }
+                if (snap.exists()) meta.value = snap.data().valor;
             } catch (e) { console.log("Usando meta padrão 93%"); }
         };
 
-        // === NOVA FUNÇÃO: SALVAR META NO FIREBASE ===
         const saveMeta = async () => {
             if (!db) return;
             try {
                 await setDoc(doc(db, "config_geral", "meta_padrao"), { valor: meta.value });
                 alert("Nova meta definida com sucesso!");
-                // Recarrega gráficos se estiver na tela de relatórios
                 if (currentView.value === 'reports' && reportType.value !== 'daily') {
                    renderChart(reportType.value === 'annual' ? 'line' : 'bar');
                 }
@@ -146,9 +144,7 @@ createApp({
             } catch (e) { console.error(e); } finally { loadingPoints.value = false; }
         };
 
-        // === ATUALIZADO: LÓGICA DE CARREGAMENTO PARA EDIÇÃO ===
         const initializeChecklist = async () => {
-            // 1. Cria estrutura base (zerada)
             const basePoints = pointsConfig.value.map(p => ({ 
                 id: p.id, name: p.name, checked: false, obs: '', showObs: false 
             }));
@@ -156,27 +152,19 @@ createApp({
 
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
-                
-                // Prioridade 1: Buscar no Firebase (Modo Edição)
-                // Se já existe registro salvo, carrega ele
                 const docRef = doc(db, "inspections", docId);
                 let sourceData = null;
                 
-                // Tenta buscar online
                 try {
                    const docSnap = await getDoc(docRef);
-                   if (docSnap.exists()) {
-                       sourceData = docSnap.data();
-                   }
-                } catch(err) { console.log("Erro ao buscar inspeção online ou offline:", err); }
+                   if (docSnap.exists()) sourceData = docSnap.data();
+                } catch(err) { console.log("Erro ao buscar inspeção:", err); }
 
-                // Prioridade 2: Se não tem no banco, tenta rascunho local (LocalStorage)
                 if (!sourceData) {
                     const localSaved = localStorage.getItem(`cp_temp_${docId}`);
                     if (localSaved) sourceData = JSON.parse(localSaved);
                 }
 
-                // Aplica os dados encontrados (seja do banco ou local)
                 if (sourceData) {
                     basePoints.forEach(p => {
                         const found = sourceData.points.find(sp => sp.name === p.name);
@@ -210,6 +198,41 @@ createApp({
             } catch (e) { alert("Erro: " + e.message); } finally { saving.value = false; }
         };
 
+        // === NOVA FUNÇÃO: CARREGAR HISTÓRICO ===
+        const loadHistory = async () => {
+            if (!db || !user.value) return;
+            loadingHistory.value = true;
+            historyList.value = [];
+            try {
+                const startStr = historyMonth.value + "-01";
+                const endStr = historyMonth.value + "-31";
+                // Filtra pelo mês selecionado
+                const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
+                const snapshot = await getDocs(q);
+                
+                let list = [];
+                snapshot.forEach(doc => list.push(doc.data()));
+                
+                // Ordena por data (mais recente primeiro)
+                list.sort((a, b) => {
+                    if (a.date !== b.date) return b.date.localeCompare(a.date);
+                    return a.team.localeCompare(b.team);
+                });
+                
+                historyList.value = list;
+            } catch (e) { console.error(e); } finally { loadingHistory.value = false; }
+        };
+
+        // === NOVA FUNÇÃO: EDITAR PELO HISTÓRICO ===
+        const editFromHistory = (item) => {
+            // Define os parâmetros para a tela de inspeção
+            currentTeam.value = item.team;
+            currentDate.value = item.date;
+            // Muda a tela
+            currentView.value = 'inspection';
+            // O watcher do currentTeam/currentDate vai disparar o carregamento automaticamente
+        };
+
         // === RELATÓRIOS ===
         const loadReports = async () => {
             if (!db || !user.value) return;
@@ -218,7 +241,6 @@ createApp({
             dailyDataList.value = [];
 
             try {
-                // 1. MENSAL (Com Ranking Denso)
                 if (reportType.value === 'monthly') {
                     const startStr = reportMonth.value + "-01";
                     const endStr = reportMonth.value + "-31";
@@ -234,12 +256,10 @@ createApp({
                         stats[d.team].count++;
                     });
                     
-                    // Ordena por média
                     let sortedStats = Object.values(stats).map(s => ({
                         name: s.name, average: parseFloat((s.total / s.count).toFixed(1)), count: s.count
                     })).sort((a, b) => b.average - a.average);
 
-                    // ALGORITMO DE RANKING DENSO (EMPATES)
                     let currentRank = 1;
                     for (let i = 0; i < sortedStats.length; i++) {
                         if (i > 0 && sortedStats[i].average < sortedStats[i-1].average) {
@@ -247,13 +267,10 @@ createApp({
                         }
                         sortedStats[i].rank = currentRank;
                     }
-
                     teamStats.value = sortedStats;
-                    
                     loadingReports.value = false;
                     setTimeout(() => renderChart('bar'), 100);
                 } 
-                // 2. ANUAL
                 else if (reportType.value === 'annual') {
                     const startStr = reportYear.value + "-01-01";
                     const endStr = reportYear.value + "-12-31";
@@ -273,7 +290,6 @@ createApp({
                     loadingReports.value = false;
                     setTimeout(() => renderChart('line'), 100);
                 }
-                // 3. DIÁRIO
                 else if (reportType.value === 'daily') {
                     const q = query(collection(db, "inspections"), where("date", "==", dailyDate.value));
                     const snapshot = await getDocs(q);
@@ -283,7 +299,6 @@ createApp({
                     dailyDataList.value = list;
                     loadingReports.value = false;
                 }
-
             } catch (e) { console.error(e); loadingReports.value = false; }
         };
 
@@ -295,13 +310,11 @@ createApp({
 
             const textColor = isDarkMode.value ? '#94a3b8' : '#64748b';
             const ChartConstructor = window.Chart;
-            // Usa o valor atual da meta (meta.value)
             const currentMeta = meta.value;
 
             if (type === 'bar') {
                 const labels = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
                 const data = labels.map(t => { const s = teamStats.value.find(x => x.name === t); return s ? s.average : 0; });
-                // Cores dinâmicas baseadas na meta atual
                 const colors = data.map(v => v >= currentMeta ? '#10b981' : '#ef4444');
                 
                 new ChartConstructor(ctx, {
@@ -366,8 +379,9 @@ createApp({
             pointsConfig, newPointName, addPoint, deletePoint, 
             isDarkMode, toggleDarkMode, toggleAllPoints, allSelected, inspectionObservation,
             reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
-            generatePDF, takeScreenshot, saveInspection, togglePoint,
-            saveMeta // Expondo a função para salvar a meta
+            generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
+            // NOVOS RETORNOS PARA O HISTÓRICO
+            historyList, loadingHistory, historyMonth, editFromHistory
         };
     }
 }).mount('#app')
