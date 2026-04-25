@@ -52,6 +52,12 @@ createApp({
         const teamsSchedule = ['Equipe 3', 'Equipe 4', 'Equipe 1', 'Equipe 2'];
         const pendingChecks = ref([]);
         const loadingPending = ref(false);
+        
+        // === HISTÓRICO DE PENDÊNCIAS ===
+        const pendingHistory = ref([]);
+        const loadingPendingHistory = ref(false);
+        const selectedTeamFilter = ref('Todas');
+        const selectedDateRange = ref('30');
 
         // === COMPUTED ===
         const progress = computed(() => {
@@ -92,11 +98,18 @@ createApp({
                         loadMasterPoints();
                         loadMeta();
                         loadPendingChecks();
+                        loadPendingHistory();
                         // Atualiza pendências a cada 5 minutos
                         setInterval(() => loadPendingChecks(), 5 * 60 * 1000);
+                        // Atualiza histórico a cada 10 minutos
+                        setInterval(() => loadPendingHistory(), 10 * 60 * 1000);
                     }
                 });
             }
+        });
+
+        watch([selectedTeamFilter, selectedDateRange], () => {
+            loadPendingHistory();
         });
 
         // === FUNÇÕES GERAIS ===
@@ -550,6 +563,111 @@ createApp({
             }
         };
 
+        // === HISTÓRICO DE PENDÊNCIAS ===
+        const loadPendingHistory = async () => {
+            if (!db) return;
+            loadingPendingHistory.value = true;
+            try {
+                const today = new Date();
+                const daysAgo = parseInt(selectedDateRange.value);
+                const limitDate = new Date(today.getTime() - daysAgo * 24 * 60 * 60 * 1000)
+                    .toISOString().split('T')[0];
+                
+                const q = query(
+                    collection(db, "inspections"),
+                    where("date", ">=", limitDate),
+                    orderBy("date", "desc")
+                );
+                
+                const snapshot = await getDocs(q);
+                const inspections = new Map();
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const key = `${data.date}-${data.team}`;
+                    if (!inspections.has(key)) {
+                        inspections.set(key, data);
+                    }
+                });
+                
+                const history = [];
+                for (let i = daysAgo; i >= 0; i--) {
+                    const checkDate = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
+                        .toISOString().split('T')[0];
+                    
+                    const periods = getSchedulePeriods(checkDate);
+                    
+                    periods.forEach(period => {
+                        const key = `${checkDate}-${period.team}`;
+                        const inspection = inspections.get(key);
+                        
+                        if (!inspection) {
+                            const daysInPending = Math.floor(
+                                (new Date() - new Date(checkDate)) / (24 * 60 * 60 * 1000)
+                            );
+                            
+                            history.push({
+                                date: checkDate,
+                                team: period.team,
+                                period: period.period,
+                                startTime: period.startTime,
+                                endTime: period.endTime,
+                                isPending: true,
+                                daysInPending,
+                                resolvedDate: null
+                            });
+                        } else {
+                            history.push({
+                                date: checkDate,
+                                team: period.team,
+                                period: period.period,
+                                startTime: period.startTime,
+                                endTime: period.endTime,
+                                isPending: false,
+                                daysInPending: 0,
+                                resolvedDate: inspection.updatedAt
+                            });
+                        }
+                    });
+                }
+                
+                let filtered = history;
+                if (selectedTeamFilter.value !== 'Todas') {
+                    filtered = history.filter(h => h.team === selectedTeamFilter.value);
+                }
+                
+                filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                pendingHistory.value = filtered;
+            } catch (e) {
+                console.error('Erro ao carregar histórico de pendências:', e);
+            } finally {
+                loadingPendingHistory.value = false;
+            }
+        };
+
+        const markPendingAsResolved = async (pendingItem) => {
+            try {
+                const docRef = doc(db, "inspections", `${pendingItem.date}-${pendingItem.team}`);
+                await setDoc(docRef, {
+                    date: pendingItem.date,
+                    team: pendingItem.team,
+                    score: 0,
+                    points: [],
+                    observation: "Pendência marcada como resolvida manualmente",
+                    user: user.value.email,
+                    updatedAt: new Date().toISOString(),
+                    resolvedManually: true
+                });
+                
+                await loadPendingHistory();
+                alert('Pendência marcada como resolvida!');
+            } catch (e) {
+                console.error('Erro ao marcar como resolvida:', e);
+                alert('Erro ao marcar pendência');
+            }
+        };
+
         return {
             user, authMode, authForm, authError, loading, handleAuth, logout,
             currentView, menuItems, currentTeam, currentDate, points, progress, meta, loadingPoints, saving, 
@@ -558,10 +676,11 @@ createApp({
             reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
             generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
             historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection,
-            // NOVO RETORNO
             topOffenders,
             // ESCALA 12x36
-            pendingChecks, loadingPending, loadPendingChecks, getSchedulePeriods, calculateScheduleTeam, teamsSchedule
+            pendingChecks, loadingPending, loadPendingChecks, getSchedulePeriods, calculateScheduleTeam, teamsSchedule,
+            // HISTÓRICO DE PENDÊNCIAS
+            pendingHistory, loadingPendingHistory, loadPendingHistory, selectedTeamFilter, selectedDateRange, markPendingAsResolved
         };
     }
 }).mount('#app')
