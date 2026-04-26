@@ -572,20 +572,32 @@ createApp({
 
         // === DEBUG: Verificar escala por data ===
         const debugSchedule = (startDate, days = 10) => {
-            console.log(`\n🔍 DEBUG ESCALA 12x36 - Início: ${startDate}`);
-            console.log('='.repeat(60));
+            console.log(`\n🔍 DEBUG ESCALA 12x36 (PAR/ÍMPAR) - Início: ${startDate}`);
+            console.log('='.repeat(70));
+            console.log('Lógica: Pares=Eq3+4 | Ímpares=Eq1+2 | Mês 31dias=INVERTE');
+            console.log('='.repeat(70));
             
             for (let i = 0; i < days; i++) {
                 const date = new Date(startDate + 'T06:00:00');
                 date.setDate(date.getDate() + i);
                 const dateStr = date.toISOString().split('T')[0];
                 
+                const dayOfMonth = parseInt(dateStr.split('-')[2]);
+                const month = parseInt(dateStr.split('-')[1]);
+                
+                const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+                const isMonth31Days = daysInMonth[month - 1] === 31;
+                
+                const isDayEven = dayOfMonth % 2 === 0;
+                const dayType = isDayEven ? 'PAR' : 'ÍMPAR';
+                const monthType = isMonth31Days ? '(31 dias)' : '(30 dias)';
+                
                 const periods = getSchedulePeriods(dateStr);
                 const teams = periods.map(p => p.team).join(' + ');
                 
-                console.log(`${dateStr}: ${teams}`);
+                console.log(`${dateStr} - Dia ${dayOfMonth} (${dayType}) ${monthType}: ${teams}`);
             }
-            console.log('='.repeat(60) + '\n');
+            console.log('='.repeat(70) + '\n');
         };
 
         // === DEBUG: Adicionar ao return para testes ===
@@ -607,17 +619,39 @@ createApp({
 
         // === ESCALA 12x36 - FUNÇÕES ===
         const calculateScheduleTeam = (date, hours) => {
-            // Data de referência: 2024-01-01 era segunda-feira (escolhida como base)
-            const baseDate = new Date('2024-01-01T06:00:00');
-            const targetDate = new Date(date + 'T06:00:00');
+            // date formato: 'YYYY-MM-DD'
+            // hours: 0 (6h-18h) ou 12 (18h-6h)
             
-            // Calcula diferença em horas desde a data base
-            const diffMs = targetDate - baseDate;
-            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const dayOfMonth = parseInt(date.split('-')[2]);
+            const monthStr = date.split('-')[1];
+            const month = parseInt(monthStr);
             
-            // Calcula qual período de 12h estamos (0-3)
-            const periodIndex = Math.floor((diffHours + hours) / 12) % 4;
-            return teamsSchedule[periodIndex];
+            // Dias do mês para cada mês (índice 0 = janeiro)
+            const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            
+            // Verificar se o mês tem 31 dias
+            const isMonth31Days = daysInMonth[month - 1] === 31;
+            
+            // Determinar se o dia é par ou ímpar
+            const isDayEven = dayOfMonth % 2 === 0;
+            
+            // Lógica da escala:
+            // - Mês normal (30 dias): Par=Eq3+Eq4, Ímpar=Eq1+Eq2
+            // - Mês com 31 dias: INVERTE - Par=Eq1+Eq2, Ímpar=Eq3+Eq4
+            
+            let useEquipe34 = isDayEven;
+            if (isMonth31Days) {
+                useEquipe34 = !useEquipe34; // Inverte em meses com 31 dias
+            }
+            
+            // Retornar equipe baseado no horário
+            if (useEquipe34) {
+                // Equipe 3 ou 4
+                return hours === 0 ? 'Equipe 3' : 'Equipe 4';
+            } else {
+                // Equipe 1 ou 2
+                return hours === 0 ? 'Equipe 1' : 'Equipe 2';
+            }
         };
 
         const getSchedulePeriods = (date) => {
