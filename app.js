@@ -89,10 +89,8 @@ createApp({
         // Watcher para criar gráficos quando dados carregar
         watch(dailyDataList, (newData) => {
             if (reportType.value === 'daily' && newData && newData.length > 0) {
-                nextTick(() => {
-                    newData.forEach((report, idx) => {
-                        createDailyChart('pieChart' + idx, report.score, meta.value);
-                    });
+                newData.forEach((report) => {
+                    createDailyChart('pieChart-' + report.team + '-' + report.date, report.score, meta.value);
                 });
             }
         });
@@ -504,20 +502,31 @@ createApp({
             } catch(e) { console.error(e); alert("Erro ao gerar Print."); }
         };
 
-        let dailyChartInstance = null;
+        let dailyChartInstances = {};
 
         const createDailyChart = (canvasId, score, meta) => {
-            // Aguarda o próximo frame para garantir que o canvas foi renderizado
-            nextTick(() => {
+            // Tenta criar o gráfico com múltiplas tentativas
+            let attempts = 0;
+            const maxAttempts = 5;
+            
+            const tryCreateChart = () => {
+                attempts++;
                 const ctx = document.getElementById(canvasId);
+                
+                if (!ctx && attempts < maxAttempts) {
+                    // Se não encontrou, tenta novamente em 100ms
+                    setTimeout(tryCreateChart, 100);
+                    return;
+                }
+                
                 if (!ctx) {
-                    console.warn(`Canvas não encontrado: ${canvasId}`);
+                    console.warn(`Canvas não encontrado após ${maxAttempts} tentativas: ${canvasId}`);
                     return;
                 }
 
                 // Destroir gráfico anterior
-                if (dailyChartInstance) {
-                    dailyChartInstance.destroy();
+                if (dailyChartInstances[canvasId]) {
+                    dailyChartInstances[canvasId].destroy();
                 }
 
                 // Determinar cor baseado no score
@@ -533,7 +542,7 @@ createApp({
                 }
 
                 try {
-                    dailyChartInstance = new Chart(ctx, {
+                    dailyChartInstances[canvasId] = new Chart(ctx, {
                         type: 'doughnut',
                         data: {
                             labels: ['Completo', 'Incompleto'],
@@ -567,11 +576,19 @@ createApp({
                 } catch(e) {
                     console.error('Erro ao criar gráfico:', e);
                 }
-            });
+            };
+            
+            tryCreateChart();
         };
 
         const getIncompletePoints = (report) => {
             return report.points.filter(p => !p.checked);
+        };
+
+        // Verifica se uma equipe estava trabalhando em uma data específica
+        const isTeamWorkingOnDate = (date, team) => {
+            const periods = getSchedulePeriods(date);
+            return periods.some(p => p.team === team);
         };
 
         const addPoint = async () => {
@@ -647,6 +664,12 @@ createApp({
         };
 
         // === HISTÓRICO DE PENDÊNCIAS ===
+        // Função para verificar se uma equipe estava trabalhando em uma data específica
+        const isTeamWorkingOnDate = (date, team) => {
+            const periods = getSchedulePeriods(date);
+            return periods.some(p => p.team === team);
+        };
+
         const loadPendingHistory = async () => {
             if (!db) return;
             loadingPendingHistory.value = true;
@@ -681,6 +704,11 @@ createApp({
                     const periods = getSchedulePeriods(checkDate);
                     
                     periods.forEach(period => {
+                        // Validação: Verificar se a equipe realmente estava trabalhando
+                        if (!isTeamWorkingOnDate(checkDate, period.team)) {
+                            return; // Pula equipes que não estavam trabalhando
+                        }
+
                         const key = `${checkDate}-${period.team}`;
                         const inspection = inspections.get(key);
                         
