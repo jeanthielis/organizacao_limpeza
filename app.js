@@ -493,6 +493,66 @@ createApp({
             } catch(e) { console.error(e); alert("Erro ao gerar Print."); }
         };
 
+        let dailyChartInstance = null;
+
+        const createDailyChart = (canvasId, score, meta) => {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+
+            // Destroir gráfico anterior
+            if (dailyChartInstance) {
+                dailyChartInstance.destroy();
+            }
+
+            // Determinar cor baseado no score
+            let chartColor = '';
+            if (score >= 95) {
+                chartColor = '#10B981'; // Verde - Excelente
+            } else if (score >= meta) {
+                chartColor = '#3B82F6'; // Azul - Ok
+            } else if (score >= 50) {
+                chartColor = '#F59E0B'; // Amarelo - Atenção
+            } else {
+                chartColor = '#EF4444'; // Vermelho - Crítico
+            }
+
+            dailyChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completo', 'Incompleto'],
+                    datasets: [{
+                        data: [score, 100 - score],
+                        backgroundColor: [
+                            chartColor,
+                            '#E5E7EB'
+                        ],
+                        borderColor: [
+                            chartColor,
+                            '#D1D5DB'
+                        ],
+                        borderWidth: 2,
+                        cutout: '60%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true
+                        }
+                    }
+                }
+            });
+        };
+
+        const getIncompletePoints = (report) => {
+            return report.points.filter(p => !p.checked);
+        };
+
         const addPoint = async () => {
             if (!newPointName.value.trim()) return;
             try { const r = await addDoc(collection(db, "config_pontos"), { name: newPointName.value }); pointsConfig.value.push({id:r.id, name:newPointName.value}); newPointName.value=''; } catch(e){}
@@ -680,7 +740,9 @@ createApp({
             // ESCALA 12x36
             pendingChecks, loadingPending, loadPendingChecks, getSchedulePeriods, calculateScheduleTeam, teamsSchedule,
             // HISTÓRICO DE PENDÊNCIAS
-            pendingHistory, loadingPendingHistory, loadPendingHistory, selectedTeamFilter, selectedDateRange, markPendingAsResolved
+            pendingHistory, loadingPendingHistory, loadPendingHistory, selectedTeamFilter, selectedDateRange, markPendingAsResolved,
+            // GRÁFICO PIZZA V5
+            createDailyChart, getIncompletePoints
         };
     }
 }).mount('#app')
