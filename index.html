@@ -479,9 +479,9 @@
                                         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                             
                                             <!-- COLUNA 1: GRÁFICO PIZZA -->
-                                            <div class="flex flex-col items-center justify-center">
-                                                <div style="position: relative; width: 200px; height: 200px;">
-                                                    <canvas :id="'pieChart' + idx" style="width: 100%; height: 100%;"></canvas>
+                                            <div class="flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl">
+                                                <div style="position: relative; width: 180px; height: 180px; margin: 0 auto;">
+                                                    <canvas :id="'pieChart-' + report.team + '-' + report.date" style="width: 100%; height: 100%;"></canvas>
                                                 </div>
                                                 <div class="text-center mt-4">
                                                     <p class="text-sm text-slate-600 dark:text-slate-400">{{ report.points.filter(p => p.checked).length }}/{{ report.points.length }} Concluídos</p>
