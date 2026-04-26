@@ -180,7 +180,10 @@ createApp({
             } catch (e) { console.error(e); } finally { loadingPoints.value = false; }
         };
 
+        const isLoading = ref(false);  // Flag para evitar salvar durante carregamento
+
         const initializeChecklist = async () => {
+            isLoading.value = true;  // ✅ Ativa flag de carregamento
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
                 const docRef = doc(db, "inspections", docId);
@@ -218,9 +221,18 @@ createApp({
                     inspectionObservation.value = '';
                 }
             } catch (e) { console.error('Erro em initializeChecklist:', e) }
+            finally {
+                isLoading.value = false;  // ✅ Desativa flag após carregar
+            }
         };
 
         const saveInspection = async () => {
+            // 🚫 Não salvar enquanto está carregando dados
+            if (isLoading.value) {
+                console.log("Ainda carregando, não salvando...");
+                return;
+            }
+            
             if (!db) return alert("Banco desconectado");
             saving.value = true;
             try {
