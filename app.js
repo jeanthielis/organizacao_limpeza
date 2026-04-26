@@ -570,6 +570,25 @@ createApp({
             }, 100);  // 100ms delay para garantir renderização
         };
 
+        // === DEBUG: Verificar escala por data ===
+        const debugSchedule = (startDate, days = 10) => {
+            console.log(`\n🔍 DEBUG ESCALA 12x36 - Início: ${startDate}`);
+            console.log('='.repeat(60));
+            
+            for (let i = 0; i < days; i++) {
+                const date = new Date(startDate + 'T06:00:00');
+                date.setDate(date.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+                
+                const periods = getSchedulePeriods(dateStr);
+                const teams = periods.map(p => p.team).join(' + ');
+                
+                console.log(`${dateStr}: ${teams}`);
+            }
+            console.log('='.repeat(60) + '\n');
+        };
+
+        // === DEBUG: Adicionar ao return para testes ===
         const getIncompletePoints = (report) => {
             return report.points.filter(p => !p.checked);
         };
@@ -776,7 +795,9 @@ createApp({
             // HISTÓRICO DE PENDÊNCIAS
             pendingHistory, loadingPendingHistory, loadPendingHistory, selectedTeamFilter, selectedDateRange, markPendingAsResolved,
             // GRÁFICO PIZZA V5
-            createDailyChart, getIncompletePoints
+            createDailyChart, getIncompletePoints,
+            // DEBUG
+            debugSchedule
         };
     }
 }).mount('#app')
