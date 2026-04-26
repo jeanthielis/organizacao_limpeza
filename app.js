@@ -89,8 +89,10 @@ createApp({
         // Watcher para criar gráficos quando dados carregar
         watch(dailyDataList, (newData) => {
             if (reportType.value === 'daily' && newData && newData.length > 0) {
-                newData.forEach((report) => {
-                    createDailyChart('pieChart-' + report.team + '-' + report.date, report.score, meta.value);
+                nextTick(() => {
+                    newData.forEach((report, idx) => {
+                        createDailyChart('pieChart' + idx, report.score, meta.value);
+                    });
                 });
             }
         });
@@ -505,22 +507,11 @@ createApp({
         let dailyChartInstances = {};
 
         const createDailyChart = (canvasId, score, meta) => {
-            // Tenta criar o gráfico com múltiplas tentativas
-            let attempts = 0;
-            const maxAttempts = 5;
-            
-            const tryCreateChart = () => {
-                attempts++;
+            // Aguarda para garantir que o canvas foi renderizado
+            setTimeout(() => {
                 const ctx = document.getElementById(canvasId);
-                
-                if (!ctx && attempts < maxAttempts) {
-                    // Se não encontrou, tenta novamente em 100ms
-                    setTimeout(tryCreateChart, 100);
-                    return;
-                }
-                
                 if (!ctx) {
-                    console.warn(`Canvas não encontrado após ${maxAttempts} tentativas: ${canvasId}`);
+                    console.warn(`Canvas não encontrado: ${canvasId}`);
                     return;
                 }
 
@@ -576,9 +567,7 @@ createApp({
                 } catch(e) {
                     console.error('Erro ao criar gráfico:', e);
                 }
-            };
-            
-            tryCreateChart();
+            }, 100);  // 100ms delay para garantir renderização
         };
 
         const getIncompletePoints = (report) => {
@@ -664,12 +653,6 @@ createApp({
         };
 
         // === HISTÓRICO DE PENDÊNCIAS ===
-        // Função para verificar se uma equipe estava trabalhando em uma data específica
-        const isTeamWorkingOnDate = (date, team) => {
-            const periods = getSchedulePeriods(date);
-            return periods.some(p => p.team === team);
-        };
-
         const loadPendingHistory = async () => {
             if (!db) return;
             loadingPendingHistory.value = true;
