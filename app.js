@@ -1,5 +1,5 @@
 import { createApp, ref, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
-import { db, auth, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, getDoc } from './firebase.js'
+import { db, auth, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, orderBy, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, getDoc } from './firebase.js'
 
 createApp({
     setup() {
@@ -84,6 +84,17 @@ createApp({
         watch([currentView, reportType, reportMonth, reportYear, dailyDate, historyMonth], () => {
             if (currentView.value === 'reports') loadReports();
             if (currentView.value === 'history') loadHistory();
+        });
+
+        // Watcher para criar gráficos quando dados carregar
+        watch(dailyDataList, (newData) => {
+            if (reportType.value === 'daily' && newData && newData.length > 0) {
+                nextTick(() => {
+                    newData.forEach((report, idx) => {
+                        createDailyChart('pieChart' + idx, report.score, meta.value);
+                    });
+                });
+            }
         });
 
         watch([currentTeam, currentDate], () => initializeChecklist());
@@ -496,55 +507,65 @@ createApp({
         let dailyChartInstance = null;
 
         const createDailyChart = (canvasId, score, meta) => {
-            const ctx = document.getElementById(canvasId);
-            if (!ctx) return;
+            // Aguarda o próximo frame para garantir que o canvas foi renderizado
+            nextTick(() => {
+                const ctx = document.getElementById(canvasId);
+                if (!ctx) {
+                    console.warn(`Canvas não encontrado: ${canvasId}`);
+                    return;
+                }
 
-            // Destroir gráfico anterior
-            if (dailyChartInstance) {
-                dailyChartInstance.destroy();
-            }
+                // Destroir gráfico anterior
+                if (dailyChartInstance) {
+                    dailyChartInstance.destroy();
+                }
 
-            // Determinar cor baseado no score
-            let chartColor = '';
-            if (score >= 95) {
-                chartColor = '#10B981'; // Verde - Excelente
-            } else if (score >= meta) {
-                chartColor = '#3B82F6'; // Azul - Ok
-            } else if (score >= 50) {
-                chartColor = '#F59E0B'; // Amarelo - Atenção
-            } else {
-                chartColor = '#EF4444'; // Vermelho - Crítico
-            }
+                // Determinar cor baseado no score
+                let chartColor = '';
+                if (score >= 95) {
+                    chartColor = '#10B981'; // Verde - Excelente
+                } else if (score >= meta) {
+                    chartColor = '#3B82F6'; // Azul - Ok
+                } else if (score >= 50) {
+                    chartColor = '#F59E0B'; // Amarelo - Atenção
+                } else {
+                    chartColor = '#EF4444'; // Vermelho - Crítico
+                }
 
-            dailyChartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Completo', 'Incompleto'],
-                    datasets: [{
-                        data: [score, 100 - score],
-                        backgroundColor: [
-                            chartColor,
-                            '#E5E7EB'
-                        ],
-                        borderColor: [
-                            chartColor,
-                            '#D1D5DB'
-                        ],
-                        borderWidth: 2,
-                        cutout: '60%'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
-                            display: false
+                try {
+                    dailyChartInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Completo', 'Incompleto'],
+                            datasets: [{
+                                data: [score, 100 - score],
+                                backgroundColor: [
+                                    chartColor,
+                                    '#E5E7EB'
+                                ],
+                                borderColor: [
+                                    chartColor,
+                                    '#D1D5DB'
+                                ],
+                                borderWidth: 2,
+                                cutout: '60%'
+                            }]
                         },
-                        tooltip: {
-                            enabled: true
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    enabled: true
+                                }
+                            }
                         }
-                    }
+                    });
+                } catch(e) {
+                    console.error('Erro ao criar gráfico:', e);
                 }
             });
         };
