@@ -181,40 +181,43 @@ createApp({
         };
 
         const initializeChecklist = async () => {
-            const basePoints = pointsConfig.value.map(p => ({ 
-                id: p.id, name: p.name, checked: false, obs: '', showObs: false 
-            }));
-            inspectionObservation.value = '';
-
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
                 const docRef = doc(db, "inspections", docId);
                 let sourceData = null;
                 
+                // Prioridade 1: Buscar no Firebase
                 try {
                    const docSnap = await getDoc(docRef);
                    if (docSnap.exists()) sourceData = docSnap.data();
                 } catch(err) { console.log("Erro ao buscar inspeção:", err); }
 
+                // Prioridade 2: Se não encontrar no Firebase, buscar localStorage
                 if (!sourceData) {
                     const localSaved = localStorage.getItem(`cp_temp_${docId}`);
                     if (localSaved) sourceData = JSON.parse(localSaved);
                 }
 
-                if (sourceData) {
-                    basePoints.forEach(p => {
-                        const found = sourceData.points.find(sp => sp.name === p.name);
-                        if (found) {
-                            p.checked = found.checked;
-                            p.obs = found.obs || '';
-                            if(p.obs) p.showObs = true;
-                        }
-                    });
+                // Se encontrou dados salvos, usar eles! Senão, criar novo com false
+                if (sourceData && sourceData.points) {
+                    // ✅ RESTAURAR dados existentes
+                    points.value = sourceData.points.map(p => ({
+                        id: p.id || 'temp_' + Math.random(),
+                        name: p.name,
+                        checked: p.checked === true, // Garantir boolean
+                        obs: p.obs || '',
+                        showObs: !!(p.obs)
+                    }));
                     if(sourceData.observation) inspectionObservation.value = sourceData.observation;
+                } else {
+                    // 🆕 CRIAR novo com todos false
+                    const basePoints = pointsConfig.value.map(p => ({ 
+                        id: p.id, name: p.name, checked: false, obs: '', showObs: false 
+                    }));
+                    points.value = basePoints;
+                    inspectionObservation.value = '';
                 }
-            } catch (e) { console.error(e) }
-            
-            points.value = basePoints;
+            } catch (e) { console.error('Erro em initializeChecklist:', e) }
         };
 
         const saveInspection = async () => {
