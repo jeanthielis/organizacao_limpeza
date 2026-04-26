@@ -295,6 +295,21 @@ createApp({
                     const snapshot = await getDocs(q);
                     
                     const stats = {};
+                    const daysWorkedByTeam = {}; // Contar dias esperados por equipe
+                    
+                    // Primeiro: Contar quantos dias cada equipe deveria ter trabalhado
+                    const [year, month] = reportMonth.value.split('-');
+                    const daysInMonth = new Date(year, month, 0).getDate(); // Último dia do mês
+                    
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const dateStr = reportMonth.value + "-" + String(day).padStart(2, '0');
+                        const periods = getSchedulePeriods(dateStr);
+                        periods.forEach(p => {
+                            if (!daysWorkedByTeam[p.team]) daysWorkedByTeam[p.team] = 0;
+                            daysWorkedByTeam[p.team]++;
+                        });
+                    }
+                    
                     snapshot.forEach(doc => {
                         const d = doc.data();
                         
@@ -314,9 +329,22 @@ createApp({
                         }
                     });
                     
-                    let sortedStats = Object.values(stats).map(s => ({
-                        name: s.name, average: parseFloat((s.total / s.count).toFixed(1)), count: s.count
-                    })).sort((a, b) => b.average - a.average);
+                    // Calcular média considerando dias esperados
+                    let sortedStats = Object.values(stats).map(s => {
+                        const daysExpected = daysWorkedByTeam[s.name] || 1;
+                        const averageScore = parseFloat((s.total / s.count).toFixed(1));
+                        const inspectionRate = (s.count / daysExpected) * 100; // Taxa de inspeção
+                        const finalAverage = parseFloat(((averageScore * inspectionRate) / 100).toFixed(1)); // Média ajustada
+                        
+                        return {
+                            name: s.name,
+                            average: finalAverage,
+                            count: s.count,
+                            daysExpected: daysExpected,
+                            averageScore: averageScore,
+                            inspectionRate: parseFloat((inspectionRate).toFixed(1))
+                        };
+                    }).sort((a, b) => b.average - a.average);
 
                     let currentRank = 1;
                     for (let i = 0; i < sortedStats.length; i++) {
