@@ -546,17 +546,6 @@
                             </div>
                         </div>
 
-                        <!-- Inicializar gráficos após renderizar -->
-                        <div v-if="reportType === 'daily' && dailyDataList && dailyDataList.length > 0" class="hidden">
-                            <script>
-                                setTimeout(() => {
-                                    dailyDataList.forEach((report, idx) => {
-                                        createDailyChart('pieChart' + idx, report.score, meta);
-                                    });
-                                }, 300);
-                            </script>
-                        </div>
-
                         <div class="flex justify-end gap-3 mt-4">
                             <button @click="generatePDF" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><i class="fas fa-file-pdf"></i> PDF</button>
                             <button @click="takeScreenshot" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><i class="fas fa-camera"></i> Print</button>
