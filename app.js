@@ -382,7 +382,17 @@ createApp({
                     const q = query(collection(db, "inspections"), where("date", "==", dailyDate.value));
                     const snapshot = await getDocs(q);
                     let list = [];
-                    snapshot.forEach(doc => list.push(doc.data()));
+                    
+                    // Obter equipes que trabalhavam naquele dia
+                    const teamsWorkingToday = getSchedulePeriods(dailyDate.value).map(p => p.team);
+                    
+                    snapshot.forEach(doc => {
+                        // FILTRO: Incluir apenas se a equipe trabalhava naquele dia
+                        if (teamsWorkingToday.includes(doc.data().team)) {
+                            list.push(doc.data());
+                        }
+                    });
+                    
                     list.sort((a, b) => a.team.localeCompare(b.team));
                     dailyDataList.value = list;
                     loadingReports.value = false;
