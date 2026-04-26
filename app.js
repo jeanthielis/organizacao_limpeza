@@ -331,18 +331,15 @@ createApp({
                     
                     // Calcular média considerando dias esperados
                     let sortedStats = Object.values(stats).map(s => {
-                        const daysExpected = daysWorkedByTeam[s.name] || 1;
                         const averageScore = parseFloat((s.total / s.count).toFixed(1));
-                        const inspectionRate = (s.count / daysExpected) * 100; // Taxa de inspeção
-                        const finalAverage = parseFloat(((averageScore * inspectionRate) / 100).toFixed(1)); // Média ajustada
+                        // FÓRMULA: Média = (Inspeções Feitas) / (Média dos Scores)
+                        const finalAverage = parseFloat((s.count / averageScore).toFixed(1));
                         
                         return {
                             name: s.name,
                             average: finalAverage,
                             count: s.count,
-                            daysExpected: daysExpected,
-                            averageScore: averageScore,
-                            inspectionRate: parseFloat((inspectionRate).toFixed(1))
+                            averageScore: averageScore
                         };
                     }).sort((a, b) => b.average - a.average);
 
