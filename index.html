@@ -233,7 +233,7 @@
                                         </div>
                                         <div v-else>
                                             <i class="fas fa-check mr-2"></i>
-                                            Resolvida em: {{ item.resolvedDate ? item.resolvedDate.split('T')[0] : 'N/A' }}
+                                            Resolvida em: {{ item.resolvedDate && typeof item.resolvedDate === 'string' ? item.resolvedDate.split('T')[0] : (item.resolvedDate || 'N/A') }}
                                         </div>
                                     </div>
 
