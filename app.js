@@ -49,7 +49,7 @@ createApp({
         const topOffenders = ref([]);
 
         // === ESCALA 12x36 ===
-        const teamsSchedule = ['Equipe 3', 'Equipe 4', 'Equipe 1', 'Equipe 2'];
+        const teamsSchedule = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
         const pendingChecks = ref([]);
         const loadingPending = ref(false);
         
@@ -596,8 +596,10 @@ createApp({
         };
 
         const getSchedulePeriods = (date) => {
+            // Em um dia de 24h, há 2 períodos de 12h
+            // Cada período tem uma equipe diferente
             const periods = [];
-            for (let i = 0; i < 4; i++) {
+            for (let i = 0; i < 2; i++) {  // Apenas 2 períodos por dia (0-11h e 12-23h)
                 const startHour = i * 12;
                 const endHour = (i + 1) * 12;
                 const team = calculateScheduleTeam(date, startHour);
