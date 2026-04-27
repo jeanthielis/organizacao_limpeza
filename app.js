@@ -180,40 +180,46 @@ createApp({
             } catch (e) { console.error(e); } finally { loadingPoints.value = false; }
         };
 
-        const isLoading = ref(false);  // Flag para evitar salvar durante carregamento
-
         const initializeChecklist = async () => {
-            isLoading.value = true;  // ✅ Ativa flag de carregamento
+            isLoading.value = true;
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
                 const docRef = doc(db, "inspections", docId);
                 let sourceData = null;
                 
-                // Prioridade 1: Buscar no Firebase
+                // 🔍 PRIORIDADE 1: Buscar no Firebase PRIMEIRO
                 try {
                    const docSnap = await getDoc(docRef);
-                   if (docSnap.exists()) sourceData = docSnap.data();
-                } catch(err) { console.log("Erro ao buscar inspeção:", err); }
+                   if (docSnap.exists()) {
+                       sourceData = docSnap.data();
+                       console.log("✅ Inspeção encontrada no Firebase:", docId);
+                   }
+                } catch(err) { console.log("Erro ao buscar Firebase:", err); }
 
-                // Prioridade 2: Se não encontrar no Firebase, buscar localStorage
+                // 🔍 PRIORIDADE 2: Se não encontrar, buscar localStorage
                 if (!sourceData) {
                     const localSaved = localStorage.getItem(`cp_temp_${docId}`);
-                    if (localSaved) sourceData = JSON.parse(localSaved);
+                    if (localSaved) {
+                        sourceData = JSON.parse(localSaved);
+                        console.log("✅ Inspeção encontrada em localStorage:", docId);
+                    }
                 }
 
-                // Se encontrou dados salvos, usar eles! Senão, criar novo com false
-                if (sourceData && sourceData.points) {
-                    // ✅ RESTAURAR dados existentes
+                // ✅ SE ENCONTROU DADOS, RESTAURAR (não criar novo!)
+                if (sourceData && sourceData.points && sourceData.points.length > 0) {
                     points.value = sourceData.points.map(p => ({
                         id: p.id || 'temp_' + Math.random(),
                         name: p.name,
-                        checked: p.checked === true, // Garantir boolean
+                        checked: p.checked === true,
                         obs: p.obs || '',
                         showObs: !!(p.obs)
                     }));
                     if(sourceData.observation) inspectionObservation.value = sourceData.observation;
-                } else {
-                    // 🆕 CRIAR novo com todos false
+                    console.log("✅ Dados restaurados com sucesso");
+                } 
+                // ❌ SÓ CRIAR NOVO se realmente não tiver nada
+                else {
+                    console.log("🆕 Criando nova inspeção em branco");
                     const basePoints = pointsConfig.value.map(p => ({ 
                         id: p.id, name: p.name, checked: false, obs: '', showObs: false 
                     }));
@@ -222,14 +228,21 @@ createApp({
                 }
             } catch (e) { console.error('Erro em initializeChecklist:', e) }
             finally {
-                isLoading.value = false;  // ✅ Desativa flag após carregar
+                isLoading.value = false;
             }
         };
 
         const saveInspection = async () => {
             // 🚫 Não salvar enquanto está carregando dados
             if (isLoading.value) {
-                console.log("Ainda carregando, não salvando...");
+                console.log("⏳ Carregando inspeção, bloqueando salvamento");
+                return;
+            }
+            
+            // 🚫 Não salvar se não tem nada
+            if (!points.value || points.value.length === 0) {
+                console.log("❌ Sem pontos para salvar");
+                alert("Nenhum ponto para salvar");
                 return;
             }
             
@@ -237,16 +250,34 @@ createApp({
             saving.value = true;
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
+                
+                // Validar que tem pelo menos um ponto
+                if (!pointsConfig.value || pointsConfig.value.length === 0) {
+                    alert("Configure os pontos antes de salvar");
+                    saving.value = false;
+                    return;
+                }
+                
                 const payload = {
-                    team: currentTeam.value, date: currentDate.value,
+                    team: currentTeam.value, 
+                    date: currentDate.value,
                     points: points.value.map(p => ({ name: p.name, checked: p.checked, obs: p.obs })),
-                    score: progress.value, user: user.value.email, updatedAt: new Date(),
+                    score: progress.value, 
+                    user: user.value.email, 
+                    updatedAt: new Date(),
                     observation: inspectionObservation.value
                 };
+                
+                console.log("💾 Salvando inspeção:", docId, payload);
                 localStorage.setItem(`cp_temp_${docId}`, JSON.stringify(payload));
                 await setDoc(doc(db, "inspections", docId), payload);
-                alert(`Salvo com sucesso!`);
-            } catch (e) { alert("Erro: " + e.message); } finally { saving.value = false; }
+                alert(`✅ Salvo com sucesso!`);
+            } catch (e) { 
+                console.error('Erro ao salvar:', e);
+                alert("❌ Erro: " + e.message); 
+            } finally { 
+                saving.value = false; 
+            }
         };
 
         const loadHistory = async () => {
