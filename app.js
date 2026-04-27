@@ -59,7 +59,32 @@ createApp({
         const selectedTeamFilter = ref('Todas');
         const selectedDateRange = ref('30');
 
-        // === COMPUTED ===
+        // === SISTEMA DE TOAST ===
+        const toasts = ref([]);
+        let toastId = 0;
+
+        const toast = (message, type = 'info', duration = 3500) => {
+            const id = ++toastId;
+            toasts.value.push({ id, message, type });
+            setTimeout(() => {
+                toasts.value = toasts.value.filter(t => t.id !== id);
+            }, duration);
+        };
+
+        const showConfirm = (message) => {
+            return new Promise((resolve) => {
+                const id = ++toastId;
+                toasts.value.push({ id, message, type: 'confirm', resolve });
+            });
+        };
+
+        const resolveConfirm = (id, result) => {
+            const t = toasts.value.find(t => t.id === id);
+            if (t && t.resolve) t.resolve(result);
+            toasts.value = toasts.value.filter(t => t.id !== id);
+        };
+
+
         const progress = computed(() => {
             if (points.value.length === 0) return 0;
             const checkedCount = points.value.filter(p => p.checked).length;
@@ -155,12 +180,12 @@ createApp({
             if (!db) return;
             try {
                 await setDoc(doc(db, "config_geral", "meta_padrao"), { valor: meta.value });
-                alert("Nova meta definida com sucesso!");
+                toast("Meta definida com sucesso!", "success");
                 if (currentView.value === 'reports' && reportType.value !== 'daily') {
                    renderChart(reportType.value === 'annual' ? 'line' : 'bar');
                    renderOffendersChart();
                 }
-            } catch (e) { alert("Erro ao salvar meta: " + e.message); }
+            } catch (e) { toast("Erro ao salvar meta: " + e.message, "error"); }
         };
 
         // === LÓGICA DE DADOS ===
@@ -249,18 +274,18 @@ createApp({
             // 🚫 Não salvar se não tem nada
             if (!points.value || points.value.length === 0) {
                 console.log("❌ Sem pontos para salvar");
-                alert("Nenhum ponto para salvar");
+                toast("Nenhum ponto para salvar", "warning");
                 return;
             }
             
-            if (!db) return alert("Banco desconectado");
+            if (!db) return toast("Banco de dados desconectado", "error");
             saving.value = true;
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
                 
                 // Validar que tem pelo menos um ponto
                 if (!pointsConfig.value || pointsConfig.value.length === 0) {
-                    alert("Configure os pontos antes de salvar");
+                    toast("Configure os pontos antes de salvar", "warning");
                     saving.value = false;
                     return;
                 }
@@ -278,10 +303,10 @@ createApp({
                 console.log("💾 Salvando inspeção:", docId, payload);
                 localStorage.setItem(`cp_temp_${docId}`, JSON.stringify(payload));
                 await setDoc(doc(db, "inspections", docId), payload);
-                alert(`✅ Salvo com sucesso!`);
+                toast('Inspeção salva com sucesso!', 'success');
             } catch (e) { 
                 console.error('Erro ao salvar:', e);
-                alert("❌ Erro: " + e.message); 
+                toast("Erro ao salvar: " + e.message, "error"); 
             } finally { 
                 saving.value = false; 
             }
@@ -316,16 +341,17 @@ createApp({
         };
 
         const deleteInspection = async (item) => {
-            if(!confirm(`Tem certeza que deseja excluir a inspeção da ${item.team} do dia ${item.date.split('-').reverse().join('/')}?`)) return;
+            const ok = await showConfirm(`Excluir inspeção da ${item.team} do dia ${item.date.split('-').reverse().join('/')}?`);
+            if (!ok) return;
             try {
                 const docId = `${item.team}_${item.date}`;
                 await deleteDoc(doc(db, "inspections", docId));
                 historyList.value = historyList.value.filter(i => !(i.team === item.team && i.date === item.date));
                 localStorage.removeItem(`cp_temp_${docId}`);
-                alert("Registro excluído com sucesso.");
+                toast("Registro excluído com sucesso!", "success");
             } catch (e) {
                 console.error(e);
-                alert("Erro ao excluir: " + e.message);
+                toast("Erro ao excluir: " + e.message, "error");
             }
         };
 
@@ -574,7 +600,7 @@ createApp({
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
                 pdf.addImage(imgData, 'PNG', 0, 10, pdfWidth, pdfHeight);
                 pdf.save(`Relatorio_${reportType.value}.pdf`);
-            } catch(e) { console.error(e); alert("Erro ao gerar PDF."); }
+            } catch(e) { console.error(e); toast("Erro ao gerar PDF", "error"); }
         };
 
         const takeScreenshot = async () => {
@@ -586,7 +612,7 @@ createApp({
                 link.download = `Print_${reportType.value}.png`;
                 link.href = canvas.toDataURL();
                 link.click();
-            } catch(e) { console.error(e); alert("Erro ao gerar Print."); }
+            } catch(e) { console.error(e); toast("Erro ao gerar print", "error"); }
         };
 
         let dailyChartInstances = {};
@@ -698,7 +724,8 @@ createApp({
 
         // Limpar documentos duplicados criados com formato incorreto de docId
         const cleanDuplicates = async () => {
-            if (!confirm('Isso vai remover inspeções duplicadas criadas com formato errado. Continuar?')) return;
+            const ok = await showConfirm('Isso vai remover inspeções duplicadas com formato incorreto. Continuar?');
+            if (!ok) return;
             try {
                 const snapshot = await getDocs(collection(db, "inspections"));
                 let deleted = 0;
@@ -717,11 +744,11 @@ createApp({
                 });
                 
                 await Promise.all(batch);
-                alert(`✅ Limpeza concluída! ${deleted} documento(s) duplicado(s) removido(s).`);
+                toast(`Limpeza concluída! ${deleted} duplicata(s) removida(s).`, 'success');
                 loadHistory();
             } catch (e) {
                 console.error('Erro na limpeza:', e);
-                alert('Erro: ' + e.message);
+                toast('Erro: ' + e.message, 'error');
             }
         };
 
@@ -729,7 +756,10 @@ createApp({
             if (!newPointName.value.trim()) return;
             try { const r = await addDoc(collection(db, "config_pontos"), { name: newPointName.value }); pointsConfig.value.push({id:r.id, name:newPointName.value}); newPointName.value=''; } catch(e){}
         };
-        const deletePoint = async (id) => { if(confirm('Remover?')) { await deleteDoc(doc(db,"config_pontos",id)); pointsConfig.value=pointsConfig.value.filter(p=>p.id!==id); }};
+        const deletePoint = async (id) => { 
+            const ok = await showConfirm('Remover este ponto de inspeção?');
+            if (ok) { await deleteDoc(doc(db,"config_pontos",id)); pointsConfig.value=pointsConfig.value.filter(p=>p.id!==id); }
+        };
 
         // === ESCALA 12x36 - FUNÇÕES ===
         const calculateScheduleTeam = (date, hours) => {
@@ -916,7 +946,7 @@ createApp({
                 // Verificar se já existe inspeção real antes de criar
                 const existing = await getDoc(docRef);
                 if (existing.exists() && existing.data().score > 0) {
-                    alert('Esta inspeção já foi realizada com ' + existing.data().score.toFixed(0) + '% de aproveitamento!');
+                    toast('Inspeção já realizada com ' + existing.data().score.toFixed(0) + '% de aproveitamento!', 'warning');
                     await loadPendingHistory();
                     return;
                 }
@@ -933,10 +963,10 @@ createApp({
                 });
                 
                 await loadPendingHistory();
-                alert('Pendência marcada como resolvida!');
+                toast('Pendência marcada como resolvida!', 'success');
             } catch (e) {
                 console.error('Erro ao marcar como resolvida:', e);
-                alert('Erro ao marcar pendência');
+                toast('Erro ao marcar pendência', 'error');
             }
         };
 
@@ -958,7 +988,9 @@ createApp({
             // DEBUG
             debugSchedule,
             // LIMPEZA
-            cleanDuplicates
+            cleanDuplicates,
+            // TOAST
+            toasts, resolveConfirm
         };
     }
 }).mount('#app')
