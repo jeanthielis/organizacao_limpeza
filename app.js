@@ -696,6 +696,35 @@ createApp({
             return periods.some(p => p.team === team);
         };
 
+        // Limpar documentos duplicados criados com formato incorreto de docId
+        const cleanDuplicates = async () => {
+            if (!confirm('Isso vai remover inspeções duplicadas criadas com formato errado. Continuar?')) return;
+            try {
+                const snapshot = await getDocs(collection(db, "inspections"));
+                let deleted = 0;
+                const batch = [];
+                
+                snapshot.forEach(d => {
+                    const id = d.id;
+                    // Documentos com formato errado: começam com data (YYYY-MM-DD-Equipe)
+                    // Formato correto: Equipe X_YYYY-MM-DD
+                    const isWrongFormat = /^\d{4}-\d{2}-\d{2}-/.test(id);
+                    if (isWrongFormat) {
+                        batch.push(deleteDoc(doc(db, "inspections", id)));
+                        deleted++;
+                        console.log('Removendo duplicata:', id);
+                    }
+                });
+                
+                await Promise.all(batch);
+                alert(`✅ Limpeza concluída! ${deleted} documento(s) duplicado(s) removido(s).`);
+                loadHistory();
+            } catch (e) {
+                console.error('Erro na limpeza:', e);
+                alert('Erro: ' + e.message);
+            }
+        };
+
         const addPoint = async () => {
             if (!newPointName.value.trim()) return;
             try { const r = await addDoc(collection(db, "config_pontos"), { name: newPointName.value }); pointsConfig.value.push({id:r.id, name:newPointName.value}); newPointName.value=''; } catch(e){}
@@ -880,7 +909,18 @@ createApp({
 
         const markPendingAsResolved = async (pendingItem) => {
             try {
-                const docRef = doc(db, "inspections", `${pendingItem.date}-${pendingItem.team}`);
+                // ✅ Usar o MESMO formato de docId que saveInspection: team_date
+                const docId = `${pendingItem.team}_${pendingItem.date}`;
+                const docRef = doc(db, "inspections", docId);
+                
+                // Verificar se já existe inspeção real antes de criar
+                const existing = await getDoc(docRef);
+                if (existing.exists() && existing.data().score > 0) {
+                    alert('Esta inspeção já foi realizada com ' + existing.data().score.toFixed(0) + '% de aproveitamento!');
+                    await loadPendingHistory();
+                    return;
+                }
+                
                 await setDoc(docRef, {
                     date: pendingItem.date,
                     team: pendingItem.team,
@@ -916,7 +956,9 @@ createApp({
             // GRÁFICO PIZZA V5
             createDailyChart, getIncompletePoints,
             // DEBUG
-            debugSchedule
+            debugSchedule,
+            // LIMPEZA
+            cleanDuplicates
         };
     }
 }).mount('#app')
