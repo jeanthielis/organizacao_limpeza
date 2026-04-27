@@ -176,11 +176,18 @@ createApp({
                     loadedPoints = [{ name: 'Sala de Tonalidade L4' }, { name: 'Área da Qualitron L4' }].map(p => ({ ...p, id: 'temp_' + Math.random() })); 
                 }
                 pointsConfig.value = loadedPoints;
-                initializeChecklist();
+                // ✅ REMOVIDA chamada duplicada aqui - o watcher de pointsConfig já chama initializeChecklist()
             } catch (e) { console.error(e); } finally { loadingPoints.value = false; }
         };
 
+        const isLoading = ref(false);
+
         const initializeChecklist = async () => {
+            // 🛡️ Evitar chamadas concorrentes
+            if (isLoading.value) {
+                console.log("⏳ initializeChecklist já está rodando, ignorando chamada duplicada");
+                return;
+            }
             isLoading.value = true;
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
