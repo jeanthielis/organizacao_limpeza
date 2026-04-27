@@ -103,38 +103,6 @@
                     <div v-if="currentView === 'inspection'" class="space-y-6">
                         
                         <!-- CARD DE PENDÊNCIAS 12x36 -->
-                        <div v-if="pendingChecks.length > 0" class="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-2 border-orange-300 dark:border-orange-700 p-6 rounded-2xl shadow-lg">
-                            <div class="flex items-center gap-3 mb-4">
-                                <i class="fas fa-exclamation-triangle text-2xl text-orange-600 dark:text-orange-400"></i>
-                                <h3 class="text-xl font-bold text-orange-900 dark:text-orange-200">Verificações Pendentes - Escala 12x36</h3>
-                            </div>
-                            <p class="text-sm text-orange-700 dark:text-orange-300 mb-4">Equipes aguardando verificação hoje:</p>
-                            
-                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                                <div v-for="check in pendingChecks" :key="`${check.team}-${check.period}`" 
-                                    :class="check.isPending 
-                                        ? 'bg-white dark:bg-slate-800 border-l-4 border-red-500' 
-                                        : 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500'"
-                                    class="p-3 rounded-lg shadow-sm">
-                                    
-                                    <div class="flex items-center justify-between mb-2">
-                                        <span class="font-bold text-slate-800 dark:text-white">{{ check.team }}</span>
-                                        <span v-if="check.isPending" class="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full dark:bg-red-900/40 dark:text-red-300">
-                                            <i class="fas fa-exclamation-circle"></i> Pendente
-                                        </span>
-                                        <span v-else class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full dark:bg-green-900/40 dark:text-green-300">
-                                            <i class="fas fa-check-circle"></i> OK
-                                        </span>
-                                    </div>
-                                    
-                                    <div class="text-xs text-slate-600 dark:text-slate-400">
-                                        <div><i class="fas fa-clock mr-1"></i> {{ check.startTime }} - {{ check.endTime }}</div>
-                                        <div class="mt-1 text-[11px]">Período {{ check.period }}/4</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- SEÇÃO DE HISTÓRICO DE PENDÊNCIAS -->
                         <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 mt-6">
                             <div class="flex items-center justify-between mb-6">
