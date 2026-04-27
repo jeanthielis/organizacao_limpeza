@@ -574,6 +574,15 @@
                             <p class="text-xs text-slate-500 mt-2">Isso define a linha de corte para todas as equipes nos gráficos.</p>
                         </div>
 
+                        <!-- Limpeza de Duplicatas -->
+                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-red-200 dark:border-red-900">
+                            <h2 class="text-xl font-bold dark:text-white mb-2">🧹 Limpeza de Dados</h2>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Remove inspeções duplicadas que foram criadas com formato incorreto de ID.</p>
+                            <button @click="cleanDuplicates" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                <i class="fas fa-trash-alt mr-2"></i> Limpar Duplicatas
+                            </button>
+                        </div>
+
                         <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                             <h2 class="text-xl font-bold dark:text-white mb-4">Gerenciar Pontos</h2>
                             <div class="flex gap-2 mb-6">
