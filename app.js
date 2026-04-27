@@ -59,99 +59,40 @@ createApp({
         const selectedTeamFilter = ref('Todas');
         const selectedDateRange = ref('30');
 
-        // === SISTEMA DE TOAST (JS puro, independente do Vue) ===
+        // === SISTEMA DE TOAST (SweetAlert2) ===
+        const toasts = ref([]);
+        const resolveConfirm = () => {};
+
         const toast = (message, type = 'info', duration = 3500) => {
-            const colors = {
-                success: '#10B981',
-                error:   '#EF4444',
-                warning: '#F59E0B',
-                info:    '#3B82F6'
-            };
-            const icons = {
-                success: 'fa-check-circle',
-                error:   'fa-times-circle',
-                warning: 'fa-exclamation-triangle',
-                info:    'fa-info-circle'
-            };
-
-            const el = document.createElement('div');
-            el.style.cssText = `
-                display: flex; align-items: center; gap: 12px;
-                background: ${colors[type] || colors.info};
-                color: white; padding: 14px 18px;
-                border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-                font-size: 14px; font-weight: 500; line-height: 1.4;
-                animation: toastIn 0.35s cubic-bezier(.21,1.02,.73,1);
-                max-width: 320px; word-break: break-word;
-            `;
-            el.innerHTML = `<i class="fas ${icons[type] || icons.info}" style="font-size:18px;flex-shrink:0"></i><span>${message}</span>`;
-
-            let container = document.getElementById('cp-toast-container');
-            if (!container) {
-                container = document.createElement('div');
-                container.id = 'cp-toast-container';
-                container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:10px;';
-                document.body.appendChild(container);
-            }
-
-            container.appendChild(el);
-            setTimeout(() => {
-                el.style.animation = 'toastOut 0.25s ease-in forwards';
-                setTimeout(() => el.remove(), 250);
-            }, duration);
-        };
-
-        const showConfirm = (message) => {
-            return new Promise((resolve) => {
-                // Overlay
-                const overlay = document.createElement('div');
-                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
-
-                // Modal
-                const modal = document.createElement('div');
-                const isDark = document.documentElement.classList.contains('dark');
-                modal.style.cssText = `
-                    background:${isDark ? '#1e293b' : '#fff'};
-                    color:${isDark ? '#f1f5f9' : '#0f172a'};
-                    border-radius:20px; padding:28px; max-width:360px; width:100%;
-                    box-shadow:0 20px 60px rgba(0,0,0,0.3);
-                    animation:toastIn 0.3s cubic-bezier(.21,1.02,.73,1);
-                `;
-                modal.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-                        <span style="color:#F59E0B;font-size:24px;"><i class="fas fa-exclamation-circle"></i></span>
-                        <p style="font-size:14px;font-weight:600;line-height:1.4;">${message}</p>
-                    </div>
-                    <div style="display:flex;gap:10px;justify-content:flex-end;">
-                        <button id="cp-cancel" style="padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:${isDark ? '#334155' : '#f1f5f9'};color:${isDark ? '#f1f5f9' : '#0f172a'};">Cancelar</button>
-                        <button id="cp-confirm" style="padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#EF4444;color:white;">Confirmar</button>
-                    </div>
-                `;
-
-                overlay.appendChild(modal);
-                document.body.appendChild(overlay);
-
-                const close = (result) => { overlay.remove(); resolve(result); };
-                modal.querySelector('#cp-confirm').onclick = () => close(true);
-                modal.querySelector('#cp-cancel').onclick  = () => close(false);
-                overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+            const icons = { success: 'success', error: 'error', warning: 'warning', info: 'info' };
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: icons[type] || 'info',
+                title: message,
+                showConfirmButton: false,
+                timer: duration,
+                timerProgressBar: true,
+                didOpen: (el) => {
+                    el.addEventListener('mouseenter', Swal.stopTimer);
+                    el.addEventListener('mouseleave', Swal.resumeTimer);
+                }
             });
         };
 
-        // CSS das animações (injeta uma vez)
-        if (!document.getElementById('cp-toast-style')) {
-            const style = document.createElement('style');
-            style.id = 'cp-toast-style';
-            style.textContent = `
-                @keyframes toastIn  { from { opacity:0; transform:translateX(120%); } to { opacity:1; transform:translateX(0); } }
-                @keyframes toastOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(120%); } }
-            `;
-            document.head.appendChild(style);
-        }
-
-        // Variáveis dummy para não quebrar o return
-        const toasts = ref([]);
-        const resolveConfirm = () => {};
+        const showConfirm = (message) => {
+            return Swal.fire({
+                title: 'Confirmar',
+                text: message,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#EF4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar',
+                borderRadius: '16px'
+            }).then(result => result.isConfirmed);
+        };
 
 
         const progress = computed(() => {
