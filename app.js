@@ -62,6 +62,7 @@ createApp({
         // === SISTEMA DE TOAST ===
         const toasts = ref([]);
         let toastId = 0;
+        const confirmResolvers = {}; // Guarda funções resolve FORA do reativo
 
         const toast = (message, type = 'info', duration = 3500) => {
             const id = ++toastId;
@@ -74,13 +75,16 @@ createApp({
         const showConfirm = (message) => {
             return new Promise((resolve) => {
                 const id = ++toastId;
-                toasts.value.push({ id, message, type: 'confirm', resolve });
+                confirmResolvers[id] = resolve; // Guarda fora do reativo
+                toasts.value.push({ id, message, type: 'confirm' });
             });
         };
 
         const resolveConfirm = (id, result) => {
-            const t = toasts.value.find(t => t.id === id);
-            if (t && t.resolve) t.resolve(result);
+            if (confirmResolvers[id]) {
+                confirmResolvers[id](result);
+                delete confirmResolvers[id];
+            }
             toasts.value = toasts.value.filter(t => t.id !== id);
         };
 
