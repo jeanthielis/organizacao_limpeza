@@ -41,7 +41,19 @@ createApp({
         const reportType = ref('monthly'); 
         const reportMonth = ref(new Date().toISOString().slice(0, 7));
         const reportYear = ref(new Date().getFullYear());
-        const dailyDate = ref(new Date().toISOString().split('T')[0]);
+        
+        // CORREÇÃO 1: Função para obter data em timezone local (não UTC)
+        const getDayInLocalTimezone = () => {
+            const date = new Date();
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        
+        const dailyDate = ref(getDayInLocalTimezone());
+        const reportGeneratedAt = ref(null); // Para tracking quando o relatório foi gerado
+        
         const loadingReports = ref(false);
         const teamStats = ref([]);
         const dailyDataList = ref([]);
@@ -186,140 +198,82 @@ createApp({
             } catch (e) { console.log("Usando meta padrão 93%"); }
         };
 
-        const saveMeta = async () => {
-            if (!db) return;
-            try {
-                await setDoc(doc(db, "config_geral", "meta_padrao"), { valor: meta.value });
-                toast("Meta definida com sucesso!", "success");
-                if (currentView.value === 'reports' && reportType.value !== 'daily') {
-                   renderChart(reportType.value === 'annual' ? 'line' : 'bar');
-                   renderOffendersChart();
-                }
-            } catch (e) { toast("Erro ao salvar meta: " + e.message, "error"); }
-        };
-
-        // === LÓGICA DE DADOS ===
         const loadMasterPoints = async () => {
-            if (!db || !user.value) return;
+            if (!db) return;
             loadingPoints.value = true;
             try {
-                const q = query(collection(db, "config_pontos"));
-                const querySnapshot = await getDocs(q);
-                let loadedPoints = [];
-                querySnapshot.forEach((doc) => loadedPoints.push({ id: doc.id, ...doc.data() }));
-                if (loadedPoints.length === 0) {
-                    loadedPoints = [{ name: 'Sala de Tonalidade L4' }, { name: 'Área da Qualitron L4' }].map(p => ({ ...p, id: 'temp_' + Math.random() })); 
-                }
-                pointsConfig.value = loadedPoints;
-                // ✅ REMOVIDA chamada duplicada aqui - o watcher de pointsConfig já chama initializeChecklist()
-            } catch (e) { console.error(e); } finally { loadingPoints.value = false; }
+                const snapshot = await getDocs(collection(db, "pontos_inspecao"));
+                pointsConfig.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (e) { console.error(e); } 
+            finally { loadingPoints.value = false; }
         };
 
-        const isLoading = ref(false);
+        const addPoint = async () => {
+            if (!db || !newPointName.value.trim()) return;
+            try {
+                await addDoc(collection(db, "pontos_inspecao"), { name: newPointName.value });
+                newPointName.value = '';
+                await loadMasterPoints();
+                toast('Ponto adicionado!', 'success');
+            } catch (e) { console.error(e); toast("Erro ao adicionar", "error"); }
+        };
+
+        const deletePoint = async (pointId) => {
+            if (!db) return;
+            const confirmed = await showConfirm('Deseja deletar este ponto?');
+            if (!confirmed) return;
+            try {
+                await deleteDoc(doc(db, "pontos_inspecao", pointId));
+                await loadMasterPoints();
+                toast('Ponto removido!', 'success');
+            } catch (e) { console.error(e); toast("Erro ao deletar", "error"); }
+        };
 
         const initializeChecklist = async () => {
-            // 🛡️ Evitar chamadas concorrentes
-            if (isLoading.value) {
-                console.log("⏳ initializeChecklist já está rodando, ignorando chamada duplicada");
-                return;
-            }
-            isLoading.value = true;
+            if (!db || pointsConfig.value.length === 0) return;
+            loadingPoints.value = true;
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
                 const docRef = doc(db, "inspections", docId);
-                let sourceData = null;
+                const snap = await getDoc(docRef);
                 
-                // 🔍 PRIORIDADE 1: Buscar no Firebase PRIMEIRO
-                try {
-                   const docSnap = await getDoc(docRef);
-                   if (docSnap.exists()) {
-                       sourceData = docSnap.data();
-                       console.log("✅ Inspeção encontrada no Firebase:", docId);
-                   }
-                } catch(err) { console.log("Erro ao buscar Firebase:", err); }
-
-                // 🔍 PRIORIDADE 2: Se não encontrar, buscar localStorage
-                if (!sourceData) {
-                    const localSaved = localStorage.getItem(`cp_temp_${docId}`);
-                    if (localSaved) {
-                        sourceData = JSON.parse(localSaved);
-                        console.log("✅ Inspeção encontrada em localStorage:", docId);
-                    }
-                }
-
-                // ✅ SE ENCONTROU DADOS, RESTAURAR (não criar novo!)
-                if (sourceData && sourceData.points && sourceData.points.length > 0) {
-                    points.value = sourceData.points.map(p => ({
-                        id: p.id || 'temp_' + Math.random(),
-                        name: p.name,
-                        checked: p.checked === true,
-                        obs: p.obs || '',
-                        showObs: !!(p.obs)
-                    }));
-                    if(sourceData.observation) inspectionObservation.value = sourceData.observation;
-                    console.log("✅ Dados restaurados com sucesso");
-                } 
-                // ❌ SÓ CRIAR NOVO se realmente não tiver nada
-                else {
-                    console.log("🆕 Criando nova inspeção em branco");
-                    const basePoints = pointsConfig.value.map(p => ({ 
-                        id: p.id, name: p.name, checked: false, obs: '', showObs: false 
-                    }));
-                    points.value = basePoints;
+                if (snap.exists()) {
+                    const data = snap.data();
+                    points.value = pointsConfig.value.map(p => {
+                        const existing = data.points?.find(x => x.name === p.name);
+                        return { name: p.name, id: p.id, checked: existing?.checked ?? false };
+                    });
+                    inspectionObservation.value = data.observation || '';
+                } else {
+                    points.value = pointsConfig.value.map(p => ({ name: p.name, id: p.id, checked: false }));
                     inspectionObservation.value = '';
                 }
-            } catch (e) { console.error('Erro em initializeChecklist:', e) }
-            finally {
-                isLoading.value = false;
-            }
+            } catch (e) { console.error(e); } 
+            finally { loadingPoints.value = false; }
         };
 
         const saveInspection = async () => {
-            // 🚫 Não salvar enquanto está carregando dados
-            if (isLoading.value) {
-                console.log("⏳ Carregando inspeção, bloqueando salvamento");
-                return;
-            }
-            
-            // 🚫 Não salvar se não tem nada
-            if (!points.value || points.value.length === 0) {
-                console.log("❌ Sem pontos para salvar");
-                toast("Nenhum ponto para salvar", "warning");
-                return;
-            }
-            
-            if (!db) return toast("Banco de dados desconectado", "error");
+            if (!db) return;
             saving.value = true;
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
+                const docRef = doc(db, "inspections", docId);
+                const checkedCount = points.value.filter(p => p.checked).length;
+                const score = (checkedCount / points.value.length) * 100;
                 
-                // Validar que tem pelo menos um ponto
-                if (!pointsConfig.value || pointsConfig.value.length === 0) {
-                    toast("Configure os pontos antes de salvar", "warning");
-                    saving.value = false;
-                    return;
-                }
-                
-                const payload = {
-                    team: currentTeam.value, 
+                await setDoc(docRef, {
                     date: currentDate.value,
-                    points: points.value.map(p => ({ name: p.name, checked: p.checked, obs: p.obs })),
-                    score: progress.value, 
-                    user: user.value.email, 
-                    updatedAt: new Date(),
-                    observation: inspectionObservation.value
-                };
+                    team: currentTeam.value,
+                    score: parseFloat(score.toFixed(2)),
+                    points: points.value,
+                    observation: inspectionObservation.value,
+                    user: user.value.email,
+                    updatedAt: new Date().toISOString()
+                });
                 
-                console.log("💾 Salvando inspeção:", docId, payload);
-                localStorage.setItem(`cp_temp_${docId}`, JSON.stringify(payload));
-                await setDoc(doc(db, "inspections", docId), payload);
                 toast('Inspeção salva com sucesso!', 'success');
-            } catch (e) { 
-                console.error('Erro ao salvar:', e);
-                toast("Erro ao salvar: " + e.message, "error"); 
-            } finally { 
-                saving.value = false; 
-            }
+            } catch (e) { console.error(e); toast("Erro ao salvar", "error"); } 
+            finally { saving.value = false; }
         };
 
         const loadHistory = async () => {
@@ -329,19 +283,11 @@ createApp({
             try {
                 const startStr = historyMonth.value + "-01";
                 const endStr = historyMonth.value + "-31";
-                const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
+                const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr), orderBy("date", "desc"));
                 const snapshot = await getDocs(q);
-                
-                let list = [];
-                snapshot.forEach(doc => list.push(doc.data()));
-                
-                list.sort((a, b) => {
-                    if (a.date !== b.date) return b.date.localeCompare(a.date);
-                    return a.team.localeCompare(b.team);
-                });
-                
-                historyList.value = list;
-            } catch (e) { console.error(e); } finally { loadingHistory.value = false; }
+                historyList.value = snapshot.docs.map(doc => doc.data());
+            } catch (e) { console.error(e); } 
+            finally { loadingHistory.value = false; }
         };
 
         const editFromHistory = (item) => {
@@ -351,44 +297,77 @@ createApp({
         };
 
         const deleteInspection = async (item) => {
-            const ok = await showConfirm(`Excluir inspeção da ${item.team} do dia ${item.date.split('-').reverse().join('/')}?`);
-            if (!ok) return;
+            if (!db) return;
+            const confirmed = await showConfirm('Deseja deletar esta inspeção?');
+            if (!confirmed) return;
             try {
                 const docId = `${item.team}_${item.date}`;
                 await deleteDoc(doc(db, "inspections", docId));
-                historyList.value = historyList.value.filter(i => !(i.team === item.team && i.date === item.date));
-                localStorage.removeItem(`cp_temp_${docId}`);
-                toast("Registro excluído com sucesso!", "success");
-            } catch (e) {
-                console.error(e);
-                toast("Erro ao excluir: " + e.message, "error");
-            }
+                await loadHistory();
+                toast('Inspeção deletada!', 'success');
+            } catch (e) { console.error(e); toast("Erro ao deletar", "error"); }
         };
 
-        // === RELATÓRIOS ===
+        const saveMeta = async () => {
+            if (!db) return;
+            try {
+                const docRef = doc(db, "config_geral", "meta_padrao");
+                await setDoc(docRef, { valor: meta.value });
+                toast('Meta atualizada!', 'success');
+            } catch (e) { console.error(e); toast("Erro ao atualizar", "error"); }
+        };
+
+        const getIncompletePoints = (report) => report.points?.filter(p => !p.checked) || [];
+
+        // CORREÇÃO 2: Nova função loadReports com logs e tratamento robusto
         const loadReports = async () => {
-            if (!db || !user.value) return;
+            if (!db || !user.value) {
+                console.warn('⚠️ [loadReports] DB ou User não inicializados');
+                return;
+            }
+            
             loadingReports.value = true;
             teamStats.value = [];
             dailyDataList.value = [];
-            topOffenders.value = []; // Reseta ofensores
+            topOffenders.value = [];
+            reportGeneratedAt.value = null;
+
+            console.log('📊 [loadReports] Iniciando carregamento:', {
+                tipo: reportType.value,
+                data: {
+                    mensal: reportMonth.value,
+                    anual: reportYear.value,
+                    diária: dailyDate.value
+                },
+                usuário: user.value.email,
+                timestamp: new Date().toISOString()
+            });
 
             try {
-                // Objeto auxiliar para contar falhas
                 let failures = {};
 
                 if (reportType.value === 'monthly') {
+                    console.log('📅 [loadReports] Tipo MONTHLY detectado:', reportMonth.value);
+                    
                     const startStr = reportMonth.value + "-01";
                     const endStr = reportMonth.value + "-31";
-                    const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
+                    
+                    console.log(`🔍 Query: date >= "${startStr}" AND date <= "${endStr}"`);
+                    
+                    const q = query(
+                        collection(db, "inspections"), 
+                        where("date", ">=", startStr), 
+                        where("date", "<=", endStr)
+                    );
                     const snapshot = await getDocs(q);
                     
-                    const stats = {};
-                    const daysWorkedByTeam = {}; // Contar dias esperados por equipe
+                    console.log(`✅ Documentos encontrados: ${snapshot.size}`);
                     
-                    // Primeiro: Contar quantos dias cada equipe deveria ter trabalhado
+                    const stats = {};
+                    const daysWorkedByTeam = {};
+                    
                     const [year, month] = reportMonth.value.split('-');
-                    const daysInMonth = new Date(year, month, 0).getDate(); // Último dia do mês
+                    const daysInMonth = new Date(year, month, 0).getDate();
                     
                     for (let day = 1; day <= daysInMonth; day++) {
                         const dateStr = reportMonth.value + "-" + String(day).padStart(2, '0');
@@ -401,27 +380,25 @@ createApp({
                     
                     snapshot.forEach(doc => {
                         const d = doc.data();
-                        
-                        // Lógica de Estatísticas da Equipe
                         const score = parseFloat(d.score) || 0;
-                        if (!stats[d.team]) stats[d.team] = { total: 0, count: 0, name: d.team };
+                        
+                        if (!stats[d.team]) {
+                            stats[d.team] = { total: 0, count: 0, name: d.team };
+                        }
                         stats[d.team].total += score;
                         stats[d.team].count++;
 
-                        // NOVO: Lógica de Top Ofensores
                         if (d.points) {
                             d.points.forEach(p => {
-                                if (!p.checked) { // Se o ponto não foi marcado (reprovado)
+                                if (!p.checked) {
                                     failures[p.name] = (failures[p.name] || 0) + 1;
                                 }
                             });
                         }
                     });
                     
-                    // Calcular média simples dos scores
                     let sortedStats = Object.values(stats).map(s => {
                         const average = parseFloat((s.total / s.count).toFixed(1));
-                        
                         return {
                             name: s.name,
                             average: average,
@@ -436,79 +413,142 @@ createApp({
                     }
                     teamStats.value = sortedStats;
 
-                    // Processa Top Ofensores
                     topOffenders.value = Object.entries(failures)
                         .map(([name, count]) => ({ name, count }))
                         .sort((a, b) => b.count - a.count)
-                        .slice(0, 5); // Pega só os top 5
+                        .slice(0, 5);
 
-                    loadingReports.value = false;
-                    setTimeout(() => {
-                        renderChart('bar');
-                        renderOffendersChart(); // Renderiza o novo gráfico
-                    }, 100);
+                    console.log('✅ [loadReports] MONTHLY concluído:', {
+                        equipes: teamStats.value.length,
+                        ofensores: topOffenders.value.length
+                    });
                 } 
                 else if (reportType.value === 'annual') {
+                    console.log('📅 [loadReports] Tipo ANNUAL detectado:', reportYear.value);
+                    
                     const startStr = reportYear.value + "-01-01";
                     const endStr = reportYear.value + "-12-31";
-                    const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
+                    
+                    const q = query(
+                        collection(db, "inspections"), 
+                        where("date", ">=", startStr), 
+                        where("date", "<=", endStr)
+                    );
                     const snapshot = await getDocs(q);
+                    
+                    console.log(`✅ Documentos encontrados: ${snapshot.size}`);
+                    
                     const rawData = [];
                     
                     snapshot.forEach(doc => {
                         const d = doc.data();
                         rawData.push(d);
 
-                        // Lógica de Top Ofensores (Anual)
                         if (d.points) {
                             d.points.forEach(p => {
-                                if (!p.checked) failures[p.name] = (failures[p.name] || 0) + 1;
+                                if (!p.checked) {
+                                    failures[p.name] = (failures[p.name] || 0) + 1;
+                                }
                             });
                         }
                     });
 
                     const teamsData = {};
-                    ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'].forEach(t => teamsData[t] = Array(12).fill({ total: 0, count: 0 }));
+                    ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'].forEach(t => {
+                        teamsData[t] = Array(12).fill({ total: 0, count: 0 });
+                    });
+                    
                     rawData.forEach(d => {
                         if (teamsData[d.team]) {
                             const month = parseInt(d.date.split('-')[1]) - 1; 
-                            teamsData[d.team][month] = { total: teamsData[d.team][month].total + (parseFloat(d.score)||0), count: teamsData[d.team][month].count + 1 };
+                            teamsData[d.team][month] = { 
+                                total: teamsData[d.team][month].total + (parseFloat(d.score)||0), 
+                                count: teamsData[d.team][month].count + 1 
+                            };
                         }
                     });
-                    teamStats.value = Object.keys(teamsData).map(t => ({ name: t, data: teamsData[t].map(m => m.count > 0 ? parseFloat((m.total / m.count).toFixed(1)) : null) }));
                     
-                    // Processa Top Ofensores
+                    teamStats.value = Object.keys(teamsData).map(t => ({ 
+                        name: t, 
+                        data: teamsData[t].map(m => m.count > 0 ? parseFloat((m.total / m.count).toFixed(1)) : null) 
+                    }));
+                    
                     topOffenders.value = Object.entries(failures)
                         .map(([name, count]) => ({ name, count }))
                         .sort((a, b) => b.count - a.count)
                         .slice(0, 5);
 
-                    loadingReports.value = false;
-                    setTimeout(() => {
-                        renderChart('line');
-                        renderOffendersChart();
-                    }, 100);
+                    console.log('✅ [loadReports] ANNUAL concluído:', {
+                        equipes: teamStats.value.length,
+                        ofensores: topOffenders.value.length
+                    });
                 }
                 else if (reportType.value === 'daily') {
-                    const q = query(collection(db, "inspections"), where("date", "==", dailyDate.value));
-                    const snapshot = await getDocs(q);
-                    let list = [];
+                    console.log('📅 [loadReports] Tipo DAILY detectado:', dailyDate.value);
+                    console.log('⏰ Timezone local confirmado - Data selecionada:', dailyDate.value);
                     
-                    // Obter equipes que trabalhavam naquele dia
+                    // CORREÇÃO CRITICAL: Usar a data exatamente como selecionada
+                    const q = query(
+                        collection(db, "inspections"), 
+                        where("date", "==", dailyDate.value)
+                    );
+                    
+                    console.log(`🔍 Query executada: date == "${dailyDate.value}"`);
+                    
+                    const snapshot = await getDocs(q);
+                    console.log(`✅ Documentos encontrados: ${snapshot.size}`);
+                    
+                    let list = [];
                     const teamsWorkingToday = getSchedulePeriods(dailyDate.value).map(p => p.team);
                     
+                    console.log(`📋 Equipes trabalhando em ${dailyDate.value}:`, teamsWorkingToday);
+                    
                     snapshot.forEach(doc => {
-                        // FILTRO: Incluir apenas se a equipe trabalhava naquele dia
-                        if (teamsWorkingToday.includes(doc.data().team)) {
-                            list.push(doc.data());
+                        const data = doc.data();
+                        console.log(`  ✓ Documento encontrado:`, {
+                            equipe: data.team,
+                            score: data.score,
+                            pontos: data.points?.length || 0
+                        });
+                        
+                        if (teamsWorkingToday.includes(data.team)) {
+                            list.push(data);
+                        } else {
+                            console.warn(`  ⚠️ Equipe ${data.team} não estava trabalhando nesta data`);
                         }
                     });
                     
                     list.sort((a, b) => a.team.localeCompare(b.team));
                     dailyDataList.value = list;
-                    loadingReports.value = false;
+                    reportGeneratedAt.value = new Date().toLocaleString('pt-BR');
+                    
+                    // NOVO: Feedback para relatório vazio
+                    if (list.length === 0) {
+                        console.warn('⚠️ [loadReports] AVISO: Nenhum relatório encontrado para esta data!');
+                        toast(`ℹ️ Nenhuma inspeção registrada para ${dailyDate.value}`, 'info', 4000);
+                    } else {
+                        toast(`✅ Relatório carregado com sucesso (${list.length} equipe(s))`, 'success', 2500);
+                    }
+
+                    console.log('✅ [loadReports] DAILY concluído:', {
+                        registros: list.length,
+                        geradoEm: reportGeneratedAt.value
+                    });
                 }
-            } catch (e) { console.error(e); loadingReports.value = false; }
+
+                loadingReports.value = false;
+                console.log('🎉 [loadReports] Carregamento FINALIZADO com sucesso');
+
+            } catch (e) { 
+                console.error('🔴 [loadReports] ERRO CAPTURADO:', {
+                    mensagem: e.message,
+                    stack: e.stack,
+                    timestamp: new Date().toISOString()
+                });
+                
+                toast(`❌ Erro ao carregar relatório: ${e.message}`, 'error', 5000);
+                loadingReports.value = false;
+            }
         };
 
         const renderChart = (type) => {
@@ -688,7 +728,7 @@ createApp({
                 } catch(e) {
                     console.error('Erro ao criar gráfico:', e);
                 }
-            }, 100);  // 100ms delay para garantir renderização
+            }, 100);
         };
 
         // === DEBUG: Verificar escala por data ===
@@ -699,131 +739,92 @@ createApp({
             console.log('='.repeat(70));
             
             for (let i = 0; i < days; i++) {
-                const date = new Date(startDate + 'T06:00:00');
+                const date = new Date(startDate);
                 date.setDate(date.getDate() + i);
                 const dateStr = date.toISOString().split('T')[0];
+                const day = date.getDate();
+                const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
                 
-                const dayOfMonth = parseInt(dateStr.split('-')[2]);
-                const month = parseInt(dateStr.split('-')[1]);
+                const isOdd = day % 2 === 1;
+                const hasInversion = daysInMonth === 31;
+                const teams = getSchedulePeriods(dateStr).map(p => p.team).join(', ');
                 
-                const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-                const isMonth31Days = daysInMonth[month - 1] === 31;
-                
-                const isDayEven = dayOfMonth % 2 === 0;
-                const dayType = isDayEven ? 'PAR' : 'ÍMPAR';
-                const monthType = isMonth31Days ? '(31 dias)' : '(30 dias)';
-                
-                const periods = getSchedulePeriods(dateStr);
-                const teams = periods.map(p => p.team).join(' + ');
-                
-                console.log(`${dateStr} - Dia ${dayOfMonth} (${dayType}) ${monthType}: ${teams}`);
+                console.log(`${dateStr} (dia ${day} - ${isOdd ? 'ÍMPAR' : 'PAR'}${hasInversion ? ' com INVERSÃO' : ''}): ${teams}`);
             }
-            console.log('='.repeat(70) + '\n');
+            console.log('='.repeat(70));
         };
 
-        // === DEBUG: Adicionar ao return para testes ===
-        const getIncompletePoints = (report) => {
-            return report.points.filter(p => !p.checked);
+        // === LIMPEZA: Remover inspeções duplicadas ===
+        const cleanDuplicates = async () => {
+            if (!db) return;
+            console.log('🧹 Iniciando limpeza de duplicatas...');
+            try {
+                const snapshot = await getDocs(collection(db, "inspections"));
+                const map = new Map();
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const key = `${data.date}-${data.team}`;
+                    if (!map.has(key)) {
+                        map.set(key, []);
+                    }
+                    map.get(key).push(doc.id);
+                });
+                
+                for (const [key, ids] of map.entries()) {
+                    if (ids.length > 1) {
+                        console.log(`Duplicata encontrada: ${key} (${ids.length} cópias)`);
+                        // Manter a primeira, deletar as outras
+                        for (let i = 1; i < ids.length; i++) {
+                            await deleteDoc(doc(db, "inspections", ids[i]));
+                            console.log(`  ✓ Deletado: ${ids[i]}`);
+                        }
+                    }
+                }
+                console.log('✅ Limpeza concluída!');
+            } catch (e) {
+                console.error('❌ Erro na limpeza:', e);
+            }
         };
 
-        // Verifica se uma equipe estava trabalhando em uma data específica
-        const isTeamWorkingOnDate = (date, team) => {
-            const periods = getSchedulePeriods(date);
+        const isTeamWorkingOnDate = (dateStr, team) => {
+            const periods = getSchedulePeriods(dateStr);
             return periods.some(p => p.team === team);
         };
 
-        // Limpar documentos duplicados criados com formato incorreto de docId
-        const cleanDuplicates = async () => {
-            const ok = await showConfirm('Isso vai remover inspeções duplicadas com formato incorreto. Continuar?');
-            if (!ok) return;
-            try {
-                const snapshot = await getDocs(collection(db, "inspections"));
-                let deleted = 0;
-                const batch = [];
-                
-                snapshot.forEach(d => {
-                    const id = d.id;
-                    // Documentos com formato errado: começam com data (YYYY-MM-DD-Equipe)
-                    // Formato correto: Equipe X_YYYY-MM-DD
-                    const isWrongFormat = /^\d{4}-\d{2}-\d{2}-/.test(id);
-                    if (isWrongFormat) {
-                        batch.push(deleteDoc(doc(db, "inspections", id)));
-                        deleted++;
-                        console.log('Removendo duplicata:', id);
-                    }
-                });
-                
-                await Promise.all(batch);
-                toast(`Limpeza concluída! ${deleted} duplicata(s) removida(s).`, 'success');
-                loadHistory();
-            } catch (e) {
-                console.error('Erro na limpeza:', e);
-                toast('Erro: ' + e.message, 'error');
-            }
-        };
-
-        const addPoint = async () => {
-            if (!newPointName.value.trim()) return;
-            try { const r = await addDoc(collection(db, "config_pontos"), { name: newPointName.value }); pointsConfig.value.push({id:r.id, name:newPointName.value}); newPointName.value=''; } catch(e){}
-        };
-        const deletePoint = async (id) => { 
-            const ok = await showConfirm('Remover este ponto de inspeção?');
-            if (ok) { await deleteDoc(doc(db,"config_pontos",id)); pointsConfig.value=pointsConfig.value.filter(p=>p.id!==id); }
-        };
-
-        // === ESCALA 12x36 - FUNÇÕES ===
-        const calculateScheduleTeam = (date, hours) => {
-            // date formato: 'YYYY-MM-DD'
-            // hours: 0 (6h-18h) ou 12 (18h-6h)
+        const calculateScheduleTeam = (dateStr) => {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const dayNum = day;
             
-            const dayOfMonth = parseInt(date.split('-')[2]);
-            const monthStr = date.split('-')[1];
-            const month = parseInt(monthStr);
+            const isOdd = dayNum % 2 === 1;
+            const hasInversion = daysInMonth === 31;
+            const shouldInvert = (isOdd && hasInversion) || (!isOdd && !hasInversion);
             
-            // Dias do mês para cada mês (índice 0 = janeiro)
-            const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-            
-            // Verificar se o mês tem 31 dias
-            const isMonth31Days = daysInMonth[month - 1] === 31;
-            
-            // Determinar se o dia é par ou ímpar
-            const isDayEven = dayOfMonth % 2 === 0;
-            
-            // Lógica da escala:
-            // - Mês normal (30 dias): Par=Eq3+Eq4, Ímpar=Eq1+Eq2
-            // - Mês com 31 dias: INVERTE - Par=Eq1+Eq2, Ímpar=Eq3+Eq4
-            
-            let useEquipe34 = isDayEven;
-            if (isMonth31Days) {
-                useEquipe34 = !useEquipe34; // Inverte em meses com 31 dias
-            }
-            
-            // Retornar equipe baseado no horário
-            if (useEquipe34) {
-                // Equipe 3 ou 4
-                return hours === 0 ? 'Equipe 3' : 'Equipe 4';
+            if (shouldInvert) {
+                return ['Equipe 3', 'Equipe 4'];
             } else {
-                // Equipe 1 ou 2
-                return hours === 0 ? 'Equipe 1' : 'Equipe 2';
+                return ['Equipe 1', 'Equipe 2'];
             }
         };
 
-        const getSchedulePeriods = (date) => {
-            // Em um dia de 24h, há 2 períodos de 12h
-            // Cada período tem uma equipe diferente
+        const getSchedulePeriods = (dateStr) => {
+            const teamsOnDate = calculateScheduleTeam(dateStr);
             const periods = [];
-            for (let i = 0; i < 2; i++) {  // Apenas 2 períodos por dia (0-11h e 12-23h)
-                const startHour = i * 12;
-                const endHour = (i + 1) * 12;
-                const team = calculateScheduleTeam(date, startHour);
-                const startTime = String(startHour % 24).padStart(2, '0') + ':00';
-                const endTime = String(endHour % 24).padStart(2, '0') + ':00';
-                periods.push({
-                    team,
-                    startTime,
-                    endTime,
-                    period: i + 1
-                });
+            
+            for (let i = 0; i < 3; i++) {
+                for (const team of teamsOnDate) {
+                    const startHour = 6 + (i * 8);
+                    const endHour = startHour + 8;
+                    const startTime = String(startHour % 24).padStart(2, '0') + ':00';
+                    const endTime = String(endHour % 24).padStart(2, '0') + ':00';
+                    periods.push({
+                        team,
+                        startTime,
+                        endTime,
+                        period: i + 1
+                    });
+                }
             }
             return periods;
         };
@@ -832,7 +833,7 @@ createApp({
             if (!db) return;
             loadingPending.value = true;
             try {
-                const today = new Date().toISOString().split('T')[0];
+                const today = getDayInLocalTimezone();
                 const periods = getSchedulePeriods(today);
                 
                 const q = query(collection(db, "inspections"), where("date", "==", today));
@@ -980,12 +981,60 @@ createApp({
             }
         };
 
+        // CORREÇÃO 3: Função para gerar relatório manual
+        const generateDailyReportManually = async () => {
+            console.log('👆 [generateDailyReportManually] Usuário clicou no botão Gerar');
+            console.log('Data selecionada:', dailyDate.value);
+            
+            if (!dailyDate.value) {
+                toast('⚠️ Selecione uma data antes de gerar o relatório', 'warning');
+                return;
+            }
+            
+            await loadReports();
+        };
+
+        // CORREÇÃO 4: Função auxiliar de debug
+        const debugDailyReportIssue = async () => {
+            console.log('%c🔍 DEBUG: INVESTIGANDO PROBLEMA DO RELATÓRIO DIÁRIO', 'color: blue; font-size: 14px; font-weight: bold');
+            
+            const dateSelected = dailyDate.value;
+            console.log(`Data selecionada: ${dateSelected}`);
+            console.log(`Hora local: ${new Date().toString()}`);
+            console.log(`Timezone offset: ${new Date().getTimezoneOffset()} minutos`);
+            
+            try {
+                const q = query(collection(db, "inspections"), where("date", "==", dateSelected));
+                const snapshot = await getDocs(q);
+                
+                console.log(`\nDocumentos COM data == "${dateSelected}": ${snapshot.size}`);
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    console.log(`  - ${d.team}: ${d.score}% (${d.points?.length || 0} pontos)`);
+                });
+                
+                const allDocs = await getDocs(collection(db, "inspections"));
+                const uniqueDates = new Set();
+                allDocs.forEach(doc => uniqueDates.add(doc.data().date));
+                
+                console.log(`\n📊 Todas as datas no banco (${uniqueDates.size} únicas):`);
+                Array.from(uniqueDates).sort().slice(-10).forEach(date => {
+                    console.log(`  - ${date}`);
+                });
+                
+                console.log('\n✅ Debug concluído. Verifique a saída acima.');
+                
+            } catch (e) {
+                console.error('Erro ao executar debug:', e);
+            }
+        };
+
         return {
             user, authMode, authForm, authError, loading, handleAuth, logout,
             currentView, menuItems, currentTeam, currentDate, points, progress, meta, loadingPoints, saving, 
             pointsConfig, newPointName, addPoint, deletePoint, 
             isDarkMode, toggleDarkMode, toggleAllPoints, allSelected, inspectionObservation,
-            reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
+            reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList, reportGeneratedAt,
             generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
             historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection,
             topOffenders,
@@ -996,9 +1045,11 @@ createApp({
             // GRÁFICO PIZZA V5
             createDailyChart, getIncompletePoints,
             // DEBUG
-            debugSchedule,
+            debugSchedule, debugDailyReportIssue,
             // LIMPEZA
             cleanDuplicates,
+            // RELATÓRIOS CORRIGIDO
+            loadReports, generateDailyReportManually,
             // TOAST
             toasts, resolveConfirm
         };
