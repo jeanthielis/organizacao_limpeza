@@ -45,8 +45,6 @@ createApp({
         const loadingReports = ref(false);
         const teamStats = ref([]);
         const dailyDataList = ref([]);
-        // NOVO: Estado para os ofensores
-        const topOffenders = ref([]);
 
         // === COMPUTED ===
         const progress = computed(() => {
@@ -65,7 +63,6 @@ createApp({
             if(currentView.value === 'reports' && reportType.value !== 'daily') {
                 setTimeout(() => {
                     renderChart(reportType.value === 'annual' ? 'line' : 'bar');
-                    renderOffendersChart();
                 }, 300);
             }
         }, { immediate: true });
@@ -126,7 +123,6 @@ createApp({
                 alert("Nova meta definida com sucesso!");
                 if (currentView.value === 'reports' && reportType.value !== 'daily') {
                    renderChart(reportType.value === 'annual' ? 'line' : 'bar');
-                   renderOffendersChart();
                 }
             } catch (e) { alert("Erro ao salvar meta: " + e.message); }
         };
@@ -250,12 +246,8 @@ createApp({
             loadingReports.value = true;
             teamStats.value = [];
             dailyDataList.value = [];
-            topOffenders.value = []; // Reseta ofensores
 
             try {
-                // Objeto auxiliar para contar falhas
-                let failures = {};
-
                 if (reportType.value === 'monthly') {
                     const startStr = reportMonth.value + "-01";
                     const endStr = reportMonth.value + "-31";
@@ -271,15 +263,6 @@ createApp({
                         if (!stats[d.team]) stats[d.team] = { total: 0, count: 0, name: d.team };
                         stats[d.team].total += score;
                         stats[d.team].count++;
-
-                        // NOVO: Lógica de Top Ofensores
-                        if (d.points) {
-                            d.points.forEach(p => {
-                                if (!p.checked) { // Se o ponto não foi marcado (reprovado)
-                                    failures[p.name] = (failures[p.name] || 0) + 1;
-                                }
-                            });
-                        }
                     });
                     
                     let sortedStats = Object.values(stats).map(s => ({
@@ -293,16 +276,9 @@ createApp({
                     }
                     teamStats.value = sortedStats;
 
-                    // Processa Top Ofensores
-                    topOffenders.value = Object.entries(failures)
-                        .map(([name, count]) => ({ name, count }))
-                        .sort((a, b) => b.count - a.count)
-                        .slice(0, 5); // Pega só os top 5
-
                     loadingReports.value = false;
                     setTimeout(() => {
                         renderChart('bar');
-                        renderOffendersChart(); // Renderiza o novo gráfico
                     }, 100);
                 } 
                 else if (reportType.value === 'annual') {
@@ -313,15 +289,7 @@ createApp({
                     const rawData = [];
                     
                     snapshot.forEach(doc => {
-                        const d = doc.data();
-                        rawData.push(d);
-
-                        // Lógica de Top Ofensores (Anual)
-                        if (d.points) {
-                            d.points.forEach(p => {
-                                if (!p.checked) failures[p.name] = (failures[p.name] || 0) + 1;
-                            });
-                        }
+                        rawData.push(doc.data());
                     });
 
                     const teamsData = {};
@@ -333,17 +301,10 @@ createApp({
                         }
                     });
                     teamStats.value = Object.keys(teamsData).map(t => ({ name: t, data: teamsData[t].map(m => m.count > 0 ? parseFloat((m.total / m.count).toFixed(1)) : null) }));
-                    
-                    // Processa Top Ofensores
-                    topOffenders.value = Object.entries(failures)
-                        .map(([name, count]) => ({ name, count }))
-                        .sort((a, b) => b.count - a.count)
-                        .slice(0, 5);
 
                     loadingReports.value = false;
                     setTimeout(() => {
                         renderChart('line');
-                        renderOffendersChart();
                     }, 100);
                 }
                 else if (reportType.value === 'daily') {
@@ -396,55 +357,6 @@ createApp({
             }
         };
 
-        // === NOVA FUNÇÃO: RENDERIZA GRÁFICO DE OFENSORES ===
-        const renderOffendersChart = () => {
-            const ctx = document.getElementById('offendersChart');
-            if (!ctx) return;
-            
-            // Destroi gráfico anterior se existir
-            const existingChart = window.Chart.getChart(ctx);
-            if (existingChart) existingChart.destroy();
-
-            // Se não houver dados, não renderiza nada
-            if(topOffenders.value.length === 0) return;
-
-            const textColor = isDarkMode.value ? '#94a3b8' : '#64748b';
-            const ChartConstructor = window.Chart;
-
-            new ChartConstructor(ctx, {
-                type: 'bar',
-                data: {
-                    labels: topOffenders.value.map(i => i.name),
-                    datasets: [{
-                        label: 'Qtd Reprovações',
-                        data: topOffenders.value.map(i => i.count),
-                        backgroundColor: '#ef4444', // Vermelho para indicar alerta
-                        borderRadius: 4,
-                        indexAxis: 'y', // Faz o gráfico ser horizontal
-                    }]
-                },
-                options: {
-                    indexAxis: 'y', // Horizontal
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { 
-                            ticks: { color: textColor, stepSize: 1 },
-                            grid: { color: isDarkMode.value ? '#334155' : '#e2e8f0' }
-                        },
-                        y: { 
-                            ticks: { color: textColor },
-                            grid: { display: false }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        title: { display: false }
-                    }
-                }
-            });
-        };
-
         const generatePDF = async () => {
             const element = document.getElementById('reportContent');
             if(!element) return;
@@ -485,9 +397,7 @@ createApp({
             isDarkMode, toggleDarkMode, toggleAllPoints, allSelected, inspectionObservation,
             reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
             generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
-            historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection,
-            // NOVO RETORNO
-            topOffenders 
+            historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection
         };
     }
 }).mount('#app')
