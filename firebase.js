@@ -1,7 +1,7 @@
 // firebase.js
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
 // AQUI ESTAVA O ERRO: Havia duas linhas importando getFirestore. Agora só tem uma com getDoc incluso.
-import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
+import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, getDoc, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
 
 // --- SUBSTITUA PELAS SUAS CHAVES DO FIREBASE CONSOLE ---
@@ -39,7 +39,8 @@ export {
     query,
     setDoc,
     where,
-    getDoc, // <--- Importante: getDoc está sendo exportado aqui
+    getDoc,
+    orderBy,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     onAuthStateChanged,
