@@ -262,15 +262,6 @@
                                     </table>
                                 </div>
 
-                                <div v-if="topOffenders.length > 0" class="mt-8 pt-8 border-t dark:border-slate-700">
-                                    <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                                        <i class="fas fa-exclamation-triangle text-danger"></i>
-                                        Top 5 Pontos de Atenção (Mais Reprovados)
-                                    </h3>
-                                    <div class="relative h-64 w-full">
-                                        <canvas id="offendersChart"></canvas>
-                                    </div>
-                                </div>
                             </div>
 
                             <div v-else-if="reportType === 'daily'">
@@ -315,7 +306,7 @@
                                                         <i class="fas fa-check-circle"></i> Atingiu a meta
                                                     </span>
                                                     <span v-else class="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 text-sm font-semibold rounded-full">
-                                                        <i class="fas fa-times-circle"></i> Pendente
+                                                        <i class="fas fa-times-circle"></i> Não atingiu a meta
                                                     </span>
                                                 </div>
                                             </div>
@@ -338,7 +329,7 @@
                                                         <i class="fas fa-check"></i> Concluído
                                                     </span>
                                                     <span v-else class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full">
-                                                        <i class="fas fa-times"></i> Pendente
+                                                        <i class="fas fa-times"></i> Não concluído
                                                     </span>
                                                 </div>
                                                 
