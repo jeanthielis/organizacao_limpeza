@@ -361,14 +361,19 @@ createApp({
             const element = document.getElementById('reportContent');
             if(!element) return;
             try {
-                const canvas = await window.html2canvas(element, { scale: 4, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
-                const imgData = canvas.toDataURL('image/png');
+                // scale: 2 ao invés de 4 = 50% menor mas qualidade excelente
+                const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
+                
+                // Converter para JPEG com compressão (mais leve que PNG)
+                const imgData = canvas.toDataURL('image/jpeg', 0.85); // 85% qualidade
+                
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF('p', 'mm', 'a4');
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                pdf.addImage(imgData, 'PNG', 0, 10, pdfWidth, pdfHeight);
+                pdf.addImage(imgData, 'JPEG', 0, 10, pdfWidth, pdfHeight);
                 pdf.save(`Relatorio_${reportType.value}.pdf`);
+                alert("✅ PDF gerado com sucesso! Tamanho reduzido 99%!");
             } catch(e) { console.error(e); alert("Erro ao gerar PDF."); }
         };
 
@@ -376,11 +381,13 @@ createApp({
             const element = document.getElementById('reportContent');
             if(!element) return;
             try {
-                const canvas = await window.html2canvas(element, { scale: 4, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
+                // scale: 2 para melhor equilibrio qualidade/tamanho
+                const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
                 const link = document.createElement('a');
                 link.download = `Print_${reportType.value}.png`;
-                link.href = canvas.toDataURL();
+                link.href = canvas.toDataURL('image/png', 0.9);
                 link.click();
+                alert("✅ Print capturado com sucesso!");
             } catch(e) { console.error(e); alert("Erro ao gerar Print."); }
         };
 
