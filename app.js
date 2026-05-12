@@ -70,6 +70,10 @@ createApp({
         watch([currentView, reportType, reportMonth, reportYear, dailyDate, historyMonth], () => {
             if (currentView.value === 'reports') loadReports();
             if (currentView.value === 'history') loadHistory();
+            if (currentView.value === 'inspection') {
+                if (pointsConfig.value.length === 0) loadMasterPoints();
+                else initializeChecklist();
+            }
         });
 
         watch([currentTeam, currentDate], () => initializeChecklist());
@@ -129,22 +133,49 @@ createApp({
 
         // === LÓGICA DE DADOS ===
         const loadMasterPoints = async () => {
-            if (!db || !user.value) return;
+            if (!db || !user.value) {
+                console.warn("❌ DB ou usuário não disponível");
+                return;
+            }
             loadingPoints.value = true;
             try {
+                console.log("📥 Carregando pontos de inspeção...");
                 const q = query(collection(db, "config_pontos"));
                 const querySnapshot = await getDocs(q);
                 let loadedPoints = [];
-                querySnapshot.forEach((doc) => loadedPoints.push({ id: doc.id, ...doc.data() }));
+                querySnapshot.forEach((doc) => {
+                    loadedPoints.push({ id: doc.id, ...doc.data() });
+                });
+                
                 if (loadedPoints.length === 0) {
-                    loadedPoints = [{ name: 'Sala de Tonalidade L4' }, { name: 'Área da Qualitron L4' }].map(p => ({ ...p, id: 'temp_' + Math.random() })); 
+                    console.log("⚠️  Nenhum ponto encontrado. Usando padrões.");
+                    loadedPoints = [
+                        { name: 'Sala de Tonalidade L4' }, 
+                        { name: 'Área da Qualitron L4' }
+                    ].map(p => ({ ...p, id: 'temp_' + Math.random() })); 
+                } else {
+                    console.log(`✅ ${loadedPoints.length} ponto(s) carregado(s)`);
                 }
+                
                 pointsConfig.value = loadedPoints;
-                initializeChecklist();
-            } catch (e) { console.error(e); } finally { loadingPoints.value = false; }
+                await initializeChecklist();
+            } catch (e) { 
+                console.error("❌ Erro ao carregar pontos:", e);
+            } finally { 
+                loadingPoints.value = false;
+            }
         };
 
         const initializeChecklist = async () => {
+            console.log("🔄 Inicializando checklist...");
+            
+            // Verificar se pointsConfig está vazio
+            if (!pointsConfig.value || pointsConfig.value.length === 0) {
+                console.warn("⚠️  Nenhum ponto disponível. Carregando...");
+                await loadMasterPoints();
+                return;
+            }
+            
             const basePoints = pointsConfig.value.map(p => ({ 
                 id: p.id, name: p.name, checked: false, obs: '', showObs: false 
             }));
@@ -157,15 +188,23 @@ createApp({
                 
                 try {
                    const docSnap = await getDoc(docRef);
-                   if (docSnap.exists()) sourceData = docSnap.data();
-                } catch(err) { console.log("Erro ao buscar inspeção:", err); }
+                   if (docSnap.exists()) {
+                       sourceData = docSnap.data();
+                       console.log(`✅ Inspeção encontrada: ${docId}`);
+                   }
+                } catch(err) { 
+                    console.log("ℹ️  Inspeção não encontrada no banco (é normal se for nova)");
+                }
 
                 if (!sourceData) {
                     const localSaved = localStorage.getItem(`cp_temp_${docId}`);
-                    if (localSaved) sourceData = JSON.parse(localSaved);
+                    if (localSaved) {
+                        sourceData = JSON.parse(localSaved);
+                        console.log("✅ Inspeção carregada do localStorage");
+                    }
                 }
 
-                if (sourceData) {
+                if (sourceData && sourceData.points) {
                     basePoints.forEach(p => {
                         const found = sourceData.points.find(sp => sp.name === p.name);
                         if (found) {
@@ -175,9 +214,13 @@ createApp({
                         }
                     });
                     if(sourceData.observation) inspectionObservation.value = sourceData.observation;
+                    console.log(`✅ Pontos restaurados: ${basePoints.filter(p => p.checked).length}/${basePoints.length}`);
                 }
-            } catch (e) { console.error(e) }
+            } catch (e) { 
+                console.error("❌ Erro ao inicializar checklist:", e);
+            }
             
+            console.log(`📊 Total de pontos a verificar: ${basePoints.length}`);
             points.value = basePoints;
         };
 
