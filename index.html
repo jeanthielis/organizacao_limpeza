@@ -41,6 +41,44 @@
 
     <div id="app" v-cloak class="min-h-screen flex flex-col md:flex-row">
 
+        <!-- 🔔 CONTAINER DE NOTIFICAÇÕES -->
+        <div class="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+            <transition-group name="toast" tag="div">
+                <div v-for="notification in notifications" :key="notification.id"
+                    class="pointer-events-auto px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm border animate-slide-in"
+                    :class="{
+                        'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200': notification.type === 'success',
+                        'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-800 dark:text-red-200': notification.type === 'error',
+                        'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200': notification.type === 'warning',
+                        'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200': notification.type === 'info'
+                    }">
+                    <div class="flex items-center gap-3">
+                        <i :class="{
+                            'fas fa-check-circle text-green-500': notification.type === 'success',
+                            'fas fa-exclamation-circle text-red-500': notification.type === 'error',
+                            'fas fa-exclamation-triangle text-yellow-500': notification.type === 'warning',
+                            'fas fa-info-circle text-blue-500': notification.type === 'info'
+                        }" class="text-lg flex-shrink-0"></i>
+                        <span class="font-medium flex-1">{{ notification.message }}</span>
+                        <button @click="removeNotification(notification.id)" class="text-sm opacity-60 hover:opacity-100">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </transition-group>
+        </div>
+
+        <style>
+            .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
+            .toast-enter-from { transform: translateX(400px); opacity: 0; }
+            .toast-leave-to { transform: translateX(400px); opacity: 0; }
+            @keyframes slide-in {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            .animate-slide-in { animation: slide-in 0.3s ease; }
+        </style>
+
         <div v-if="!user" class="fixed inset-0 z-50 bg-white dark:bg-darkbg flex items-center justify-center p-4">
              <div class="w-full max-w-md">
                 <div class="text-center mb-8">
