@@ -11,6 +11,10 @@ createApp({
         const loading = ref(false);
         const isDarkMode = ref(localStorage.getItem('darkMode') === 'true');
         
+        // === NOTIFICAÇÕES ===
+        const notifications = ref([]);
+        let notificationId = 0;
+        
         const currentView = ref('inspection');
         const menuItems = [
             { id: 'inspection', label: 'Inspeção', icon: 'fas fa-tasks' },
@@ -92,6 +96,29 @@ createApp({
             }
         });
 
+        // === FUNÇÕES DE NOTIFICAÇÃO ===
+        const showNotification = (message, type = 'info', duration = 3000) => {
+            const id = ++notificationId;
+            notifications.value.push({ id, message, type });
+            
+            // Auto-remover após duration
+            if (duration > 0) {
+                setTimeout(() => removeNotification(id), duration);
+            }
+            
+            return id;
+        };
+
+        const removeNotification = (id) => {
+            notifications.value = notifications.value.filter(n => n.id !== id);
+        };
+
+        // Atalhos para tipos específicos
+        const showSuccess = (message, duration = 3000) => showNotification(message, 'success', duration);
+        const showError = (message, duration = 5000) => showNotification(message, 'error', duration);
+        const showWarning = (message, duration = 4000) => showNotification(message, 'warning', duration);
+        const showInfo = (message, duration = 3000) => showNotification(message, 'info', duration);
+
         // === FUNÇÕES GERAIS ===
         const toggleDarkMode = () => isDarkMode.value = !isDarkMode.value;
         const toggleAllPoints = () => {
@@ -124,11 +151,11 @@ createApp({
             if (!db) return;
             try {
                 await setDoc(doc(db, "config_geral", "meta_padrao"), { valor: meta.value });
-                alert("Nova meta definida com sucesso!");
+                showSuccess("Meta definida com sucesso! 🎯");
                 if (currentView.value === 'reports' && reportType.value !== 'daily') {
                    renderChart(reportType.value === 'annual' ? 'line' : 'bar');
                 }
-            } catch (e) { alert("Erro ao salvar meta: " + e.message); }
+            } catch (e) { showError("Erro ao salvar meta: " + e.message); }
         };
 
         // === LÓGICA DE DADOS ===
@@ -225,7 +252,10 @@ createApp({
         };
 
         const saveInspection = async () => {
-            if (!db) return alert("Banco desconectado");
+            if (!db) {
+                showError("❌ Banco de dados desconectado!");
+                return;
+            }
             saving.value = true;
             try {
                 const docId = `${currentTeam.value}_${currentDate.value}`;
@@ -237,8 +267,8 @@ createApp({
                 };
                 localStorage.setItem(`cp_temp_${docId}`, JSON.stringify(payload));
                 await setDoc(doc(db, "inspections", docId), payload);
-                alert(`Salvo com sucesso!`);
-            } catch (e) { alert("Erro: " + e.message); } finally { saving.value = false; }
+                showSuccess("✅ Inspeção salva com sucesso!");
+            } catch (e) { showError("Erro: " + e.message); } finally { saving.value = false; }
         };
 
         const loadHistory = async () => {
@@ -276,10 +306,10 @@ createApp({
                 await deleteDoc(doc(db, "inspections", docId));
                 historyList.value = historyList.value.filter(i => !(i.team === item.team && i.date === item.date));
                 localStorage.removeItem(`cp_temp_${docId}`);
-                alert("Registro excluído com sucesso.");
+                showSuccess("✅ Inspeção excluída com sucesso!");
             } catch (e) {
                 console.error(e);
-                alert("Erro ao excluir: " + e.message);
+                showError("Erro ao excluir: " + e.message);
             }
         };
 
@@ -416,8 +446,11 @@ createApp({
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
                 pdf.addImage(imgData, 'JPEG', 0, 10, pdfWidth, pdfHeight);
                 pdf.save(`Relatorio_${reportType.value}.pdf`);
-                alert("✅ PDF gerado com sucesso! Tamanho reduzido 99%!");
-            } catch(e) { console.error(e); alert("Erro ao gerar PDF."); }
+                showSuccess("📄 PDF gerado com sucesso! Tamanho super leve!", 3000);
+            } catch(e) { 
+                console.error(e); 
+                showError("Erro ao gerar PDF.");
+            }
         };
 
         const takeScreenshot = async () => {
@@ -430,8 +463,11 @@ createApp({
                 link.download = `Print_${reportType.value}.png`;
                 link.href = canvas.toDataURL('image/png', 0.9);
                 link.click();
-                alert("✅ Print capturado com sucesso!");
-            } catch(e) { console.error(e); alert("Erro ao gerar Print."); }
+                showSuccess("🖼️ Print capturado com sucesso!", 3000);
+            } catch(e) { 
+                console.error(e); 
+                showError("Erro ao gerar print.");
+            }
         };
 
         const addPoint = async () => {
@@ -447,7 +483,9 @@ createApp({
             isDarkMode, toggleDarkMode, toggleAllPoints, allSelected, inspectionObservation,
             reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
             generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
-            historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection
+            historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection,
+            // Notificações
+            notifications, showNotification, removeNotification, showSuccess, showError, showWarning, showInfo
         };
     }
 }).mount('#app')
