@@ -36,6 +36,92 @@
         body, div, nav, aside { transition: background-color 0.3s, color 0.3s; }
         .page-break { page-break-before: always; }
         
+        /* ===== LOADING SPLASH SCREEN ===== */
+        .loading-splash {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 9999;
+            animation: fadeOut 0.8s ease-out 2.5s forwards;
+        }
+        
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                visibility: visible;
+            }
+            to {
+                opacity: 0;
+                visibility: hidden;
+            }
+        }
+        
+        .loading-content {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+        
+        .loading-logo {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            animation: bounce 2s ease-in-out infinite;
+        }
+        
+        .loading-logo i {
+            font-size: 48px;
+            color: #667eea;
+        }
+        
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        .loading-text {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .loading-subtext {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            margin-top: 8px;
+        }
+        
         /* ===== NOVO DESIGN PREMIUM ===== */
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         
@@ -406,6 +492,20 @@
 
     <div id="app" v-cloak class="min-h-screen flex flex-col md:flex-row">
 
+        <!-- ===== LOADING SPLASH SCREEN ===== -->
+        <div class="loading-splash" id="loadingSplash">
+            <div class="loading-content">
+                <div class="loading-logo">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="loading-spinner"></div>
+                <div>
+                    <div class="loading-text">ControlPoint</div>
+                    <div class="loading-subtext">Carregando aplicação...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- 🔔 CONTAINER DE NOTIFICAÇÕES -->
         <div class="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
             <transition-group name="toast" tag="div">
@@ -480,10 +580,19 @@
                         <i :class="item.icon" class="w-6 text-center"></i> {{ item.label }}
                     </button>
                 </nav>
-                <div class="px-4 pb-2">
+                <div class="px-4 pb-2 space-y-2">
                     <button @click="toggleDarkMode" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg font-medium">
                         <i :class="isDarkMode ? 'fas fa-sun text-yellow-400' : 'fas fa-moon'"></i> {{ isDarkMode ? 'Claro' : 'Escuro' }}
                     </button>
+                    
+                    <!-- Versão da Aplicação -->
+                    <div class="px-4 py-3 text-center">
+                        <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">
+                            <i class="fas fa-code-branch mr-1"></i> Versão
+                        </div>
+                        <div class="text-sm font-bold text-primary">{{ appVersion }}</div>
+                        <div class="text-xs text-slate-400 dark:text-slate-500">{{ versionStatus }}</div>
+                    </div>
                 </div>
                 <div class="p-4 border-t border-slate-100 dark:border-slate-700">
                     <button @click="logout" class="w-full flex items-center gap-3 px-4 py-3 text-danger hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg font-medium"><i class="fas fa-sign-out-alt w-6"></i> Sair</button>
@@ -816,6 +925,140 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- ===== PÁGINA SOBRE (ABOUT) ===== -->
+                    <div v-if="currentView === 'about'" class="max-w-3xl mx-auto space-y-6">
+                        <!-- Header -->
+                        <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-8 rounded-2xl shadow-lg">
+                            <div class="flex items-center gap-4 mb-4">
+                                <div class="w-16 h-16 bg-white rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-chart-line text-3xl text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <h1 class="text-3xl font-bold">ControlPoint</h1>
+                                    <p class="text-blue-100">Sistema de Inspeção de Limpeza</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Informações de Versão -->
+                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
+                                <i class="fas fa-info-circle text-primary"></i> Informações da Versão
+                            </h2>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Versão</div>
+                                    <div class="text-2xl font-bold text-primary">{{ appVersion }}</div>
+                                </div>
+                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Status</div>
+                                    <div class="text-lg font-bold text-green-600">{{ versionStatus }}</div>
+                                </div>
+                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Código</div>
+                                    <div class="text-lg font-bold text-purple-600">{{ versionInfo.codeName || 'N/A' }}</div>
+                                </div>
+                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg col-span-2 md:col-span-1">
+                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Data de Lançamento</div>
+                                    <div class="text-sm font-bold text-slate-600 dark:text-slate-300">{{ versionInfo.releaseDate || 'N/A' }}</div>
+                                </div>
+                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg col-span-2 md:col-span-1">
+                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Ambiente</div>
+                                    <div class="text-sm font-bold text-blue-600">{{ versionInfo.environment || 'N/A' }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Features -->
+                        <div v-if="versionInfo.features && versionInfo.features.length > 0" class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
+                                <i class="fas fa-sparkles text-yellow-500"></i> Recursos Disponíveis
+                            </h2>
+                            <ul class="space-y-2">
+                                <li v-for="(feature, index) in versionInfo.features" :key="index" class="flex items-center gap-3 p-2 text-slate-700 dark:text-slate-300">
+                                    <span class="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
+                                    {{ feature }}
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Melhorias -->
+                        <div v-if="versionInfo.improvements && versionInfo.improvements.length > 0" class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
+                                <i class="fas fa-hammer text-orange-500"></i> Melhorias Recentes
+                            </h2>
+                            <ul class="space-y-2">
+                                <li v-for="(improvement, index) in versionInfo.improvements" :key="index" class="flex items-center gap-3 p-2 text-slate-700 dark:text-slate-300">
+                                    <span class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>
+                                    {{ improvement }}
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Sobre a Aplicação -->
+                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
+                                <i class="fas fa-book text-blue-500"></i> Sobre
+                            </h2>
+                            <div class="space-y-3 text-slate-600 dark:text-slate-300">
+                                <p>ControlPoint é um sistema moderno de gestão de inspeções de limpeza, desenvolvido com tecnologias de ponta para oferecer uma experiência completa e intuitiva.</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">⚡ Performance</div>
+                                        <p class="text-sm">Otimizado para carregar rápido e funcionar offline.</p>
+                                    </div>
+                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">🔒 Segurança</div>
+                                        <p class="text-sm">Autenticação Firebase com criptografia de dados.</p>
+                                    </div>
+                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">📱 Responsivo</div>
+                                        <p class="text-sm">Funciona perfeitamente em desktop, tablet e mobile.</p>
+                                    </div>
+                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">🎨 Design</div>
+                                        <p class="text-sm">Interface moderna com tema claro e escuro.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tecnologias -->
+                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
+                                <i class="fas fa-microchip text-green-500"></i> Tecnologias
+                            </h2>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
+                                    <div class="font-semibold text-slate-800 dark:text-white">Vue 3</div>
+                                    <div class="text-xs text-slate-500">Framework</div>
+                                </div>
+                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
+                                    <div class="font-semibold text-slate-800 dark:text-white">Firebase</div>
+                                    <div class="text-xs text-slate-500">Backend</div>
+                                </div>
+                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
+                                    <div class="font-semibold text-slate-800 dark:text-white">Tailwind</div>
+                                    <div class="text-xs text-slate-500">CSS</div>
+                                </div>
+                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
+                                    <div class="font-semibold text-slate-800 dark:text-white">Chart.js</div>
+                                    <div class="text-xs text-slate-500">Gráficos</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer -->
+                        <div class="text-center p-6 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <p class="text-slate-600 dark:text-slate-400 text-sm mb-2">
+                                © 2026 ControlPoint - Todos os direitos reservados
+                            </p>
+                            <p class="text-slate-500 dark:text-slate-500 text-xs">
+                                Desenvolvido com <i class="fas fa-heart text-red-500"></i> por Claude
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </main>
             
@@ -834,6 +1077,27 @@
             .catch((err) => console.log('Falha no Service Worker:', err));
         });
       }
+    </script>
+
+    <!-- ===== REMOVER LOADING QUANDO PÁGINA CARREGAR ===== -->
+    <script>
+        // Remover loading splash screen quando página estiver pronta
+        window.addEventListener('load', () => {
+            const splash = document.getElementById('loadingSplash');
+            if (splash) {
+                setTimeout(() => {
+                    splash.style.animation = 'fadeOut 0.8s ease-out forwards';
+                }, 1500); // Mostra por 1.5s depois começa a sair
+            }
+        });
+        
+        // Fallback: remover após 5 segundos de qualquer forma
+        setTimeout(() => {
+            const splash = document.getElementById('loadingSplash');
+            if (splash) {
+                splash.style.display = 'none';
+            }
+        }, 5000);
     </script>
 </body>
 </html>
