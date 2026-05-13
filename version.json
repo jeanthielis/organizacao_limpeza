@@ -1,0 +1,22 @@
+{
+  "version": "2.2.0",
+  "codeName": "Premium Loading",
+  "releaseDate": "2026-05-13",
+  "status": "stable",
+  "environment": "production",
+  "features": [
+    "Sistema de notificações elegante",
+    "Design premium do relatório diário",
+    "Gráficos dinâmicos com Chart.js",
+    "Loading splash screen",
+    "Print otimizado para mobile",
+    "Tema escuro/claro automático"
+  ],
+  "improvements": [
+    "Corrigidos problemas de sobreposição",
+    "Nitidez melhorada em mobile",
+    "Performance otimizada",
+    "Espaçamento responsivo",
+    "Animações suaves"
+  ]
+}
