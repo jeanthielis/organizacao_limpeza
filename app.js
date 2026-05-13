@@ -15,12 +15,39 @@ createApp({
         const notifications = ref([]);
         let notificationId = 0;
         
+        // === VERSÃO DA APLICAÇÃO ===
+        const appVersion = ref('2.2.0');
+        const versionStatus = ref('Stable');
+        const versionInfo = ref({});
+        
+        // Carregar informações de versão
+        const loadVersionInfo = async () => {
+            try {
+                const response = await fetch('./version.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    appVersion.value = data.version;
+                    versionStatus.value = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+                    versionInfo.value = data;
+                    
+                    // Log no console
+                    console.log(`%c⚡ ControlPoint v${data.version}`, 'color: #667eea; font-size: 16px; font-weight: bold;');
+                    console.log(`%c${data.codeName} - ${data.releaseDate}`, 'color: #764ba2; font-size: 12px;');
+                    console.log('%cFeatures:', 'color: #05CD99; font-weight: bold;');
+                    data.features.forEach(f => console.log(`  ✓ ${f}`));
+                }
+            } catch (e) {
+                console.warn('Não foi possível carregar version.json:', e);
+            }
+        };
+        
         const currentView = ref('inspection');
         const menuItems = [
             { id: 'inspection', label: 'Inspeção', icon: 'fas fa-tasks' },
             { id: 'history', label: 'Histórico', icon: 'fas fa-history' },
             { id: 'reports', label: 'Relatórios', icon: 'fas fa-chart-pie' },
             { id: 'admin', label: 'Admin', icon: 'fas fa-cogs' },
+            { id: 'about', label: 'Sobre', icon: 'fas fa-info-circle' },
         ];
 
         // === INSPEÇÃO ===
@@ -85,6 +112,9 @@ createApp({
 
         // === INICIALIZAÇÃO ===
         onMounted(() => {
+            // Carregar versão
+            loadVersionInfo();
+            
             if (auth) {
                 onAuthStateChanged(auth, (u) => {
                     user.value = u;
@@ -539,6 +569,8 @@ createApp({
             historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection,
             // Notificações
             notifications, showNotification, removeNotification, showSuccess, showError, showWarning, showInfo,
+            // Versão
+            appVersion, versionStatus, versionInfo,
             // Novo
             renderPremiumCharts
         };
