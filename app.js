@@ -388,10 +388,63 @@ createApp({
                     list.sort((a, b) => a.team.localeCompare(b.team));
                     dailyDataList.value = list;
                     loadingReports.value = false;
+                    renderPremiumCharts();
                 }
             } catch (e) { console.error(e); loadingReports.value = false; }
         };
 
+        const renderPremiumCharts = () => {
+            nextTick(() => {
+                dailyDataList.value.forEach(report => {
+                    const chartId = 'dailyChart_' + report.team;
+                    const ctx = document.getElementById(chartId);
+                    if (!ctx) return;
+                    
+                    const existingChart = window.Chart.getChart(ctx);
+                    if (existingChart) existingChart.destroy();
+                    
+                    const checkedCount = report.points.filter(p => p.checked).length;
+                    const uncheckedCount = report.points.length - checkedCount;
+                    
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            datasets: [{
+                                data: [checkedCount, uncheckedCount],
+                                backgroundColor: [
+                                    uncheckedCount === 0 ? '#05CD99' : '#05CD99',
+                                    uncheckedCount === 0 ? 'transparent' : '#EE5D50'
+                                ],
+                                borderWidth: 0,
+                                borderRadius: 20,
+                                spacing: uncheckedCount === 0 ? 0 : 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            cutout: '80%',
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    enabled: true,
+                                    backgroundColor: '#0B1437',
+                                    padding: 12,
+                                    cornerRadius: 10,
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.dataIndex === 0 ? 'Conformes' : 'Não Conformes';
+                                            return ` ${label}: ${context.parsed}`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                });
+            });
+        };
+        
         const renderChart = (type) => {
             const ctx = document.getElementById('mainChart');
             if (!ctx) return;
@@ -485,7 +538,9 @@ createApp({
             generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
             historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection,
             // Notificações
-            notifications, showNotification, removeNotification, showSuccess, showError, showWarning, showInfo
+            notifications, showNotification, removeNotification, showSuccess, showError, showWarning, showInfo,
+            // Novo
+            renderPremiumCharts
         };
     }
 }).mount('#app')
