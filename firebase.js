@@ -1,10 +1,18 @@
-// firebase.js
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
-// AQUI ESTAVA O ERRO: Havia duas linhas importando getFirestore. Agora só tem uma com getDoc incluso.
-import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, getDoc, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+// firebase.js — ControlPoint 3.0
+import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
+import {
+  getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query,
+  setDoc, updateDoc, where, getDoc, orderBy, limit, serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
+import {
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  onAuthStateChanged, signOut, sendPasswordResetEmail
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+import {
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js'
 
-// --- SUBSTITUA PELAS SUAS CHAVES DO FIREBASE CONSOLE ---
+// --- Credenciais do projeto ---
 const firebaseConfig = {
   apiKey: "AIzaSyAzkGqL3ezapXtGvSXcwBFiXnrEuAvrnpQ",
   authDomain: "controlpoint-1728a.firebaseapp.com",
@@ -15,34 +23,41 @@ const firebaseConfig = {
   measurementId: "G-WG867BJGKL"
 };
 
-// Inicializa a conexão
-let app, db, auth;
+let app, db, auth, storage;
 
 try {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
-    console.log("Firebase conectado com sucesso!");
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+  storage = getStorage(app);
+  console.log("%c✅ Firebase conectado", "color:#0d9488;font-weight:bold");
 } catch (e) {
-    console.error("Erro na conexão Firebase:", e);
+  console.error("❌ Erro na conexão Firebase:", e);
 }
 
-// Exporta as instâncias e as funções para serem usadas no app.js
-export { 
-    db, 
-    auth, 
-    collection, 
-    addDoc, 
-    getDocs, 
-    doc, 
-    deleteDoc, 
-    query,
-    setDoc,
-    where,
-    getDoc,
-    orderBy,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    onAuthStateChanged,
-    signOut
+/**
+ * Cria um usuário no Authentication SEM derrubar a sessão do administrador.
+ * Usa uma instância secundária do app, que é descartada logo em seguida.
+ */
+async function createUserAsAdmin(email, password) {
+  const secondary = initializeApp(firebaseConfig, 'secondary-' + Date.now());
+  const secondaryAuth = getAuth(secondary);
+  try {
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const uid = cred.user.uid;
+    await signOut(secondaryAuth);
+    return uid;
+  } finally {
+    try { await deleteApp(secondary); } catch (e) { /* ignore */ }
+  }
+}
+
+export {
+  db, auth, storage, firebaseConfig,
+  collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
+  where, getDoc, orderBy, limit, serverTimestamp,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  onAuthStateChanged, signOut, sendPasswordResetEmail,
+  storageRef, uploadBytes, getDownloadURL, deleteObject,
+  createUserAsAdmin
 };
