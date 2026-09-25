@@ -1,1103 +1,861 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ControlPoint</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#2563eb">
-    <link rel="apple-touch-icon" href="./icon-192.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ControlPoint — Auditoria de Turno</title>
 
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#2563eb', secondary: '#475569', success: '#10b981', danger: '#ef4444',
-                        darkbg: '#0f172a', darkcard: '#1e293b'
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <style>
-        [v-cloak] { display: none; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        body, div, nav, aside { transition: background-color 0.3s, color 0.3s; }
-        .page-break { page-break-before: always; }
-        
-        /* ===== LOADING SPLASH SCREEN ===== */
-        .loading-splash {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            z-index: 9999;
-            animation: fadeOut 0.8s ease-out 2.5s forwards;
-        }
-        
-        @keyframes fadeOut {
-            from {
-                opacity: 1;
-                visibility: visible;
-            }
-            to {
-                opacity: 0;
-                visibility: hidden;
-            }
-        }
-        
-        .loading-content {
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 24px;
-        }
-        
-        .loading-logo {
-            width: 80px;
-            height: 80px;
-            background: white;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            animation: bounce 2s ease-in-out infinite;
-        }
-        
-        .loading-logo i {
-            font-size: 48px;
-            color: #667eea;
-        }
-        
-        @keyframes bounce {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            50% {
-                transform: translateY(-20px);
-            }
-        }
-        
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-        
-        .loading-text {
-            color: white;
-            font-size: 18px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        
-        .loading-subtext {
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 13px;
-            margin-top: 8px;
-        }
-        
-        /* ===== NOVO DESIGN PREMIUM ===== */
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        
-        .premium-section {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        
-        .team-card-premium {
-            background: white;
-            border-radius: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0px 18px 40px rgba(112, 144, 176, 0.12);
-            overflow: visible;
-            position: relative;
-            page-break-inside: avoid;
-            break-inside: avoid;
-        }
-        
-        .dark .team-card-premium {
-            background: #1e293b;
-        }
-        
-        .team-card-premium::before {
-            content: '';
-            position: relative;
-            display: block;
-            height: 6px;
-            background: linear-gradient(135deg, #4318FF 0%, #3911D9 100%);
-            border-radius: 24px 24px 0 0;
-            margin-bottom: 0;
-        }
-        
-        .card-top-premium {
-            padding: 20px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 1px solid #E9EDF7;
-            gap: 16px;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .dark .card-top-premium {
-            border-bottom-color: #334155;
-        }
-        
-        .team-name-premium {
-            font-size: 18px;
-            font-weight: 800;
-            color: #2B3674;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 4px;
-            min-width: 0;
-        }
-        
-        .dark .team-name-premium {
-            color: #F1F5F9;
-        }
-        
-        .status-value-premium {
-            font-size: 28px;
-            font-weight: 800;
-            color: #4318FF;
-            line-height: 1.2;
-            letter-spacing: -1px;
-            text-align: right;
-            flex-shrink: 0;
-        }
-        
-        .status-badge-premium {
-            background: #05CD99;
-            color: white;
-            font-size: 10px;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: 0px 4px 10px rgba(5, 205, 153, 0.3);
-            margin-top: 6px;
-            flex-shrink: 0;
-            white-space: nowrap;
-        }
-        
-        .card-body-premium {
-            padding: 20px 24px;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .data-grid-premium {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        
-        @media (min-width: 480px) {
-            .data-grid-premium {
-                flex-direction: row;
-                align-items: flex-start;
-                gap: 20px;
-            }
-        }
-        
-        .chart-wrapper-premium {
-            position: relative;
-            width: 120px;
-            height: 120px;
-            flex-shrink: 0;
-            filter: drop-shadow(0px 4px 12px rgba(5, 205, 153, 0.2));
-        }
-        
-        .stats-wrapper-premium {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
-            min-width: 0;
-        }
-        
-        .stat-box-premium {
-            background: #F4F7FE;
-            padding: 10px 14px;
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .dark .stat-box-premium {
-            background: #0F172A;
-        }
-        
-        .stat-box-premium.success-box {
-            background: #E6FAF5;
-            border: 1px solid rgba(5, 205, 153, 0.2);
-        }
-        
-        .stat-label-premium {
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: #A3AED0;
-            flex-shrink: 1;
-            min-width: 0;
-        }
-        
-        .success-box .stat-label-premium {
-            color: #05CD99;
-        }
-        
-        .stat-value-premium {
-            font-size: 16px;
-            font-weight: 800;
-            color: #2B3674;
-            flex-shrink: 0;
-        }
-        
-        .dark .stat-value-premium {
-            color: #F1F5F9;
-        }
-        
-        .success-box .stat-value-premium {
-            color: #05CD99;
-        }
-        
-        .issues-section-premium {
-            background: #F8FAFC;
-            border-radius: 12px;
-            padding: 14px;
-            border: 1px dashed #E9EDF7;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .dark .issues-section-premium {
-            background: #0F172A;
-            border-color: #334155;
-        }
-        
-        .perfect-score-banner-premium {
-            background: linear-gradient(135deg, #05CD99 0%, #04A67B 100%);
-            border-radius: 10px;
-            padding: 14px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: white;
-            box-shadow: 0px 6px 16px rgba(5, 205, 153, 0.25);
-            position: relative;
-            z-index: 1;
-        }
-        
-        .perfect-icon-premium {
-            width: 36px;
-            height: 36px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-        
-        .card-footer-premium {
-            background: #0B1437;
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-radius: 0 0 24px 24px;
-            position: relative;
-            z-index: 1;
-            gap: 10px;
-        }
-        
-        .footer-text-premium {
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 1;
-            min-width: 0;
-        }
-        
-        .goal-badge-premium {
-            background: rgba(255,255,255,0.15);
-            color: white;
-            padding: 4px 10px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 700;
-            flex-shrink: 0;
-            white-space: nowrap;
-        }
-        
-        /* ===== PRINT STYLES ===== */
-        @media print {
-            body {
-                background: white !important;
-                margin: 0 !important;
-                padding: 0 !important;
-            }
-            
-            .premium-section {
-                margin: 0 !important;
-            }
-            
-            .team-card-premium {
-                box-shadow: none !important;
-                border: 1px solid #E9EDF7;
-                margin-bottom: 20px !important;
-                page-break-inside: avoid;
-                break-inside: avoid;
-                overflow: visible !important;
-            }
-            
-            .card-top-premium,
-            .card-body-premium,
-            .card-footer-premium {
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            
-            .chart-wrapper-premium {
-                filter: none !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                color-adjust: exact !important;
-            }
-            
-            canvas {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                color-adjust: exact !important;
-            }
-            
-            .dark .team-card-premium {
-                background: white !important;
-                color: #2B3674 !important;
-            }
-            
-            .dark .card-top-premium {
-                border-bottom-color: #E9EDF7 !important;
-            }
-            
-            .dark .team-name-premium {
-                color: #2B3674 !important;
-            }
-            
-            .dark .stat-box-premium {
-                background: #F4F7FE !important;
-                color: #2B3674 !important;
-            }
-            
-            .dark .stat-value-premium {
-                color: #2B3674 !important;
-            }
-            
-            .dark .issues-section-premium {
-                background: #F8FAFC !important;
-                border-color: #E9EDF7 !important;
-                color: #2B3674 !important;
-            }
-            
-            @page {
-                margin: 10mm;
-                size: auto;
-            }
-        }
-        
-        /* ===== OTIMIZAÇÃO MOBILE ===== */
-        @media (max-width: 640px) {
-            .team-card-premium {
-                margin-bottom: 16px;
-                box-shadow: 0px 4px 12px rgba(112, 144, 176, 0.08);
-            }
-            
-            .card-top-premium {
-                padding: 16px 16px;
-                flex-wrap: wrap;
-            }
-            
-            .card-body-premium {
-                padding: 16px 16px;
-            }
-            
-            .card-footer-premium {
-                padding: 10px 16px;
-                font-size: 11px;
-            }
-            
-            .team-name-premium {
-                font-size: 16px;
-            }
-            
-            .status-value-premium {
-                font-size: 24px;
-            }
-            
-            .chart-wrapper-premium {
-                width: 110px;
-                height: 110px;
-            }
-            
-            .perfect-score-banner-premium {
-                padding: 12px;
-            }
-        }
-    </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0d9488">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<style>
+:root{
+  --font-head:'Manrope',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-body:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --teal-100:#d3f5ef; --teal-400:#2dd4bf; --teal-500:#14b8a6; --teal-600:#0d9488; --teal-700:#0f766e;
+  --amber-600:#d97706; --warn-bg:#fef3c7; --warn-fg:#7c4a03;
+  --red-100:#fee2e2; --red-500:#ef4444; --red-600:#dc2626;
+  --green-100:#dcfce7; --green-500:#22c55e; --green-600:#16a34a;
+  --bg:#f3f6f6; --bg-elevated:#fff; --bg-sunken:#e9eeed;
+  --surface:#fff; --surface-2:#f7f9f9;
+  --border:#e2e8e7; --border-strong:#cdd7d5;
+  --text:#0f1a19; --text-2:#4b5a58; --text-3:#7c8a88;
+  --shadow-sm:0 1px 2px rgba(15,26,25,.06);
+  --shadow-md:0 4px 16px rgba(15,26,25,.08);
+  --shadow-lg:0 12px 32px rgba(15,26,25,.14);
+  color-scheme:light;
+}
+html.dark{
+  --teal-100:rgba(20,184,166,.18); --warn-bg:rgba(245,158,11,.14); --warn-fg:#fcd34d;
+  --red-100:rgba(239,68,68,.16); --green-100:rgba(34,197,94,.16);
+  --bg:#0d1413; --bg-elevated:#131c1b; --bg-sunken:#0a0f0e;
+  --surface:#151f1e; --surface-2:#1a2422;
+  --border:#243230; --border-strong:#324443;
+  --text:#eef4f3; --text-2:#a9b8b6; --text-3:#778886;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 4px 20px rgba(0,0,0,.4); --shadow-lg:0 16px 40px rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);-webkit-font-smoothing:antialiased;
+  padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0);overscroll-behavior-y:none}
+html{scroll-padding-top:env(safe-area-inset-top,0)}
+h1,h2,h3,h4{font-family:var(--font-head);margin:0;letter-spacing:-.01em}
+button{font-family:var(--font-body);cursor:pointer}
+input,textarea,select{font-family:var(--font-body)}
+[v-cloak]{display:none}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:8px}
+
+.app{max-width:620px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;padding:calc(13px + env(safe-area-inset-top,0)) 16px 13px;
+  background:linear-gradient(180deg,var(--teal-700),var(--teal-600));color:#fff;box-shadow:var(--shadow-md);
+  display:flex;align-items:center;gap:11px}
+.topbar-mark{width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.16);display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:16px}
+.topbar-text{flex:1;min-width:0}
+.topbar-text h1{font-size:16px;font-weight:800;color:#fff}
+.topbar-text p{margin:1px 0 0;font-size:11px;color:rgba(255,255,255,.8);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;border:none;font-size:12px;
+  font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.main{flex:1;padding:14px 14px 96px;display:flex;flex-direction:column;gap:14px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow-sm);padding:16px}
+.card-title{font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:8px}
+.card-title i{color:var(--teal-600);width:17px;text-align:center}
+.card-sub{font-size:12px;color:var(--text-3);margin:4px 0 12px;font-weight:500;line-height:1.45}
+.section-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:0 0 9px}
+
+.btn{border:none;border-radius:14px;padding:12px 16px;font-weight:700;font-size:13.5px;display:inline-flex;align-items:center;
+  justify-content:center;gap:7px;transition:transform .12s,opacity .12s;-webkit-tap-highlight-color:transparent;color:var(--text)}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(180deg,var(--teal-500),var(--teal-600));color:#fff;box-shadow:0 6px 16px rgba(13,148,136,.32)}
+.btn-primary:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
+.btn-ghost{background:var(--surface-2);border:1px solid var(--border)}
+.btn-danger{background:var(--red-100);color:var(--red-600)}
+.btn-block{width:100%}
+.btn-sm{padding:8px 12px;font-size:12px;border-radius:11px}
+
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:11px}
+.field:last-child{margin-bottom:0}
+.field label{font-size:11.5px;font-weight:700;color:var(--text-2)}
+select,.input,textarea{width:100%;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:12px;
+  padding:10px 11px;font-size:13.5px;font-weight:600;outline:none;transition:border-color .15s}
+select:focus,.input:focus,textarea:focus{border-color:var(--teal-500)}
+textarea{font-weight:500;resize:vertical;min-height:54px;line-height:1.4}
+textarea.invalid{border-color:var(--red-500)}
+
+.chip-row{display:flex;gap:7px;flex-wrap:wrap}
+.chip{padding:7px 13px;border-radius:999px;border:1.5px solid var(--border);background:var(--surface-2);font-size:12px;
+  font-weight:700;color:var(--text-2);white-space:nowrap;transition:all .15s}
+.chip.active{background:var(--teal-600);color:#fff;border-color:var(--teal-600);box-shadow:0 4px 10px rgba(13,148,136,.28)}
+
+.warn{display:flex;gap:9px;align-items:flex-start;background:var(--warn-bg);color:var(--warn-fg);border-radius:14px;
+  padding:10px 12px;font-size:12px;font-weight:600;line-height:1.4}
+.warn i{margin-top:2px}
+
+.pair{background:linear-gradient(135deg,var(--teal-700),var(--teal-600));color:#fff;border-radius:22px;padding:16px;box-shadow:var(--shadow-md)}
+.pair-q{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.75;margin-bottom:11px}
+.pair-flow{display:flex;align-items:center;gap:10px}
+.pair-side{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.13);border-radius:14px;padding:11px 8px}
+.pair-side .role{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.8}
+.pair-side .nm{font-size:14px;font-weight:800;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-foot{margin-top:11px;font-size:11.5px;opacity:.82;font-weight:600;text-align:center}
+
+.progress-wrap{display:flex;align-items:center;gap:13px}
+.ring{width:58px;height:58px;flex-shrink:0;position:relative}
+.ring svg{transform:rotate(-90deg);width:100%;height:100%}
+.ring-track{fill:none;stroke:var(--border);stroke-width:8}
+.ring-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .4s}
+.ring-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+.progress-meta{flex:1;min-width:0}
+.progress-meta .big{font-size:13px;font-weight:700}
+.progress-meta .small{font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px}
+.bar-track{height:7px;border-radius:99px;background:var(--border);overflow:hidden;margin-top:7px;position:relative}
+.bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--teal-400),var(--teal-600));transition:width .4s}
+.bar-target{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--amber-600)}
+
+.cp-list{display:flex;flex-direction:column;gap:8px}
+.cp-item{border:1.5px solid var(--border);border-radius:14px;padding:10px 11px;background:var(--surface-2)}
+.cp-item.ok{border-color:var(--green-500);background:var(--green-100)}
+.cp-item.nok{border-color:var(--red-500);background:var(--red-100)}
+.cp-row{display:flex;align-items:center;gap:9px}
+.cp-num{width:20px;height:20px;border-radius:7px;background:var(--bg-sunken);color:var(--text-2);font-size:10px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cp-item.ok .cp-num{background:var(--green-500);color:#fff}
+.cp-item.nok .cp-num{background:var(--red-500);color:#fff}
+.cp-label{flex:1;min-width:0;font-size:12.5px;font-weight:700;line-height:1.28}
+.cp-ctrl{display:flex;gap:4px;flex-shrink:0}
+.cp-btn{border:1.5px solid var(--border);background:var(--surface);border-radius:9px;height:30px;min-width:32px;padding:0 7px;
+  font-size:11.5px;font-weight:700;color:var(--text-2);display:flex;align-items:center;justify-content:center}
+.cp-btn.sel-ok{background:var(--green-500);border-color:var(--green-500);color:#fff}
+.cp-btn.sel-nok{background:var(--red-500);border-color:var(--red-500);color:#fff}
+.cp-btn.has-photo{background:var(--teal-600);border-color:var(--teal-600);color:#fff}
+.cp-extra{margin-top:9px;display:flex;flex-direction:column;gap:7px}
+.cp-extra label{font-size:10.5px;font-weight:800;color:var(--red-600);text-transform:uppercase;letter-spacing:.04em}
+.cp-links{display:flex;align-items:center;gap:14px}
+.cp-link{background:none;border:none;padding:2px 0;font-size:11.5px;font-weight:700;color:var(--teal-600);
+  display:flex;align-items:center;gap:5px;text-decoration:underline;text-underline-offset:2px}
+.cp-link.muted{color:var(--text-3)}
+.cp-hint{font-size:10.5px;font-weight:700;color:var(--red-600);display:flex;align-items:center;gap:5px}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;max-width:620px;margin:0 auto;background:var(--bg-elevated);
+  border-top:1px solid var(--border);display:flex;padding:5px 5px calc(5px + env(safe-area-inset-bottom,0));box-shadow:0 -4px 20px rgba(0,0,0,.07)}
+.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;border:none;background:transparent;
+  color:var(--text-3);border-radius:12px;font-size:10px;font-weight:700}
+.tab-btn.active{color:var(--teal-600)}
+.tab-btn i{font-size:17px}
+
+.audit-card{border:1px solid var(--border);border-radius:16px;padding:13px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.audit-head{display:flex;align-items:center;gap:10px;cursor:pointer}
+.avatar{width:37px;height:37px;border-radius:11px;background:var(--teal-100);color:var(--teal-700);display:flex;align-items:center;
+  justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+.audit-info{flex:1;min-width:0}
+.audit-info .l1{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.audit-info .l2{font-size:11px;color:var(--text-3);font-weight:600;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.score-badge{font-size:12.5px;font-weight:800;padding:4px 9px;border-radius:9px;flex-shrink:0}
+.score-badge.pass{background:var(--green-100);color:var(--green-600)}
+.score-badge.fail{background:var(--red-100);color:var(--red-600)}
+.audit-detail{margin-top:11px;padding-top:11px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:9px}
+.d-row{display:flex;gap:9px;align-items:flex-start;font-size:12px}
+.d-row.ok{color:var(--text-2)}
+.d-row.nok{color:var(--red-600)}
+.d-reason{background:var(--red-100);color:var(--red-600);border-radius:9px;padding:7px 9px;font-size:11.5px;font-weight:600;margin-top:4px;line-height:1.4}
+.d-thumb{width:46px;height:46px;border-radius:9px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);cursor:pointer}
+.empty{text-align:center;padding:36px 18px;color:var(--text-3)}
+.empty i{font-size:34px;opacity:.45;margin-bottom:10px;display:block}
+.empty p{font-size:12.5px;font-weight:600;margin:0;line-height:1.5}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.stat-box{background:var(--surface-2);border-radius:13px;padding:11px;border:1px solid var(--border)}
+.stat-box .num{font-size:18px;font-weight:800;font-family:var(--font-head);line-height:1.2}
+.stat-box .lbl{font-size:10.5px;color:var(--text-3);font-weight:700;margin-top:2px}
+
+.subtab{display:flex;gap:5px;background:var(--surface-2);padding:4px;border-radius:14px}
+.subtab button{flex:1;border:none;background:transparent;padding:9px 3px;border-radius:11px;font-size:11.5px;font-weight:800;color:var(--text-2)}
+.subtab button.active{background:var(--surface);color:var(--teal-600);box-shadow:var(--shadow-sm)}
+
+.list-row{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid var(--border)}
+.list-row:last-of-type{border-bottom:none}
+.list-row .li{flex:1;min-width:0;font-size:12.5px;font-weight:700}
+.list-row .ls{font-size:10.5px;color:var(--text-3);font-weight:600;margin-top:1px}
+.icon-btn{background:none;border:none;color:var(--text-3);padding:7px;border-radius:9px;font-size:14px;flex-shrink:0}
+.icon-btn.danger{color:var(--red-500)}
+.cfg-row{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.cfg-row .input{flex:1}
+.rot-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.rot-from{background:var(--teal-100);color:var(--teal-700);padding:8px 10px;border-radius:10px;font-weight:800;font-size:12px;white-space:nowrap}
+.rot-row select{flex:1}
+.slider-row{display:flex;align-items:center;gap:11px}
+input[type=range]{-webkit-appearance:none;flex:1;height:6px;border-radius:99px;background:var(--border);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--teal-600);
+  border:3px solid var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.target-val{font-size:17px;font-weight:800;color:var(--teal-600);width:52px;text-align:right;font-family:var(--font-head)}
+
+/* login */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-inner{width:100%;max-width:400px}
+.login-hero{text-align:center;margin-bottom:22px}
+.login-logo{width:66px;height:66px;border-radius:21px;background:linear-gradient(135deg,var(--teal-500),var(--teal-700));
+  display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 10px 26px rgba(13,148,136,.35);color:#fff;font-size:27px}
+.login-hero h2{font-size:22px;font-weight:800}
+.login-hero p{font-size:13px;color:var(--text-3);margin:6px 0 0;font-weight:500}
+.auth-error{background:var(--red-100);color:var(--red-600);border-radius:12px;padding:10px 12px;font-size:12.5px;font-weight:600;margin-bottom:11px}
+.link-btn{background:none;border:none;color:var(--teal-600);font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:2px;padding:8px}
+
+/* modal / lightbox */
+.modal-ov{position:fixed;inset:0;background:rgba(4,10,9,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:var(--bg-elevated);width:100%;max-width:620px;border-radius:22px 22px 0 0;max-height:90vh;overflow-y:auto;
+  padding:16px 16px calc(24px + env(safe-area-inset-bottom,0))}
+.modal-handle{width:36px;height:4px;border-radius:99px;background:var(--border-strong);margin:0 auto 13px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px}
+.modal-head h3{font-size:16px}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:300;display:flex;align-items:center;justify-content:center}
+.lightbox img{max-width:94vw;max-height:86vh;border-radius:12px}
+.lb-close{position:absolute;top:calc(14px + env(safe-area-inset-top,0));right:14px;width:38px;height:38px;border-radius:50%;
+  background:rgba(255,255,255,.16);color:#fff;border:none;font-size:15px}
+
+/* toasts */
+.toasts{position:fixed;top:calc(12px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:400;
+  display:flex;flex-direction:column;gap:8px;width:calc(100% - 28px);max-width:420px}
+.toast{display:flex;align-items:center;gap:9px;padding:11px 14px;border-radius:13px;font-size:12.5px;font-weight:700;
+  box-shadow:var(--shadow-lg);background:var(--surface);border:1px solid var(--border);color:var(--text)}
+.toast.success{border-left:4px solid var(--green-500)}
+.toast.error{border-left:4px solid var(--red-500)}
+.toast.warning{border-left:4px solid var(--amber-600)}
+.toast.info{border-left:4px solid var(--teal-500)}
+.toast i{font-size:14px}
+.toast.success i{color:var(--green-500)} .toast.error i{color:var(--red-500)}
+.toast.warning i{color:var(--amber-600)} .toast.info i{color:var(--teal-500)}
+
+.spinner{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.center-load{text-align:center;padding:36px;color:var(--text-3);font-size:13px;font-weight:600}
+.chart-box{height:260px;position:relative;margin-bottom:14px}
+table.report{width:100%;border-collapse:collapse;font-size:12.5px}
+table.report th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);padding:8px 6px}
+table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:600}
+@media print{.tabbar,.topbar,.no-print{display:none !important}}
+</style>
 </head>
-<body class="bg-slate-50 text-slate-800 dark:bg-darkbg dark:text-slate-200 transition-colors duration-300">
+<body>
+<div id="app" v-cloak>
 
-    <div id="app" v-cloak class="min-h-screen flex flex-col md:flex-row">
+  <!-- ============ CARREGANDO ============ -->
+  <div v-if="booting" class="login">
+    <div class="login-inner login-hero">
+      <div class="login-logo"><i class="fas fa-shield-halved"></i></div>
+      <h2>ControlPoint</h2>
+      <p><i class="fas fa-circle-notch spinner"></i> Conectando...</p>
+    </div>
+  </div>
 
-        <!-- ===== LOADING SPLASH SCREEN ===== -->
-        <div class="loading-splash" id="loadingSplash">
-            <div class="loading-content">
-                <div class="loading-logo">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <div class="loading-spinner"></div>
-                <div>
-                    <div class="loading-text">ControlPoint</div>
-                    <div class="loading-subtext">Carregando aplicação...</div>
-                </div>
-            </div>
+  <!-- ============ LOGIN ============ -->
+  <div v-else-if="!user" class="login">
+    <div class="login-inner">
+      <div class="login-hero">
+        <div class="login-logo"><i class="fas fa-shield-halved"></i></div>
+        <h2>ControlPoint</h2>
+        <p>{{ bootstrapMode ? 'Crie a conta do administrador' : 'Entre para iniciar a auditoria' }}</p>
+      </div>
+      <div class="card">
+        <div v-if="authError" class="auth-error"><i class="fas fa-circle-exclamation"></i> {{ authError }}</div>
+
+        <div v-if="bootstrapMode" class="warn" style="margin-bottom:12px">
+          <i class="fas fa-circle-info"></i>
+          <span>Use apenas na implantação: se ainda não houver nenhum usuário, esta conta vira o administrador, que depois cadastra os auditores.</span>
         </div>
 
-        <!-- 🔔 CONTAINER DE NOTIFICAÇÕES -->
-        <div class="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
-            <transition-group name="toast" tag="div">
-                <div v-for="notification in notifications" :key="notification.id"
-                    class="pointer-events-auto px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm border animate-slide-in"
-                    :class="{
-                        'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200': notification.type === 'success',
-                        'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-800 dark:text-red-200': notification.type === 'error',
-                        'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200': notification.type === 'warning',
-                        'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200': notification.type === 'info'
-                    }">
-                    <div class="flex items-center gap-3">
-                        <i :class="{
-                            'fas fa-check-circle text-green-500': notification.type === 'success',
-                            'fas fa-exclamation-circle text-red-500': notification.type === 'error',
-                            'fas fa-exclamation-triangle text-yellow-500': notification.type === 'warning',
-                            'fas fa-info-circle text-blue-500': notification.type === 'info'
-                        }" class="text-lg flex-shrink-0"></i>
-                        <span class="font-medium flex-1">{{ notification.message }}</span>
-                        <button @click="removeNotification(notification.id)" class="text-sm opacity-60 hover:opacity-100">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            </transition-group>
+        <div class="field" v-if="bootstrapMode">
+          <label>Nome</label>
+          <input class="input" v-model="authForm.name" placeholder="Seu nome">
+        </div>
+        <div class="field">
+          <label>E-mail</label>
+          <input class="input" type="email" inputmode="email" v-model="authForm.email" placeholder="voce@empresa.com">
+        </div>
+        <div class="field">
+          <label>Senha</label>
+          <input class="input" type="password" v-model="authForm.password" placeholder="••••••"
+                 @keydown.enter="bootstrapMode ? handleBootstrap() : handleLogin()">
         </div>
 
-        <style>
-            .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
-            .toast-enter-from { transform: translateX(400px); opacity: 0; }
-            .toast-leave-to { transform: translateX(400px); opacity: 0; }
-            @keyframes slide-in {
-                from { transform: translateX(400px); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            .animate-slide-in { animation: slide-in 0.3s ease; }
-        </style>
+        <button class="btn btn-primary btn-block" :disabled="loading"
+                @click="bootstrapMode ? handleBootstrap() : handleLogin()">
+          <i v-if="loading" class="fas fa-circle-notch spinner"></i>
+          <i v-else :class="bootstrapMode ? 'fas fa-user-shield' : 'fas fa-right-to-bracket'"></i>
+          {{ bootstrapMode ? 'Criar administrador' : 'Entrar' }}
+        </button>
 
-        <div v-if="!user" class="fixed inset-0 z-50 bg-white dark:bg-darkbg flex items-center justify-center p-4">
-             <div class="w-full max-w-md">
-                <div class="text-center mb-8">
-                    <i class="fas fa-chart-line text-5xl text-primary mb-4"></i>
-                    <h2 class="text-3xl font-bold text-slate-900 dark:text-white">ControlPoint</h2>
-                </div>
-                <div class="bg-white dark:bg-darkcard p-8 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700">
-                    <div class="flex border-b border-slate-200 dark:border-slate-600 mb-6">
-                        <button @click="authMode = 'login'" :class="authMode === 'login' ? 'text-primary border-primary' : 'border-transparent text-slate-500'" class="flex-1 pb-2 font-medium border-b-2">Login</button>
-                        <button @click="authMode = 'register'" :class="authMode === 'register' ? 'text-primary border-primary' : 'border-transparent text-slate-500'" class="flex-1 pb-2 font-medium border-b-2">Cadastrar</button>
-                    </div>
-                    <form @submit.prevent="handleAuth" class="space-y-4">
-                        <input v-model="authForm.email" type="email" placeholder="Email" required class="w-full px-4 py-3 rounded-lg border dark:bg-slate-700 dark:border-slate-600 outline-none focus:ring-2 focus:ring-primary">
-                        <input v-model="authForm.password" type="password" placeholder="Senha" required class="w-full px-4 py-3 rounded-lg border dark:bg-slate-700 dark:border-slate-600 outline-none focus:ring-2 focus:ring-primary">
-                        <div v-if="authError" class="p-3 bg-red-50 text-red-600 rounded-lg text-sm">{{ authError }}</div>
-                        <button type="submit" :disabled="loading" class="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-blue-600 disabled:opacity-50">
-                            <i v-if="loading" class="fas fa-spinner fa-spin mr-2"></i> {{ authMode === 'login' ? 'Entrar' : 'Criar Conta' }}
-                        </button>
-                    </form>
-                </div>
-            </div>
+        <div style="text-align:center;margin-top:6px;display:flex;flex-direction:column">
+          <button v-if="!bootstrapMode" class="link-btn" @click="forgotPassword">Esqueci minha senha</button>
+          <button class="link-btn" @click="toggleBootstrap">
+            {{ bootstrapMode ? 'Voltar para o login' : 'Primeiro acesso — criar administrador' }}
+          </button>
         </div>
+      </div>
+      <p style="text-align:center;font-size:11px;color:var(--text-3);margin-top:14px;font-weight:600">
+        Não tem acesso? Solicite o cadastro ao administrador.
+      </p>
+    </div>
+  </div>
 
-        <template v-else>
-            <aside class="hidden md:flex flex-col w-64 bg-white dark:bg-darkcard border-r border-slate-200 dark:border-slate-700 h-screen fixed top-0 left-0 z-20">
-                <div class="p-6 border-b border-slate-100 dark:border-slate-700">
-                    <h1 class="text-2xl font-bold text-primary flex items-center gap-2"><i class="fas fa-chart-line"></i> ControlPoint</h1>
-                    <p class="text-xs text-slate-500 mt-1 truncate">{{ user.email }}</p>
-                </div>
-                <nav class="flex-1 p-4 space-y-2">
-                    <button v-for="item in menuItems" :key="item.id" @click="currentView = item.id"
-                        :class="currentView === item.id ? 'bg-blue-50 dark:bg-blue-900/30 text-primary' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'"
-                        class="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-left">
-                        <i :class="item.icon" class="w-6 text-center"></i> {{ item.label }}
-                    </button>
-                </nav>
-                <div class="px-4 pb-2 space-y-2">
-                    <button @click="toggleDarkMode" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg font-medium">
-                        <i :class="isDarkMode ? 'fas fa-sun text-yellow-400' : 'fas fa-moon'"></i> {{ isDarkMode ? 'Claro' : 'Escuro' }}
-                    </button>
-                    
-                    <!-- Versão da Aplicação -->
-                    <div class="px-4 py-3 text-center">
-                        <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">
-                            <i class="fas fa-code-branch mr-1"></i> Versão
-                        </div>
-                        <div class="text-sm font-bold text-primary">{{ appVersion }}</div>
-                        <div class="text-xs text-slate-400 dark:text-slate-500">{{ versionStatus }}</div>
-                    </div>
-                </div>
-                <div class="p-4 border-t border-slate-100 dark:border-slate-700">
-                    <button @click="logout" class="w-full flex items-center gap-3 px-4 py-3 text-danger hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg font-medium"><i class="fas fa-sign-out-alt w-6"></i> Sair</button>
-                </div>
-            </aside>
+  <!-- ============ SEM CADASTRO ============ -->
+  <div v-else-if="profileMissing" class="login">
+    <div class="login-inner">
+      <div class="login-hero">
+        <div class="login-logo" style="background:linear-gradient(135deg,#f59e0b,#d97706)"><i class="fas fa-hourglass-half"></i></div>
+        <h2>Acesso pendente</h2>
+        <p>Sua conta existe, mas ainda não foi vinculada a uma equipe pelo administrador.</p>
+      </div>
+      <div class="card">
+        <p style="font-size:12.5px;color:var(--text-2);font-weight:600;margin:0 0 12px">
+          Informe este e-mail ao administrador: <b>{{ user.email }}</b>
+        </p>
+        <button class="btn btn-ghost btn-block" @click="logout"><i class="fas fa-right-from-bracket"></i> Sair</button>
+      </div>
+    </div>
+  </div>
 
-            <main class="flex-1 md:ml-64 min-h-screen pb-24 md:pb-8 bg-slate-50 dark:bg-darkbg">
-                <header class="md:hidden bg-white dark:bg-darkcard p-4 shadow-sm sticky top-0 z-10 flex justify-between items-center border-b dark:border-slate-700">
-                    <h1 class="text-xl font-bold text-primary">CP</h1>
-                    <div class="flex gap-3">
-                        <button @click="toggleDarkMode"><i :class="isDarkMode ? 'fas fa-sun text-yellow-400' : 'fas fa-moon text-slate-400'"></i></button>
-                        <button @click="logout" class="text-slate-400"><i class="fas fa-sign-out-alt"></i></button>
-                    </div>
-                </header>
-
-                <div class="p-4 md:p-8 max-w-5xl mx-auto">
-                    
-                    <div v-if="currentView === 'inspection'" class="space-y-6">
-                        <div class="bg-white dark:bg-darkcard p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <div class="flex flex-col md:flex-row justify-between gap-4 mb-6">
-                                <div>
-                                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">Verificação</h2>
-                                    <p class="text-sm text-slate-500">Selecione equipe e data (Edição automática se já existir)</p>
-                                </div>
-                                <div class="flex gap-2">
-                                    <select v-model="currentTeam" class="bg-slate-50 dark:bg-slate-700 dark:text-white border dark:border-slate-600 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary"><option>Equipe 1</option><option>Equipe 2</option><option>Equipe 3</option><option>Equipe 4</option></select>
-                                    <input type="date" v-model="currentDate" class="bg-slate-50 dark:bg-slate-700 dark:text-white border dark:border-slate-600 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary">
-                                </div>
-                            </div>
-                            <div class="relative pt-1 mb-4">
-                                <div class="flex mb-2 justify-between"><span class="text-xs font-semibold bg-blue-100 text-primary px-2 py-1 rounded">Progresso</span><span class="text-xs font-semibold dark:text-white">{{ progress.toFixed(0) }}% / {{ meta }}%</span></div>
-                                <div class="overflow-hidden h-4 text-xs flex rounded bg-slate-100 dark:bg-slate-700"><div :style="{ width: progress + '%' }" :class="progress >= meta ? 'bg-success' : 'bg-primary'" class="flex flex-col justify-center transition-all duration-500"></div></div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Resumo Geral</label>
-                                <textarea v-model="inspectionObservation" rows="1" placeholder="Observações gerais da inspeção..." class="w-full p-3 bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:ring-2 focus:ring-primary text-sm"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-end">
-                            <button @click="toggleAllPoints" class="text-sm font-medium flex items-center gap-2 px-3 py-2 rounded-lg transition-colors" :class="allSelected ? 'text-danger hover:bg-red-50' : 'text-primary hover:bg-blue-50'">
-                                <i :class="allSelected ? 'fas fa-square-minus' : 'fas fa-check-double'"></i> {{ allSelected ? 'Desmarcar Todos' : 'Marcar Todos' }}
-                            </button>
-                        </div>
-
-                        <div v-if="loadingPoints" class="text-center py-10"><i class="fas fa-circle-notch fa-spin text-3xl text-primary"></i></div>
-                        
-                        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            <div v-for="point in points" :key="point.id" 
-                                class="bg-white dark:bg-darkcard p-4 rounded-xl border-2 transition-all shadow-sm"
-                                :class="point.checked ? 'border-primary bg-blue-50 dark:bg-blue-900/10' : 'border-transparent dark:border-slate-700'">
-                                
-                                <div class="flex items-center justify-between mb-2">
-                                    <div class="flex items-center gap-3 cursor-pointer flex-1" @click="togglePoint(point)">
-                                        <div class="w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0" :class="point.checked ? 'bg-primary border-primary' : 'bg-white dark:bg-slate-700 border-slate-300'">
-                                            <i v-if="point.checked" class="fas fa-check text-white text-xs"></i>
-                                        </div>
-                                        <span class="font-medium text-slate-700 dark:text-slate-200 text-sm select-none">{{ point.name }}</span>
-                                    </div>
-                                    <button @click="point.showObs = !point.showObs" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" :class="point.obs ? 'text-yellow-500' : 'text-slate-300'">
-                                        <i class="fas fa-comment-dots"></i>
-                                    </button>
-                                </div>
-
-                                <div v-if="point.showObs || point.obs" class="mt-2">
-                                    <input type="text" v-model="point.obs" placeholder="Obs deste ponto..." class="w-full text-xs p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-slate-600 dark:text-slate-300 outline-none focus:border-primary">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="fixed bottom-24 right-6 md:bottom-10 md:right-10 z-50">
-                            <button @click="saveInspection" :disabled="saving" class="shadow-2xl bg-primary text-white font-bold py-4 px-6 rounded-full flex items-center gap-3 hover:bg-blue-600 transition-all hover:scale-105">
-                                <i class="fas fa-save text-xl"></i> 
-                                <span class="text-lg">{{ saving ? 'Salvando...' : 'Salvar' }}</span>
-                            </button>
-                        </div>
-
-                    </div>
-
-                    <div v-if="currentView === 'history'" class="space-y-6">
-                        <div class="bg-white dark:bg-darkcard p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div>
-                                <h2 class="text-xl font-bold text-slate-800 dark:text-white">Histórico de Inspeções</h2>
-                                <p class="text-sm text-slate-500">Selecione o mês para visualizar ou editar registros</p>
-                            </div>
-                            <input type="month" v-model="historyMonth" class="bg-slate-50 dark:bg-slate-700 dark:text-white border dark:border-slate-600 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary">
-                        </div>
-
-                        <div v-if="loadingHistory" class="text-center py-10"><i class="fas fa-circle-notch fa-spin text-3xl text-primary"></i></div>
-
-                        <div v-else-if="historyList.length === 0" class="text-center py-10 text-slate-500 bg-white dark:bg-darkcard rounded-2xl border dark:border-slate-700">
-                            <i class="fas fa-folder-open text-4xl mb-3 opacity-50"></i>
-                            <p>Nenhuma inspeção encontrada neste mês.</p>
-                        </div>
-
-                        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div v-for="(item, index) in historyList" :key="index" class="bg-white dark:bg-darkcard rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 hover:shadow-md transition-shadow">
-                                <div class="flex justify-between items-start mb-3">
-                                    <span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-primary text-xs font-bold rounded-lg">{{ item.team }}</span>
-                                    <span class="text-sm text-slate-500 dark:text-slate-400"><i class="far fa-calendar-alt mr-1"></i> {{ item.date.split('-').reverse().join('/') }}</span>
-                                </div>
-                                
-                                <div class="mb-4">
-                                    <div class="flex items-end gap-2 mb-1">
-                                        <span class="text-3xl font-bold" :class="item.score >= meta ? 'text-success' : 'text-danger'">{{ item.score.toFixed(0) }}%</span>
-                                        <span class="text-xs text-slate-400 mb-1">aproveitamento</span>
-                                    </div>
-                                    <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                                        <div class="h-full rounded-full" :class="item.score >= meta ? 'bg-success' : 'bg-danger'" :style="{width: item.score + '%'}"></div>
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-between pt-3 border-t dark:border-slate-700">
-                                    <span class="text-xs text-slate-400 truncate max-w-[150px]"><i class="fas fa-user mr-1"></i> {{ item.user.split('@')[0] }}</span>
-                                    <div class="flex gap-2">
-                                        <button @click="deleteInspection(item)" class="text-sm font-medium text-danger hover:text-red-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Excluir">
-                                            Excluir <i class="fas fa-trash-alt ml-1"></i>
-                                        </button>
-                                        <button @click="editFromHistory(item)" class="text-sm font-medium text-primary hover:text-blue-600 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Editar">
-                                            Editar <i class="fas fa-pen ml-1"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div v-if="currentView === 'reports'" class="space-y-6">
-                        <div class="flex space-x-2 overflow-x-auto pb-2">
-                            <button @click="reportType = 'monthly'" :class="reportType === 'monthly' ? 'bg-primary text-white' : 'bg-white dark:bg-darkcard text-slate-600 dark:text-slate-400'" class="px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap shadow-sm">Mensal</button>
-                            <button @click="reportType = 'annual'" :class="reportType === 'annual' ? 'bg-primary text-white' : 'bg-white dark:bg-darkcard text-slate-600 dark:text-slate-400'" class="px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap shadow-sm">Anual</button>
-                            <button @click="reportType = 'daily'" :class="reportType === 'daily' ? 'bg-primary text-white' : 'bg-white dark:bg-darkcard text-slate-600 dark:text-slate-400'" class="px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap shadow-sm">Diário Detalhado</button>
-                        </div>
-
-                        <div id="reportContent" class="bg-white dark:bg-darkcard p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                                <div>
-                                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">
-                                        {{ reportType === 'monthly' ? 'Desempenho Mensal' : reportType === 'annual' ? 'Evolução Anual' : 'Relatório Diário' }}
-                                    </h2>
-                                    <p class="text-sm text-slate-500">Métricas de qualidade (Meta: {{ meta }}%)</p>
-                                </div>
-                                <div class="flex gap-2">
-                                    <input v-if="reportType === 'monthly'" type="month" v-model="reportMonth" class="bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg p-2 text-sm outline-none">
-                                    <select v-if="reportType === 'annual'" v-model="reportYear" class="bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg p-2 text-sm outline-none">
-                                        <option v-for="y in [2024, 2025, 2026, 2027]" :value="y">{{ y }}</option>
-                                    </select>
-                                    
-                                    <div v-if="reportType === 'daily'" class="flex gap-2">
-                                        <input type="date" v-model="dailyDate" class="bg-slate-50 dark:bg-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-lg p-2 text-sm outline-none">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="loadingReports" class="text-center py-10"><i class="fas fa-circle-notch fa-spin text-3xl text-primary"></i></div>
-                            
-                            <div v-else-if="reportType === 'monthly' || reportType === 'annual'">
-                                <div class="relative h-72 w-full mb-8">
-                                    <canvas id="mainChart"></canvas>
-                                </div>
-
-                                <div v-if="reportType === 'monthly'" class="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 mb-8">
-                                    <table class="w-full text-sm text-left text-slate-600 dark:text-slate-300">
-                                        <thead class="bg-slate-50 dark:bg-slate-800 text-xs uppercase font-bold"><tr><th class="px-4 py-3">Pos</th><th class="px-4 py-3">Equipe</th><th class="px-4 py-3">Média</th><th class="px-4 py-3">Qtd</th></tr></thead>
-                                        <tbody>
-                                            <tr v-for="stat in teamStats" :key="stat.name" class="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
-                                                <td class="px-4 py-3 font-bold">
-                                                    <span v-if="stat.rank === 1">🥇 1º</span>
-                                                    <span v-else-if="stat.rank === 2">🥈 2º</span>
-                                                    <span v-else-if="stat.rank === 3">🥉 3º</span>
-                                                    <span v-else>{{ stat.rank }}º</span>
-                                                </td>
-                                                <td class="px-4 py-3">{{ stat.name }}</td>
-                                                <td class="px-4 py-3" :class="stat.average >= meta ? 'text-green-600 font-bold' : 'text-red-500 font-bold'">{{ stat.average }}%</td>
-                                                <td class="px-4 py-3">{{ stat.count }}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                            </div>
-
-                            <div v-else-if="reportType === 'daily'" class="premium-section">
-                                <div v-if="dailyDataList && dailyDataList.length > 0" class="space-y-6">
-                                    <div v-for="report in dailyDataList" :key="report.team" class="team-card-premium">
-                                        <!-- Header -->
-                                        <div class="card-top-premium">
-                                            <div>
-                                                <div class="team-name-premium">
-                                                    <i class="fas fa-users-viewfinder"></i> {{ report.team }}
-                                                </div>
-                                                <div class="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
-                                                    <i class="fas fa-user-circle"></i> {{ report.user.split('@')[0] }}
-                                                </div>
-                                            </div>
-                                            <div class="text-right">
-                                                <div class="status-value-premium">{{ report.score.toFixed(0) }}%</div>
-                                                <div class="status-badge-premium" v-if="report.score >= meta">
-                                                    <i class="fas fa-check"></i> Meta Atingida
-                                                </div>
-                                                <div class="status-badge-premium" style="background: #EE5D50;" v-else>
-                                                    <i class="fas fa-times"></i> Abaixo da Meta
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Body -->
-                                        <div class="card-body-premium">
-                                            <div class="data-grid-premium">
-                                                <!-- Gráfico -->
-                                                <div class="chart-wrapper-premium">
-                                                    <canvas :id="'dailyChart_' + report.team"></canvas>
-                                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
-                                                        <div style="font-size: 24px; font-weight: 800; color: #2B3674; line-height: 1;">
-                                                            {{ report.points.filter(p => p.checked).length }}<span style="font-size: 14px; color: #A3AED0;">/{{ report.points.length }}</span>
-                                                        </div>
-                                                        <div style="font-size: 11px; font-weight: 600; color: #A3AED0; margin-top: 2px;">Itens</div>
-                                                    </div>
-                                                </div>
-                                                
-                                                <!-- Stats -->
-                                                <div class="stats-wrapper-premium">
-                                                    <div class="stat-box-premium success-box">
-                                                        <div class="stat-label-premium">
-                                                            <i class="fas fa-circle-check"></i> Conformes
-                                                        </div>
-                                                        <div class="stat-value-premium">{{ report.points.filter(p => p.checked).length }}</div>
-                                                    </div>
-                                                    <div class="stat-box-premium">
-                                                        <div class="stat-label-premium">
-                                                            <i class="fas fa-triangle-exclamation"></i> Alertas
-                                                        </div>
-                                                        <div class="stat-value-premium">{{ report.points.filter(p => !p.checked).length }}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- Issues Section -->
-                                            <div class="issues-section-premium">
-                                                <div style="font-size: 14px; font-weight: 700; color: #2B3674; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                                                    <i class="fas fa-clipboard-list" style="color: #4318FF;"></i> Registro de Ocorrências
-                                                </div>
-                                                
-                                                <div v-if="report.points.filter(p => !p.checked).length === 0" class="perfect-score-banner-premium">
-                                                    <div class="perfect-icon-premium">
-                                                        <i class="fas fa-star"></i>
-                                                    </div>
-                                                    <div>
-                                                        <h4 style="font-size: 14px; font-weight: 800; margin-bottom: 2px;">Zero Não-Conformidades</h4>
-                                                        <p style="font-size: 12px; font-weight: 500; opacity: 0.9;">Desempenho excelente hoje! 🎉</p>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div v-else class="space-y-2">
-                                                    <div v-for="point in report.points.filter(p => !p.checked)" :key="point.name" style="background: rgba(238, 93, 80, 0.1); border-left: 4px solid #EE5D50; padding: 10px; border-radius: 8px;">
-                                                        <div style="font-size: 13px; font-weight: 600; color: #EE5D50;">
-                                                            <i class="fas fa-times-circle"></i> {{ point.name }}
-                                                        </div>
-                                                        <div style="font-size: 11px; color: #A3AED0; margin-top: 4px;" v-if="point.obs">
-                                                            {{ point.obs }}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Footer -->
-                                        <div class="card-footer-premium">
-                                            <div class="footer-text-premium">
-                                                <i class="fas fa-bullseye"></i> Meta Estabelecida
-                                            </div>
-                                            <div class="goal-badge-premium">{{ meta }}%</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div v-else class="text-center py-10 text-slate-500">
-                                    <i class="fas fa-inbox text-4xl mb-3 opacity-30"></i>
-                                    <p>Nenhum relatório diário disponível para esta data.</p>
-                                </div>
-                            </div>
-                                </div>
-                                <div v-else class="text-center py-10 text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
-                                    <i class="fas fa-clipboard-list text-4xl mb-3 opacity-50"></i>
-                                    <p>Nenhuma inspeção encontrada nesta data.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-end gap-3 mt-4">
-                            <button @click="generatePDF" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><i class="fas fa-file-pdf"></i> PDF</button>
-                            <button @click="takeScreenshot" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><i class="fas fa-camera"></i> Print</button>
-                        </div>
-                    </div>
-
-                    <div v-if="currentView === 'admin'" class="max-w-2xl mx-auto space-y-6">
-                        
-                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h2 class="text-xl font-bold dark:text-white mb-4">Meta Global</h2>
-                            <div class="flex items-center gap-4">
-                                <div class="flex-1">
-                                    <input type="range" v-model="meta" min="50" max="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                                    <div class="flex justify-between text-xs text-slate-400 mt-1">
-                                        <span>50%</span>
-                                        <span>100%</span>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-2xl font-bold text-primary">{{ meta }}%</span>
-                                    <button @click="saveMeta" class="bg-primary text-white p-2 rounded-lg hover:bg-blue-600 transition-colors" title="Salvar Meta">
-                                        <i class="fas fa-save"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-slate-500 mt-2">Isso define a linha de corte para todas as equipes nos gráficos.</p>
-                        </div>
-
-                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h2 class="text-xl font-bold dark:text-white mb-4">Gerenciar Pontos</h2>
-                            <div class="flex gap-2 mb-6">
-                                <input v-model="newPointName" @keyup.enter="addPoint" type="text" placeholder="Nome do novo ponto..." class="flex-1 p-3 border dark:bg-slate-700 dark:border-slate-600 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-primary">
-                                <button @click="addPoint" class="bg-success text-white px-4 rounded-lg hover:bg-green-600"><i class="fas fa-plus"></i></button>
-                            </div>
-                            <div class="space-y-2">
-                                <div v-for="(point, index) in pointsConfig" :key="point.id" class="flex justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border dark:border-slate-700">
-                                    <span class="dark:text-white">{{ point.name }}</span>
-                                    <button @click="deletePoint(point.id)" class="text-danger hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ===== PÁGINA SOBRE (ABOUT) ===== -->
-                    <div v-if="currentView === 'about'" class="max-w-3xl mx-auto space-y-6">
-                        <!-- Header -->
-                        <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-8 rounded-2xl shadow-lg">
-                            <div class="flex items-center gap-4 mb-4">
-                                <div class="w-16 h-16 bg-white rounded-xl flex items-center justify-center">
-                                    <i class="fas fa-chart-line text-3xl text-blue-600"></i>
-                                </div>
-                                <div>
-                                    <h1 class="text-3xl font-bold">ControlPoint</h1>
-                                    <p class="text-blue-100">Sistema de Inspeção de Limpeza</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Informações de Versão -->
-                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
-                                <i class="fas fa-info-circle text-primary"></i> Informações da Versão
-                            </h2>
-                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Versão</div>
-                                    <div class="text-2xl font-bold text-primary">{{ appVersion }}</div>
-                                </div>
-                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Status</div>
-                                    <div class="text-lg font-bold text-green-600">{{ versionStatus }}</div>
-                                </div>
-                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Código</div>
-                                    <div class="text-lg font-bold text-purple-600">{{ versionInfo.codeName || 'N/A' }}</div>
-                                </div>
-                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg col-span-2 md:col-span-1">
-                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Data de Lançamento</div>
-                                    <div class="text-sm font-bold text-slate-600 dark:text-slate-300">{{ versionInfo.releaseDate || 'N/A' }}</div>
-                                </div>
-                                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg col-span-2 md:col-span-1">
-                                    <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Ambiente</div>
-                                    <div class="text-sm font-bold text-blue-600">{{ versionInfo.environment || 'N/A' }}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Features -->
-                        <div v-if="versionInfo.features && versionInfo.features.length > 0" class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
-                                <i class="fas fa-sparkles text-yellow-500"></i> Recursos Disponíveis
-                            </h2>
-                            <ul class="space-y-2">
-                                <li v-for="(feature, index) in versionInfo.features" :key="index" class="flex items-center gap-3 p-2 text-slate-700 dark:text-slate-300">
-                                    <span class="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
-                                    {{ feature }}
-                                </li>
-                            </ul>
-                        </div>
-
-                        <!-- Melhorias -->
-                        <div v-if="versionInfo.improvements && versionInfo.improvements.length > 0" class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
-                                <i class="fas fa-hammer text-orange-500"></i> Melhorias Recentes
-                            </h2>
-                            <ul class="space-y-2">
-                                <li v-for="(improvement, index) in versionInfo.improvements" :key="index" class="flex items-center gap-3 p-2 text-slate-700 dark:text-slate-300">
-                                    <span class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>
-                                    {{ improvement }}
-                                </li>
-                            </ul>
-                        </div>
-
-                        <!-- Sobre a Aplicação -->
-                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
-                                <i class="fas fa-book text-blue-500"></i> Sobre
-                            </h2>
-                            <div class="space-y-3 text-slate-600 dark:text-slate-300">
-                                <p>ControlPoint é um sistema moderno de gestão de inspeções de limpeza, desenvolvido com tecnologias de ponta para oferecer uma experiência completa e intuitiva.</p>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">⚡ Performance</div>
-                                        <p class="text-sm">Otimizado para carregar rápido e funcionar offline.</p>
-                                    </div>
-                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">🔒 Segurança</div>
-                                        <p class="text-sm">Autenticação Firebase com criptografia de dados.</p>
-                                    </div>
-                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">📱 Responsivo</div>
-                                        <p class="text-sm">Funciona perfeitamente em desktop, tablet e mobile.</p>
-                                    </div>
-                                    <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                        <div class="font-semibold text-slate-800 dark:text-white mb-1">🎨 Design</div>
-                                        <p class="text-sm">Interface moderna com tema claro e escuro.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Tecnologias -->
-                        <div class="bg-white dark:bg-darkcard p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h2 class="text-xl font-bold dark:text-white mb-4 flex items-center gap-2">
-                                <i class="fas fa-microchip text-green-500"></i> Tecnologias
-                            </h2>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
-                                    <div class="font-semibold text-slate-800 dark:text-white">Vue 3</div>
-                                    <div class="text-xs text-slate-500">Framework</div>
-                                </div>
-                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
-                                    <div class="font-semibold text-slate-800 dark:text-white">Firebase</div>
-                                    <div class="text-xs text-slate-500">Backend</div>
-                                </div>
-                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
-                                    <div class="font-semibold text-slate-800 dark:text-white">Tailwind</div>
-                                    <div class="text-xs text-slate-500">CSS</div>
-                                </div>
-                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
-                                    <div class="font-semibold text-slate-800 dark:text-white">Chart.js</div>
-                                    <div class="text-xs text-slate-500">Gráficos</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Footer -->
-                        <div class="text-center p-6 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                            <p class="text-slate-600 dark:text-slate-400 text-sm mb-2">
-                                © 2026 ControlPoint - Todos os direitos reservados
-                            </p>
-                            <p class="text-slate-500 dark:text-slate-500 text-xs">
-                                Desenvolvido com <i class="fas fa-heart text-red-500"></i> por Claude
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </main>
-            
-            <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-darkcard border-t dark:border-slate-700 flex justify-around p-2 z-40 pb-safe">
-                <button v-for="item in menuItems" :key="item.id" @click="currentView = item.id" :class="currentView === item.id ? 'text-primary' : 'text-slate-400'" class="flex flex-col items-center justify-center p-2 w-full"><i :class="item.icon" class="text-xl mb-1"></i><span class="text-[10px]">{{ item.label }}</span></button>
-            </nav>
-        </template>
+  <!-- ============ APLICAÇÃO ============ -->
+  <div v-else class="app">
+    <div class="topbar">
+      <div class="topbar-mark"><i class="fas fa-shield-halved"></i></div>
+      <div class="topbar-text">
+        <h1>ControlPoint</h1>
+        <p>{{ profile.name }} · {{ profile.team }}<span v-if="isAdmin"> · Admin</span></p>
+      </div>
+      <button class="top-btn" @click="toggleDarkMode" :title="isDarkMode ? 'Modo claro' : 'Modo escuro'">
+        <i :class="isDarkMode ? 'fas fa-sun' : 'fas fa-moon'"></i>
+      </button>
+      <button class="top-btn" @click="logout" title="Sair"><i class="fas fa-right-from-bracket"></i></button>
     </div>
 
-    <script type="module" src="./app.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then((reg) => console.log('Service Worker registado:', reg.scope))
-            .catch((err) => console.log('Falha no Service Worker:', err));
-        });
-      }
-    </script>
+    <div class="main">
 
-    <!-- ===== REMOVER LOADING QUANDO PÁGINA CARREGAR ===== -->
-    <script>
-        // Remover loading splash screen quando página estiver pronta
-        window.addEventListener('load', () => {
-            const splash = document.getElementById('loadingSplash');
-            if (splash) {
-                setTimeout(() => {
-                    splash.style.animation = 'fadeOut 0.8s ease-out forwards';
-                }, 1500); // Mostra por 1.5s depois começa a sair
-            }
-        });
-        
-        // Fallback: remover após 5 segundos de qualquer forma
-        setTimeout(() => {
-            const splash = document.getElementById('loadingSplash');
-            if (splash) {
-                splash.style.display = 'none';
-            }
-        }, 5000);
-    </script>
+      <!-- ====== AUDITAR ====== -->
+      <template v-if="currentView === 'audit'">
+        <div class="pair">
+          <div class="pair-q">Quem está auditando quem?</div>
+          <div class="pair-flow">
+            <div class="pair-side">
+              <div class="role">Chegando · audita</div>
+              <div class="nm">{{ auditorTeam || '—' }}</div>
+            </div>
+            <div style="opacity:.85"><i class="fas fa-arrow-right-long"></i></div>
+            <div class="pair-side">
+              <div class="role">Saindo · auditada</div>
+              <div class="nm">{{ auditedTeam || '—' }}</div>
+            </div>
+          </div>
+          <div class="pair-foot">Rodízio definido pelo administrador</div>
+        </div>
+
+        <div class="card" v-if="isAdmin">
+          <div class="section-label">Equipe auditora (modo admin)</div>
+          <select v-model="adminAuditorTeam">
+            <option v-for="t in teams" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+
+        <div class="warn" v-if="!auditedTeam">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>Não há rodízio configurado para a {{ auditorTeam || 'sua equipe' }}. Peça ao administrador para definir em Admin › Configurações.</span>
+        </div>
+
+        <div class="card">
+          <div class="field">
+            <label>Turno que está terminando</label>
+            <div class="chip-row">
+              <button v-for="s in SHIFTS" :key="s" class="chip" :class="{active: auditShift === s}" @click="auditShift = s">
+                <i :class="s === 'Dia' ? 'fas fa-sun' : 'fas fa-moon'" style="margin-right:5px"></i>{{ s }}
+              </button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Data</label>
+            <input type="date" class="input" v-model="auditDate">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="progress-wrap">
+            <div class="ring">
+              <svg viewBox="0 0 58 58">
+                <circle class="ring-track" cx="29" cy="29" r="24"></circle>
+                <circle class="ring-fill" cx="29" cy="29" r="24"
+                        :stroke="progress >= meta ? 'var(--green-500)' : 'var(--teal-500)'"
+                        :stroke-dasharray="150.8"
+                        :stroke-dashoffset="150.8 - (progress/100)*150.8"></circle>
+              </svg>
+              <div class="ring-label">{{ progress }}%</div>
+            </div>
+            <div class="progress-meta">
+              <div class="big">{{ answeredCount }}/{{ points.length }} pontos verificados</div>
+              <div class="small">✔ {{ okCount }} conforme · ✖ {{ nokCount }} não conforme · meta {{ meta }}%</div>
+              <div class="bar-track">
+                <div class="bar-target" :style="{left: meta + '%'}"></div>
+                <div class="bar-fill" :style="{width: progress + '%'}"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="warn" v-if="showErrors && (pendingPhotos || pendingReasons)">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>Não conformidades pendentes:
+            <template v-if="pendingPhotos">{{ pendingPhotos }} sem foto</template>
+            <template v-if="pendingPhotos && pendingReasons"> e </template>
+            <template v-if="pendingReasons">{{ pendingReasons }} sem descrição do motivo</template>.
+          </span>
+        </div>
+
+        <div class="card">
+          <div class="section-label">Pontos de verificação ({{ points.length }})</div>
+          <div v-if="loadingPoints" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando pontos...</div>
+          <div v-else-if="!points.length" class="empty">
+            <i class="fas fa-clipboard-list"></i>
+            <p>Nenhum ponto cadastrado. O administrador precisa cadastrá-los em Admin › Configurações.</p>
+          </div>
+          <div v-else class="cp-list">
+            <div v-for="(p, i) in points" :key="p.id" class="cp-item" :class="{ok: p.status==='ok', nok: p.status==='nok'}">
+              <div class="cp-row">
+                <div class="cp-num">{{ i + 1 }}</div>
+                <div class="cp-label">{{ p.name }}</div>
+                <div class="cp-ctrl">
+                  <button class="cp-btn" :class="{'sel-ok': p.status==='ok'}" @click="setStatus(p,'ok')" title="Conforme">
+                    <i class="fas fa-check"></i>
+                  </button>
+                  <button class="cp-btn" :class="{'sel-nok': p.status==='nok'}" @click="setStatus(p,'nok')" title="Não conforme">
+                    <i class="fas fa-xmark"></i>
+                  </button>
+                  <button class="cp-btn" :class="{'has-photo': p.photoUrl}" @click="triggerPhoto(p, i)" title="Foto">
+                    <i v-if="uploadingIndex === i" class="fas fa-circle-notch spinner"></i>
+                    <i v-else class="fas fa-camera"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="cp-extra" v-if="p.photoUrl">
+                <div class="cp-links">
+                  <button class="cp-link" @click="openImage(p.photoUrl)"><i class="fas fa-image"></i> Visualizar imagem</button>
+                  <button class="cp-link muted" @click="removePhoto(p)">Remover</button>
+                </div>
+              </div>
+
+              <div class="cp-extra" v-if="p.status === 'nok'">
+                <label>Motivo da não conformidade *</label>
+                <textarea v-model="p.reason" rows="2"
+                  :class="{invalid: showErrors && (p.reason || '').trim().length < 5}"
+                  placeholder="Descreva o que foi encontrado (ex.: piso com resíduo de óleo próximo à bancada)"></textarea>
+                <div class="cp-hint" v-if="!p.photoUrl"><i class="fas fa-triangle-exclamation"></i> Foto de evidência obrigatória</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" :disabled="saving || !points.length || !auditedTeam" @click="saveAudit">
+          <i v-if="saving" class="fas fa-circle-notch spinner"></i>
+          <i v-else class="fas fa-check"></i>
+          {{ saving ? 'Salvando...' : (answeredCount < points.length ? 'Concluir auditoria (' + answeredCount + '/' + points.length + ')' : 'Concluir auditoria') }}
+        </button>
+      </template>
+
+      <!-- ====== AUDITORIAS ====== -->
+      <template v-if="currentView === 'audits'">
+        <div class="subtab">
+          <button :class="{active: auditsTab==='received'}" @click="auditsTab='received'">Recebidas</button>
+          <button :class="{active: auditsTab==='made'}" @click="auditsTab='made'">Feitas por nós</button>
+          <button v-if="isAdmin" :class="{active: auditsTab==='all'}" @click="auditsTab='all'">Todas</button>
+        </div>
+
+        <div class="card">
+          <div class="field" style="margin:0">
+            <label>Mês de referência</label>
+            <input type="month" class="input" v-model="auditsMonth">
+          </div>
+        </div>
+
+        <div class="card" v-if="auditsTab === 'received' && auditsList.length">
+          <div class="card-title"><i class="fas fa-inbox"></i> Como sua equipe foi avaliada</div>
+          <div class="card-sub">Avaliações que a {{ myTeam }} recebeu no mês selecionado.</div>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="num">{{ receivedAverage }}%</div><div class="lbl">Média recebida</div></div>
+            <div class="stat-box"><div class="num">{{ auditsList.length }}</div><div class="lbl">Auditorias</div></div>
+          </div>
+        </div>
+
+        <div v-if="loadingAudits" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando...</div>
+        <div v-else-if="!auditsList.length" class="card empty">
+          <i class="fas fa-clipboard"></i>
+          <p>{{ auditsTab === 'received' ? 'Sua equipe ainda não foi auditada neste mês.' : 'Nenhuma auditoria neste mês.' }}</p>
+        </div>
+
+        <div v-else v-for="item in auditsList" :key="item._id" class="audit-card">
+          <div class="audit-head" @click="toggleAudit(item._id)">
+            <div class="avatar">{{ (item.team || '?').replace('Equipe ','E') }}</div>
+            <div class="audit-info">
+              <div class="l1">{{ item.team }} <span style="font-weight:600;color:var(--text-3)">auditada por</span> {{ item.auditorTeam || '—' }}</div>
+              <div class="l2">{{ fmtDate(item.date) }} · {{ item.shift || '-' }} · {{ nonConformities(item).length }} não conf.<span v-if="item.auditorName"> · {{ item.auditorName }}</span></div>
+            </div>
+            <div class="score-badge" :class="(item.score >= (item.meta || meta)) ? 'pass' : 'fail'">{{ Math.round(item.score) }}%</div>
+            <i class="fas fa-chevron-down" :style="{transform: openAudits[item._id] ? 'rotate(180deg)' : '', color:'var(--text-3)'}"></i>
+          </div>
+          <div class="audit-detail" v-if="openAudits[item._id]">
+            <div v-for="p in item.points" :key="p.name" class="d-row" :class="(p.status==='ok' || p.checked) ? 'ok' : 'nok'">
+              <i :class="(p.status==='ok' || p.checked) ? 'fas fa-check' : 'fas fa-xmark'" style="margin-top:2px"></i>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700">{{ p.name }}</div>
+                <div class="d-reason" v-if="(p.reason || p.obs) && !(p.status==='ok' || p.checked)">{{ p.reason || p.obs }}</div>
+              </div>
+              <img v-if="p.photoUrl" class="d-thumb" :src="p.photoUrl" @click="openImage(p.photoUrl)">
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- ====== RELATÓRIOS ====== -->
+      <template v-if="currentView === 'reports'">
+        <div class="subtab no-print">
+          <button :class="{active: reportType==='monthly'}" @click="reportType='monthly'">Mensal</button>
+          <button :class="{active: reportType==='annual'}" @click="reportType='annual'">Anual</button>
+          <button :class="{active: reportType==='daily'}" @click="reportType='daily'">Diário</button>
+        </div>
+
+        <div class="card no-print">
+          <div class="field" style="margin:0">
+            <label>Período</label>
+            <input v-if="reportType==='monthly'" type="month" class="input" v-model="reportMonth">
+            <select v-else-if="reportType==='annual'" v-model="reportYear">
+              <option v-for="y in [2024,2025,2026,2027]" :key="y" :value="y">{{ y }}</option>
+            </select>
+            <input v-else type="date" class="input" v-model="dailyDate">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-ghost btn-sm" style="flex:1" @click="generatePDF"><i class="fas fa-file-pdf"></i> PDF</button>
+            <button class="btn btn-ghost btn-sm" style="flex:1" @click="takeScreenshot"><i class="fas fa-image"></i> Print</button>
+            <button class="btn btn-ghost btn-sm" style="flex:1" @click="exportCSV"><i class="fas fa-file-csv"></i> CSV</button>
+          </div>
+        </div>
+
+        <div id="reportContent" class="card">
+          <div v-if="loadingReports" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando...</div>
+          <template v-else>
+            <div class="card-title" style="margin-bottom:12px">
+              <i class="fas fa-chart-pie"></i>
+              {{ reportType==='monthly' ? 'Desempenho mensal' : reportType==='annual' ? 'Evolução anual' : 'Relatório diário' }}
+            </div>
+
+            <div v-if="reportType !== 'daily'" class="chart-box"><canvas id="mainChart"></canvas></div>
+
+            <table class="report" v-if="reportType==='monthly' && teamStats.length">
+              <thead><tr><th>#</th><th>Equipe</th><th>Média</th><th>Aud.</th></tr></thead>
+              <tbody>
+                <tr v-for="s in teamStats" :key="s.name">
+                  <td>{{ s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : s.rank + 'º' }}</td>
+                  <td>{{ s.name }}</td>
+                  <td :style="{color: s.average >= meta ? 'var(--green-600)' : 'var(--red-600)', fontWeight:800}">{{ s.average }}%</td>
+                  <td>{{ s.count }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div v-if="reportType==='monthly' && !teamStats.length" class="empty"><i class="fas fa-chart-simple"></i><p>Sem dados neste mês.</p></div>
+
+            <div v-if="reportType==='daily'">
+              <div v-if="!dailyDataList.length" class="empty"><i class="fas fa-calendar-day"></i><p>Nenhuma auditoria nesta data.</p></div>
+              <div v-for="r in dailyDataList" :key="r._id" style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div style="width:74px;flex-shrink:0"><canvas :id="chartId(r._id)"></canvas></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:14px;font-weight:800">{{ r.team }}</div>
+                    <div style="font-size:11.5px;color:var(--text-3);font-weight:600">
+                      Turno {{ r.shift || '-' }} · auditada por {{ r.auditorTeam || '—' }}
+                    </div>
+                    <div style="font-size:18px;font-weight:800;margin-top:3px"
+                         :style="{color: r.score >= meta ? 'var(--green-600)' : 'var(--red-600)'}">{{ Math.round(r.score) }}%</div>
+                  </div>
+                </div>
+                <div v-if="nonConformities(r).length" style="margin-top:10px;display:flex;flex-direction:column;gap:7px">
+                  <div v-for="p in nonConformities(r)" :key="p.name" class="d-reason">
+                    <b>{{ p.name }}</b><template v-if="p.reason || p.obs"> — {{ p.reason || p.obs }}</template>
+                  </div>
+                </div>
+                <div v-else class="d-row ok" style="margin-top:10px"><i class="fas fa-circle-check"></i> Todos os pontos conformes</div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- ====== ADMIN ====== -->
+      <template v-if="currentView === 'admin' && isAdmin">
+        <div class="subtab">
+          <button :class="{active: adminTab==='audits'}" @click="adminTab='audits'">Avaliações</button>
+          <button :class="{active: adminTab==='users'}" @click="adminTab='users'; loadUsers()">Usuários</button>
+          <button :class="{active: adminTab==='config'}" @click="adminTab='config'">Config.</button>
+        </div>
+
+        <!-- Avaliações -->
+        <template v-if="adminTab === 'audits'">
+          <div class="card">
+            <div class="field" style="margin:0">
+              <label>Mês de referência</label>
+              <input type="month" class="input" v-model="adminMonth">
+            </div>
+          </div>
+          <div v-if="loadingAdminAudits" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando...</div>
+          <div v-else-if="!adminAudits.length" class="card empty"><i class="fas fa-folder-open"></i><p>Nenhuma auditoria neste mês.</p></div>
+          <div v-else class="card">
+            <div class="section-label">Avaliações ({{ adminAudits.length }})</div>
+            <div v-for="a in adminAudits" :key="a._id" class="list-row">
+              <div class="li">
+                {{ a.team }} <span style="color:var(--text-3);font-weight:600">por {{ a.auditorTeam || '—' }}</span>
+                <div class="ls">{{ fmtDate(a.date) }} · {{ a.shift || '-' }} · {{ Math.round(a.score) }}%<span v-if="a.auditorName"> · {{ a.auditorName }}</span></div>
+              </div>
+              <button class="icon-btn" @click="openEdit(a)"><i class="fas fa-pen-to-square"></i></button>
+              <button class="icon-btn danger" @click="deleteAudit(a)"><i class="fas fa-trash"></i></button>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:10px" @click="exportCSV"><i class="fas fa-file-csv"></i> Exportar CSV do mês</button>
+          </div>
+        </template>
+
+        <!-- Usuários -->
+        <template v-if="adminTab === 'users'">
+          <div class="card">
+            <div class="card-title"><i class="fas fa-users"></i> Usuários cadastrados</div>
+            <div class="card-sub">Cada auditor entra com e-mail e senha. A equipe do usuário define quem ele audita.</div>
+            <div v-if="loadingUsers" class="center-load"><i class="fas fa-circle-notch spinner"></i></div>
+            <template v-else>
+              <div v-for="u in usersList" :key="u.uid" class="list-row">
+                <div class="avatar">{{ initials(u.name) }}</div>
+                <div class="li">{{ u.name }}
+                  <div class="ls">{{ u.team }} · {{ u.role === 'admin' ? 'Administrador' : 'Auditor' }} · {{ u.email }}</div>
+                </div>
+                <button class="icon-btn" @click="resetPassword(u.email)" title="Enviar redefinição de senha"><i class="fas fa-key"></i></button>
+                <button class="icon-btn" @click="editUser(u)"><i class="fas fa-pen-to-square"></i></button>
+                <button class="icon-btn danger" @click="deleteUser(u)"><i class="fas fa-trash"></i></button>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:10px" @click="newUser"><i class="fas fa-plus"></i> Cadastrar usuário</button>
+            </template>
+          </div>
+        </template>
+
+        <!-- Config -->
+        <template v-if="adminTab === 'config'">
+          <div class="card">
+            <div class="card-title"><i class="fas fa-bullseye"></i> Meta de desempenho</div>
+            <div style="height:12px"></div>
+            <div class="slider-row">
+              <input type="range" min="0" max="100" v-model.number="meta">
+              <div class="target-val">{{ meta }}%</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><i class="fas fa-users"></i> Equipes</div>
+            <div style="height:12px"></div>
+            <div v-for="t in teams" :key="t" class="cfg-row">
+              <div class="input" style="flex:1">{{ t }}</div>
+              <button class="icon-btn danger" @click="removeTeam(t)"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="cfg-row">
+              <input class="input" v-model="newTeamName" placeholder="Nova equipe" @keydown.enter="addTeam">
+              <button class="icon-btn" @click="addTeam"><i class="fas fa-plus"></i></button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><i class="fas fa-arrow-right-arrow-left"></i> Rodízio de auditoria</div>
+            <div class="card-sub">Quem cada equipe audita ao chegar no turno. Padrão: 1→4, 4→3, 3→2, 2→1.</div>
+            <div v-for="t in teams" :key="'rot'+t" class="rot-row">
+              <div class="rot-from">{{ t }}</div>
+              <i class="fas fa-arrow-right" style="color:var(--text-3)"></i>
+              <select v-model="rotation[t]">
+                <option value="">— não audita —</option>
+                <option v-for="x in teams.filter(y => y !== t)" :key="x" :value="x">{{ x }}</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-block" :disabled="savingConfig" @click="saveGeneralConfig">
+            <i v-if="savingConfig" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-floppy-disk"></i>
+            Salvar meta, equipes e rodízio
+          </button>
+
+          <div class="card">
+            <div class="card-title"><i class="fas fa-clipboard-list"></i> Pontos de verificação</div>
+            <div class="card-sub">Salvos individualmente na coleção <code>config_pontos</code>.</div>
+            <div v-for="p in pointsConfig" :key="p.id" class="cfg-row">
+              <input class="input" v-model="p.name" @blur="renamePoint(p)">
+              <button class="icon-btn danger" @click="deletePoint(p.id)"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="cfg-row">
+              <input class="input" v-model="newPointName" placeholder="Novo ponto de verificação" @keydown.enter="addPoint">
+              <button class="icon-btn" @click="addPoint"><i class="fas fa-plus"></i></button>
+            </div>
+          </div>
+        </template>
+      </template>
+
+      <!-- ====== SOBRE ====== -->
+      <template v-if="currentView === 'about'">
+        <div class="card" style="text-align:center">
+          <div class="login-logo" style="margin-bottom:12px"><i class="fas fa-shield-halved"></i></div>
+          <h3 style="font-size:18px">ControlPoint</h3>
+          <p style="font-size:12.5px;color:var(--text-3);font-weight:600;margin:6px 0 0">
+            Versão {{ appVersion }} · {{ versionStatus }}
+          </p>
+          <p style="font-size:12px;color:var(--text-3);margin:10px 0 0;line-height:1.5">
+            Auditoria cruzada de limpeza e organização na virada de turno.
+          </p>
+        </div>
+        <div class="card" v-if="versionInfo.features && versionInfo.features.length">
+          <div class="card-title"><i class="fas fa-star"></i> Nesta versão</div>
+          <div style="height:10px"></div>
+          <div v-for="(f,i) in versionInfo.features" :key="i" class="d-row ok" style="padding:4px 0">
+            <i class="fas fa-check" style="margin-top:2px"></i><span>{{ f }}</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="fas fa-user"></i> Minha conta</div>
+          <div style="height:10px"></div>
+          <div class="list-row">
+            <div class="avatar">{{ initials(profile.name) }}</div>
+            <div class="li">{{ profile.name }}<div class="ls">{{ profile.team }} · {{ profile.email }}</div></div>
+          </div>
+          <div class="warn" style="margin-top:12px" v-if="rotation[myTeam]">
+            <i class="fas fa-arrow-right-long"></i><span>Sua equipe audita a <b>{{ rotation[myTeam] }}</b>.</span>
+          </div>
+          <button class="btn btn-ghost btn-block" style="margin-top:12px" @click="logout">
+            <i class="fas fa-right-from-bracket"></i> Sair da conta
+          </button>
+        </div>
+      </template>
+
+    </div>
+
+    <!-- tabbar -->
+    <div class="tabbar">
+      <button v-for="item in menuItems" :key="item.id" class="tab-btn"
+              :class="{active: currentView === item.id}" @click="currentView = item.id">
+        <i :class="item.icon"></i>{{ item.label }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: EDITAR AVALIAÇÃO ============ -->
+  <div class="modal-ov" v-if="editing" @click.self="closeEdit">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h3>Editar avaliação</h3>
+        <button class="icon-btn" @click="closeEdit"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="card-sub">{{ editing.team }} auditada por {{ editing.auditorTeam || '—' }} · {{ fmtDate(editing.date) }}</div>
+
+      <div class="field">
+        <label>Turno</label>
+        <div class="chip-row">
+          <button v-for="s in SHIFTS" :key="s" class="chip" :class="{active: editing.shift === s}" @click="editing.shift = s">{{ s }}</button>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-top:6px">Pontos</div>
+      <div class="cp-list">
+        <div v-for="(p,i) in editing.points" :key="i" class="cp-item" :class="{ok: p.status==='ok' || p.checked, nok: p.status==='nok' || (p.status==null && p.checked===false)}">
+          <div class="cp-row">
+            <div class="cp-num">{{ i+1 }}</div>
+            <div class="cp-label">{{ p.name }}</div>
+            <div class="cp-ctrl">
+              <button class="cp-btn" :class="{'sel-ok': p.status==='ok'}" @click="setEditStatus(p,'ok')"><i class="fas fa-check"></i></button>
+              <button class="cp-btn" :class="{'sel-nok': p.status==='nok'}" @click="setEditStatus(p,'nok')"><i class="fas fa-xmark"></i></button>
+            </div>
+          </div>
+          <div class="cp-extra" v-if="p.photoUrl">
+            <div class="cp-links"><button class="cp-link" @click="openImage(p.photoUrl)"><i class="fas fa-image"></i> Visualizar imagem</button></div>
+          </div>
+          <div class="cp-extra" v-if="p.status === 'nok'">
+            <label>Motivo *</label>
+            <textarea v-model="p.reason" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-block" style="margin-top:12px" @click="saveEdit">
+        <i class="fas fa-floppy-disk"></i> Salvar alterações
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: USUÁRIO ============ -->
+  <div class="modal-ov" v-if="userForm" @click.self="closeUserForm">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h3>{{ userForm.uid ? 'Editar usuário' : 'Novo usuário' }}</h3>
+        <button class="icon-btn" @click="closeUserForm"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="field"><label>Nome completo</label><input class="input" v-model="userForm.name" placeholder="Ex.: Maria Silva"></div>
+      <div class="field">
+        <label>E-mail</label>
+        <input class="input" type="email" v-model="userForm.email" :disabled="!!userForm.uid" placeholder="maria@empresa.com">
+      </div>
+      <div class="field" v-if="!userForm.uid">
+        <label>Senha provisória (mín. 6 caracteres)</label>
+        <input class="input" type="text" v-model="userForm.password" placeholder="••••••">
+      </div>
+      <div class="field">
+        <label>Equipe</label>
+        <select v-model="userForm.team"><option v-for="t in teams" :key="t" :value="t">{{ t }}</option></select>
+      </div>
+      <div class="field">
+        <label>Perfil</label>
+        <div class="chip-row">
+          <button class="chip" :class="{active: userForm.role==='auditor'}" @click="userForm.role='auditor'">Auditor</button>
+          <button class="chip" :class="{active: userForm.role==='admin'}" @click="userForm.role='admin'">Administrador</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" :disabled="savingUser" @click="saveUser">
+        <i v-if="savingUser" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-check"></i>
+        {{ userForm.uid ? 'Salvar alterações' : 'Cadastrar usuário' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ LIGHTBOX ============ -->
+  <div class="lightbox" v-if="lightboxUrl" @click.self="closeImage">
+    <button class="lb-close" @click="closeImage"><i class="fas fa-xmark"></i></button>
+    <img :src="lightboxUrl">
+  </div>
+
+  <!-- ============ TOASTS ============ -->
+  <div class="toasts">
+    <div v-for="n in notifications" :key="n.id" class="toast" :class="n.type" @click="removeNotification(n.id)">
+      <i :class="n.type==='success' ? 'fas fa-circle-check' : n.type==='error' ? 'fas fa-circle-exclamation' : n.type==='warning' ? 'fas fa-triangle-exclamation' : 'fas fa-circle-info'"></i>
+      <span style="flex:1">{{ n.message }}</span>
+    </div>
+  </div>
+
+  <input type="file" ref="fileInput" accept="image/*" capture="environment" style="display:none" @change="onPhotoSelected">
+</div>
+
+<script type="module" src="./app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  }
+</script>
 </body>
 </html>
