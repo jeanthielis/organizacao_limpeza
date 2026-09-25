@@ -1,22 +1,23 @@
 {
-  "version": "2.2.0",
-  "codeName": "Premium Loading",
-  "releaseDate": "2026-05-13",
+  "version": "3.0.0",
+  "codeName": "Cross Audit",
+  "releaseDate": "2026-09-25",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Sistema de notificações elegante",
-    "Design premium do relatório diário",
-    "Gráficos dinâmicos com Chart.js",
-    "Loading splash screen",
-    "Print otimizado para mobile",
-    "Tema escuro/claro automático"
+    "Login com usuários cadastrados pelo administrador",
+    "Auditoria cruzada com rodízio fixo entre equipes",
+    "Dois turnos: Dia e Noite",
+    "Foto de evidência obrigatória na não conformidade",
+    "Motivo descritivo obrigatório na não conformidade",
+    "Equipe auditada acompanha suas avaliações",
+    "Painel administrativo com edição de avaliações",
+    "Interface mobile-first com tema claro/escuro"
   ],
   "improvements": [
-    "Corrigidos problemas de sobreposição",
-    "Nitidez melhorada em mobile",
-    "Performance otimizada",
-    "Espaçamento responsivo",
-    "Animações suaves"
+    "Botões compactos na tela de auditoria",
+    "Fotos armazenadas no Firebase Storage",
+    "Exportação CSV das auditorias",
+    "Relatórios mensal, anual e diário revisados"
   ]
 }
