@@ -1,861 +1,815 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ControlPoint — Auditoria de Turno</title>
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0d9488">
-<link rel="apple-touch-icon" href="./icon-192.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-<style>
-:root{
-  --font-head:'Manrope',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  --font-body:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  --teal-100:#d3f5ef; --teal-400:#2dd4bf; --teal-500:#14b8a6; --teal-600:#0d9488; --teal-700:#0f766e;
-  --amber-600:#d97706; --warn-bg:#fef3c7; --warn-fg:#7c4a03;
-  --red-100:#fee2e2; --red-500:#ef4444; --red-600:#dc2626;
-  --green-100:#dcfce7; --green-500:#22c55e; --green-600:#16a34a;
-  --bg:#f3f6f6; --bg-elevated:#fff; --bg-sunken:#e9eeed;
-  --surface:#fff; --surface-2:#f7f9f9;
-  --border:#e2e8e7; --border-strong:#cdd7d5;
-  --text:#0f1a19; --text-2:#4b5a58; --text-3:#7c8a88;
-  --shadow-sm:0 1px 2px rgba(15,26,25,.06);
-  --shadow-md:0 4px 16px rgba(15,26,25,.08);
-  --shadow-lg:0 12px 32px rgba(15,26,25,.14);
-  color-scheme:light;
-}
-html.dark{
-  --teal-100:rgba(20,184,166,.18); --warn-bg:rgba(245,158,11,.14); --warn-fg:#fcd34d;
-  --red-100:rgba(239,68,68,.16); --green-100:rgba(34,197,94,.16);
-  --bg:#0d1413; --bg-elevated:#131c1b; --bg-sunken:#0a0f0e;
-  --surface:#151f1e; --surface-2:#1a2422;
-  --border:#243230; --border-strong:#324443;
-  --text:#eef4f3; --text-2:#a9b8b6; --text-3:#778886;
-  --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 4px 20px rgba(0,0,0,.4); --shadow-lg:0 16px 40px rgba(0,0,0,.5);
-  color-scheme:dark;
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);-webkit-font-smoothing:antialiased;
-  padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0);overscroll-behavior-y:none}
-html{scroll-padding-top:env(safe-area-inset-top,0)}
-h1,h2,h3,h4{font-family:var(--font-head);margin:0;letter-spacing:-.01em}
-button{font-family:var(--font-body);cursor:pointer}
-input,textarea,select{font-family:var(--font-body)}
-[v-cloak]{display:none}
-::-webkit-scrollbar{width:7px;height:7px}
-::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:8px}
-
-.app{max-width:620px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
-.topbar{position:sticky;top:0;z-index:30;padding:calc(13px + env(safe-area-inset-top,0)) 16px 13px;
-  background:linear-gradient(180deg,var(--teal-700),var(--teal-600));color:#fff;box-shadow:var(--shadow-md);
-  display:flex;align-items:center;gap:11px}
-.topbar-mark{width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.16);display:flex;align-items:center;
-  justify-content:center;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:16px}
-.topbar-text{flex:1;min-width:0}
-.topbar-text h1{font-size:16px;font-weight:800;color:#fff}
-.topbar-text p{margin:1px 0 0;font-size:11px;color:rgba(255,255,255,.8);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.top-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;border:none;font-size:12px;
-  font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.main{flex:1;padding:14px 14px 96px;display:flex;flex-direction:column;gap:14px}
-
-.card{background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow-sm);padding:16px}
-.card-title{font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:8px}
-.card-title i{color:var(--teal-600);width:17px;text-align:center}
-.card-sub{font-size:12px;color:var(--text-3);margin:4px 0 12px;font-weight:500;line-height:1.45}
-.section-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin:0 0 9px}
-
-.btn{border:none;border-radius:14px;padding:12px 16px;font-weight:700;font-size:13.5px;display:inline-flex;align-items:center;
-  justify-content:center;gap:7px;transition:transform .12s,opacity .12s;-webkit-tap-highlight-color:transparent;color:var(--text)}
-.btn:active{transform:scale(.97)}
-.btn-primary{background:linear-gradient(180deg,var(--teal-500),var(--teal-600));color:#fff;box-shadow:0 6px 16px rgba(13,148,136,.32)}
-.btn-primary:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
-.btn-ghost{background:var(--surface-2);border:1px solid var(--border)}
-.btn-danger{background:var(--red-100);color:var(--red-600)}
-.btn-block{width:100%}
-.btn-sm{padding:8px 12px;font-size:12px;border-radius:11px}
-
-.field{display:flex;flex-direction:column;gap:5px;margin-bottom:11px}
-.field:last-child{margin-bottom:0}
-.field label{font-size:11.5px;font-weight:700;color:var(--text-2)}
-select,.input,textarea{width:100%;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:12px;
-  padding:10px 11px;font-size:13.5px;font-weight:600;outline:none;transition:border-color .15s}
-select:focus,.input:focus,textarea:focus{border-color:var(--teal-500)}
-textarea{font-weight:500;resize:vertical;min-height:54px;line-height:1.4}
-textarea.invalid{border-color:var(--red-500)}
-
-.chip-row{display:flex;gap:7px;flex-wrap:wrap}
-.chip{padding:7px 13px;border-radius:999px;border:1.5px solid var(--border);background:var(--surface-2);font-size:12px;
-  font-weight:700;color:var(--text-2);white-space:nowrap;transition:all .15s}
-.chip.active{background:var(--teal-600);color:#fff;border-color:var(--teal-600);box-shadow:0 4px 10px rgba(13,148,136,.28)}
-
-.warn{display:flex;gap:9px;align-items:flex-start;background:var(--warn-bg);color:var(--warn-fg);border-radius:14px;
-  padding:10px 12px;font-size:12px;font-weight:600;line-height:1.4}
-.warn i{margin-top:2px}
-
-.pair{background:linear-gradient(135deg,var(--teal-700),var(--teal-600));color:#fff;border-radius:22px;padding:16px;box-shadow:var(--shadow-md)}
-.pair-q{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.75;margin-bottom:11px}
-.pair-flow{display:flex;align-items:center;gap:10px}
-.pair-side{flex:1;min-width:0;text-align:center;background:rgba(255,255,255,.13);border-radius:14px;padding:11px 8px}
-.pair-side .role{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.8}
-.pair-side .nm{font-size:14px;font-weight:800;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pair-foot{margin-top:11px;font-size:11.5px;opacity:.82;font-weight:600;text-align:center}
-
-.progress-wrap{display:flex;align-items:center;gap:13px}
-.ring{width:58px;height:58px;flex-shrink:0;position:relative}
-.ring svg{transform:rotate(-90deg);width:100%;height:100%}
-.ring-track{fill:none;stroke:var(--border);stroke-width:8}
-.ring-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .4s}
-.ring-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
-.progress-meta{flex:1;min-width:0}
-.progress-meta .big{font-size:13px;font-weight:700}
-.progress-meta .small{font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px}
-.bar-track{height:7px;border-radius:99px;background:var(--border);overflow:hidden;margin-top:7px;position:relative}
-.bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--teal-400),var(--teal-600));transition:width .4s}
-.bar-target{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--amber-600)}
-
-.cp-list{display:flex;flex-direction:column;gap:8px}
-.cp-item{border:1.5px solid var(--border);border-radius:14px;padding:10px 11px;background:var(--surface-2)}
-.cp-item.ok{border-color:var(--green-500);background:var(--green-100)}
-.cp-item.nok{border-color:var(--red-500);background:var(--red-100)}
-.cp-row{display:flex;align-items:center;gap:9px}
-.cp-num{width:20px;height:20px;border-radius:7px;background:var(--bg-sunken);color:var(--text-2);font-size:10px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.cp-item.ok .cp-num{background:var(--green-500);color:#fff}
-.cp-item.nok .cp-num{background:var(--red-500);color:#fff}
-.cp-label{flex:1;min-width:0;font-size:12.5px;font-weight:700;line-height:1.28}
-.cp-ctrl{display:flex;gap:4px;flex-shrink:0}
-.cp-btn{border:1.5px solid var(--border);background:var(--surface);border-radius:9px;height:30px;min-width:32px;padding:0 7px;
-  font-size:11.5px;font-weight:700;color:var(--text-2);display:flex;align-items:center;justify-content:center}
-.cp-btn.sel-ok{background:var(--green-500);border-color:var(--green-500);color:#fff}
-.cp-btn.sel-nok{background:var(--red-500);border-color:var(--red-500);color:#fff}
-.cp-btn.has-photo{background:var(--teal-600);border-color:var(--teal-600);color:#fff}
-.cp-extra{margin-top:9px;display:flex;flex-direction:column;gap:7px}
-.cp-extra label{font-size:10.5px;font-weight:800;color:var(--red-600);text-transform:uppercase;letter-spacing:.04em}
-.cp-links{display:flex;align-items:center;gap:14px}
-.cp-link{background:none;border:none;padding:2px 0;font-size:11.5px;font-weight:700;color:var(--teal-600);
-  display:flex;align-items:center;gap:5px;text-decoration:underline;text-underline-offset:2px}
-.cp-link.muted{color:var(--text-3)}
-.cp-hint{font-size:10.5px;font-weight:700;color:var(--red-600);display:flex;align-items:center;gap:5px}
-
-.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;max-width:620px;margin:0 auto;background:var(--bg-elevated);
-  border-top:1px solid var(--border);display:flex;padding:5px 5px calc(5px + env(safe-area-inset-bottom,0));box-shadow:0 -4px 20px rgba(0,0,0,.07)}
-.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;border:none;background:transparent;
-  color:var(--text-3);border-radius:12px;font-size:10px;font-weight:700}
-.tab-btn.active{color:var(--teal-600)}
-.tab-btn i{font-size:17px}
-
-.audit-card{border:1px solid var(--border);border-radius:16px;padding:13px;background:var(--surface);box-shadow:var(--shadow-sm)}
-.audit-head{display:flex;align-items:center;gap:10px;cursor:pointer}
-.avatar{width:37px;height:37px;border-radius:11px;background:var(--teal-100);color:var(--teal-700);display:flex;align-items:center;
-  justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
-.audit-info{flex:1;min-width:0}
-.audit-info .l1{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.audit-info .l2{font-size:11px;color:var(--text-3);font-weight:600;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.score-badge{font-size:12.5px;font-weight:800;padding:4px 9px;border-radius:9px;flex-shrink:0}
-.score-badge.pass{background:var(--green-100);color:var(--green-600)}
-.score-badge.fail{background:var(--red-100);color:var(--red-600)}
-.audit-detail{margin-top:11px;padding-top:11px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:9px}
-.d-row{display:flex;gap:9px;align-items:flex-start;font-size:12px}
-.d-row.ok{color:var(--text-2)}
-.d-row.nok{color:var(--red-600)}
-.d-reason{background:var(--red-100);color:var(--red-600);border-radius:9px;padding:7px 9px;font-size:11.5px;font-weight:600;margin-top:4px;line-height:1.4}
-.d-thumb{width:46px;height:46px;border-radius:9px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);cursor:pointer}
-.empty{text-align:center;padding:36px 18px;color:var(--text-3)}
-.empty i{font-size:34px;opacity:.45;margin-bottom:10px;display:block}
-.empty p{font-size:12.5px;font-weight:600;margin:0;line-height:1.5}
-
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.stat-box{background:var(--surface-2);border-radius:13px;padding:11px;border:1px solid var(--border)}
-.stat-box .num{font-size:18px;font-weight:800;font-family:var(--font-head);line-height:1.2}
-.stat-box .lbl{font-size:10.5px;color:var(--text-3);font-weight:700;margin-top:2px}
-
-.subtab{display:flex;gap:5px;background:var(--surface-2);padding:4px;border-radius:14px}
-.subtab button{flex:1;border:none;background:transparent;padding:9px 3px;border-radius:11px;font-size:11.5px;font-weight:800;color:var(--text-2)}
-.subtab button.active{background:var(--surface);color:var(--teal-600);box-shadow:var(--shadow-sm)}
-
-.list-row{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid var(--border)}
-.list-row:last-of-type{border-bottom:none}
-.list-row .li{flex:1;min-width:0;font-size:12.5px;font-weight:700}
-.list-row .ls{font-size:10.5px;color:var(--text-3);font-weight:600;margin-top:1px}
-.icon-btn{background:none;border:none;color:var(--text-3);padding:7px;border-radius:9px;font-size:14px;flex-shrink:0}
-.icon-btn.danger{color:var(--red-500)}
-.cfg-row{display:flex;align-items:center;gap:7px;margin-bottom:7px}
-.cfg-row .input{flex:1}
-.rot-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.rot-from{background:var(--teal-100);color:var(--teal-700);padding:8px 10px;border-radius:10px;font-weight:800;font-size:12px;white-space:nowrap}
-.rot-row select{flex:1}
-.slider-row{display:flex;align-items:center;gap:11px}
-input[type=range]{-webkit-appearance:none;flex:1;height:6px;border-radius:99px;background:var(--border);outline:none}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--teal-600);
-  border:3px solid var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.3)}
-.target-val{font-size:17px;font-weight:800;color:var(--teal-600);width:52px;text-align:right;font-family:var(--font-head)}
-
-/* login */
-.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.login-inner{width:100%;max-width:400px}
-.login-hero{text-align:center;margin-bottom:22px}
-.login-logo{width:66px;height:66px;border-radius:21px;background:linear-gradient(135deg,var(--teal-500),var(--teal-700));
-  display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 10px 26px rgba(13,148,136,.35);color:#fff;font-size:27px}
-.login-hero h2{font-size:22px;font-weight:800}
-.login-hero p{font-size:13px;color:var(--text-3);margin:6px 0 0;font-weight:500}
-.auth-error{background:var(--red-100);color:var(--red-600);border-radius:12px;padding:10px 12px;font-size:12.5px;font-weight:600;margin-bottom:11px}
-.link-btn{background:none;border:none;color:var(--teal-600);font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:2px;padding:8px}
-
-/* modal / lightbox */
-.modal-ov{position:fixed;inset:0;background:rgba(4,10,9,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center}
-.modal{background:var(--bg-elevated);width:100%;max-width:620px;border-radius:22px 22px 0 0;max-height:90vh;overflow-y:auto;
-  padding:16px 16px calc(24px + env(safe-area-inset-bottom,0))}
-.modal-handle{width:36px;height:4px;border-radius:99px;background:var(--border-strong);margin:0 auto 13px}
-.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px}
-.modal-head h3{font-size:16px}
-.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:300;display:flex;align-items:center;justify-content:center}
-.lightbox img{max-width:94vw;max-height:86vh;border-radius:12px}
-.lb-close{position:absolute;top:calc(14px + env(safe-area-inset-top,0));right:14px;width:38px;height:38px;border-radius:50%;
-  background:rgba(255,255,255,.16);color:#fff;border:none;font-size:15px}
-
-/* toasts */
-.toasts{position:fixed;top:calc(12px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:400;
-  display:flex;flex-direction:column;gap:8px;width:calc(100% - 28px);max-width:420px}
-.toast{display:flex;align-items:center;gap:9px;padding:11px 14px;border-radius:13px;font-size:12.5px;font-weight:700;
-  box-shadow:var(--shadow-lg);background:var(--surface);border:1px solid var(--border);color:var(--text)}
-.toast.success{border-left:4px solid var(--green-500)}
-.toast.error{border-left:4px solid var(--red-500)}
-.toast.warning{border-left:4px solid var(--amber-600)}
-.toast.info{border-left:4px solid var(--teal-500)}
-.toast i{font-size:14px}
-.toast.success i{color:var(--green-500)} .toast.error i{color:var(--red-500)}
-.toast.warning i{color:var(--amber-600)} .toast.info i{color:var(--teal-500)}
-
-.spinner{display:inline-block;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.center-load{text-align:center;padding:36px;color:var(--text-3);font-size:13px;font-weight:600}
-.chart-box{height:260px;position:relative;margin-bottom:14px}
-table.report{width:100%;border-collapse:collapse;font-size:12.5px}
-table.report th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);padding:8px 6px}
-table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:600}
-@media print{.tabbar,.topbar,.no-print{display:none !important}}
-</style>
-</head>
-<body>
-<div id="app" v-cloak>
-
-  <!-- ============ CARREGANDO ============ -->
-  <div v-if="booting" class="login">
-    <div class="login-inner login-hero">
-      <div class="login-logo"><i class="fas fa-shield-halved"></i></div>
-      <h2>ControlPoint</h2>
-      <p><i class="fas fa-circle-notch spinner"></i> Conectando...</p>
-    </div>
-  </div>
-
-  <!-- ============ LOGIN ============ -->
-  <div v-else-if="!user" class="login">
-    <div class="login-inner">
-      <div class="login-hero">
-        <div class="login-logo"><i class="fas fa-shield-halved"></i></div>
-        <h2>ControlPoint</h2>
-        <p>{{ bootstrapMode ? 'Crie a conta do administrador' : 'Entre para iniciar a auditoria' }}</p>
-      </div>
-      <div class="card">
-        <div v-if="authError" class="auth-error"><i class="fas fa-circle-exclamation"></i> {{ authError }}</div>
-
-        <div v-if="bootstrapMode" class="warn" style="margin-bottom:12px">
-          <i class="fas fa-circle-info"></i>
-          <span>Use apenas na implantação: se ainda não houver nenhum usuário, esta conta vira o administrador, que depois cadastra os auditores.</span>
-        </div>
-
-        <div class="field" v-if="bootstrapMode">
-          <label>Nome</label>
-          <input class="input" v-model="authForm.name" placeholder="Seu nome">
-        </div>
-        <div class="field">
-          <label>E-mail</label>
-          <input class="input" type="email" inputmode="email" v-model="authForm.email" placeholder="voce@empresa.com">
-        </div>
-        <div class="field">
-          <label>Senha</label>
-          <input class="input" type="password" v-model="authForm.password" placeholder="••••••"
-                 @keydown.enter="bootstrapMode ? handleBootstrap() : handleLogin()">
-        </div>
-
-        <button class="btn btn-primary btn-block" :disabled="loading"
-                @click="bootstrapMode ? handleBootstrap() : handleLogin()">
-          <i v-if="loading" class="fas fa-circle-notch spinner"></i>
-          <i v-else :class="bootstrapMode ? 'fas fa-user-shield' : 'fas fa-right-to-bracket'"></i>
-          {{ bootstrapMode ? 'Criar administrador' : 'Entrar' }}
-        </button>
-
-        <div style="text-align:center;margin-top:6px;display:flex;flex-direction:column">
-          <button v-if="!bootstrapMode" class="link-btn" @click="forgotPassword">Esqueci minha senha</button>
-          <button class="link-btn" @click="toggleBootstrap">
-            {{ bootstrapMode ? 'Voltar para o login' : 'Primeiro acesso — criar administrador' }}
-          </button>
-        </div>
-      </div>
-      <p style="text-align:center;font-size:11px;color:var(--text-3);margin-top:14px;font-weight:600">
-        Não tem acesso? Solicite o cadastro ao administrador.
-      </p>
-    </div>
-  </div>
-
-  <!-- ============ SEM CADASTRO ============ -->
-  <div v-else-if="profileMissing" class="login">
-    <div class="login-inner">
-      <div class="login-hero">
-        <div class="login-logo" style="background:linear-gradient(135deg,#f59e0b,#d97706)"><i class="fas fa-hourglass-half"></i></div>
-        <h2>Acesso pendente</h2>
-        <p>Sua conta existe, mas ainda não foi vinculada a uma equipe pelo administrador.</p>
-      </div>
-      <div class="card">
-        <p style="font-size:12.5px;color:var(--text-2);font-weight:600;margin:0 0 12px">
-          Informe este e-mail ao administrador: <b>{{ user.email }}</b>
-        </p>
-        <button class="btn btn-ghost btn-block" @click="logout"><i class="fas fa-right-from-bracket"></i> Sair</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ APLICAÇÃO ============ -->
-  <div v-else class="app">
-    <div class="topbar">
-      <div class="topbar-mark"><i class="fas fa-shield-halved"></i></div>
-      <div class="topbar-text">
-        <h1>ControlPoint</h1>
-        <p>{{ profile.name }} · {{ profile.team }}<span v-if="isAdmin"> · Admin</span></p>
-      </div>
-      <button class="top-btn" @click="toggleDarkMode" :title="isDarkMode ? 'Modo claro' : 'Modo escuro'">
-        <i :class="isDarkMode ? 'fas fa-sun' : 'fas fa-moon'"></i>
-      </button>
-      <button class="top-btn" @click="logout" title="Sair"><i class="fas fa-right-from-bracket"></i></button>
-    </div>
-
-    <div class="main">
-
-      <!-- ====== AUDITAR ====== -->
-      <template v-if="currentView === 'audit'">
-        <div class="pair">
-          <div class="pair-q">Quem está auditando quem?</div>
-          <div class="pair-flow">
-            <div class="pair-side">
-              <div class="role">Chegando · audita</div>
-              <div class="nm">{{ auditorTeam || '—' }}</div>
-            </div>
-            <div style="opacity:.85"><i class="fas fa-arrow-right-long"></i></div>
-            <div class="pair-side">
-              <div class="role">Saindo · auditada</div>
-              <div class="nm">{{ auditedTeam || '—' }}</div>
-            </div>
-          </div>
-          <div class="pair-foot">Rodízio definido pelo administrador</div>
-        </div>
-
-        <div class="card" v-if="isAdmin">
-          <div class="section-label">Equipe auditora (modo admin)</div>
-          <select v-model="adminAuditorTeam">
-            <option v-for="t in teams" :key="t" :value="t">{{ t }}</option>
-          </select>
-        </div>
-
-        <div class="warn" v-if="!auditedTeam">
-          <i class="fas fa-triangle-exclamation"></i>
-          <span>Não há rodízio configurado para a {{ auditorTeam || 'sua equipe' }}. Peça ao administrador para definir em Admin › Configurações.</span>
-        </div>
-
-        <div class="card">
-          <div class="field">
-            <label>Turno que está terminando</label>
-            <div class="chip-row">
-              <button v-for="s in SHIFTS" :key="s" class="chip" :class="{active: auditShift === s}" @click="auditShift = s">
-                <i :class="s === 'Dia' ? 'fas fa-sun' : 'fas fa-moon'" style="margin-right:5px"></i>{{ s }}
-              </button>
-            </div>
-          </div>
-          <div class="field">
-            <label>Data</label>
-            <input type="date" class="input" v-model="auditDate">
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="progress-wrap">
-            <div class="ring">
-              <svg viewBox="0 0 58 58">
-                <circle class="ring-track" cx="29" cy="29" r="24"></circle>
-                <circle class="ring-fill" cx="29" cy="29" r="24"
-                        :stroke="progress >= meta ? 'var(--green-500)' : 'var(--teal-500)'"
-                        :stroke-dasharray="150.8"
-                        :stroke-dashoffset="150.8 - (progress/100)*150.8"></circle>
-              </svg>
-              <div class="ring-label">{{ progress }}%</div>
-            </div>
-            <div class="progress-meta">
-              <div class="big">{{ answeredCount }}/{{ points.length }} pontos verificados</div>
-              <div class="small">✔ {{ okCount }} conforme · ✖ {{ nokCount }} não conforme · meta {{ meta }}%</div>
-              <div class="bar-track">
-                <div class="bar-target" :style="{left: meta + '%'}"></div>
-                <div class="bar-fill" :style="{width: progress + '%'}"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="warn" v-if="showErrors && (pendingPhotos || pendingReasons)">
-          <i class="fas fa-triangle-exclamation"></i>
-          <span>Não conformidades pendentes:
-            <template v-if="pendingPhotos">{{ pendingPhotos }} sem foto</template>
-            <template v-if="pendingPhotos && pendingReasons"> e </template>
-            <template v-if="pendingReasons">{{ pendingReasons }} sem descrição do motivo</template>.
-          </span>
-        </div>
-
-        <div class="card">
-          <div class="section-label">Pontos de verificação ({{ points.length }})</div>
-          <div v-if="loadingPoints" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando pontos...</div>
-          <div v-else-if="!points.length" class="empty">
-            <i class="fas fa-clipboard-list"></i>
-            <p>Nenhum ponto cadastrado. O administrador precisa cadastrá-los em Admin › Configurações.</p>
-          </div>
-          <div v-else class="cp-list">
-            <div v-for="(p, i) in points" :key="p.id" class="cp-item" :class="{ok: p.status==='ok', nok: p.status==='nok'}">
-              <div class="cp-row">
-                <div class="cp-num">{{ i + 1 }}</div>
-                <div class="cp-label">{{ p.name }}</div>
-                <div class="cp-ctrl">
-                  <button class="cp-btn" :class="{'sel-ok': p.status==='ok'}" @click="setStatus(p,'ok')" title="Conforme">
-                    <i class="fas fa-check"></i>
-                  </button>
-                  <button class="cp-btn" :class="{'sel-nok': p.status==='nok'}" @click="setStatus(p,'nok')" title="Não conforme">
-                    <i class="fas fa-xmark"></i>
-                  </button>
-                  <button class="cp-btn" :class="{'has-photo': p.photoUrl}" @click="triggerPhoto(p, i)" title="Foto">
-                    <i v-if="uploadingIndex === i" class="fas fa-circle-notch spinner"></i>
-                    <i v-else class="fas fa-camera"></i>
-                  </button>
-                </div>
-              </div>
-
-              <div class="cp-extra" v-if="p.photoUrl">
-                <div class="cp-links">
-                  <button class="cp-link" @click="openImage(p.photoUrl)"><i class="fas fa-image"></i> Visualizar imagem</button>
-                  <button class="cp-link muted" @click="removePhoto(p)">Remover</button>
-                </div>
-              </div>
-
-              <div class="cp-extra" v-if="p.status === 'nok'">
-                <label>Motivo da não conformidade *</label>
-                <textarea v-model="p.reason" rows="2"
-                  :class="{invalid: showErrors && (p.reason || '').trim().length < 5}"
-                  placeholder="Descreva o que foi encontrado (ex.: piso com resíduo de óleo próximo à bancada)"></textarea>
-                <div class="cp-hint" v-if="!p.photoUrl"><i class="fas fa-triangle-exclamation"></i> Foto de evidência obrigatória</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <button class="btn btn-primary btn-block" :disabled="saving || !points.length || !auditedTeam" @click="saveAudit">
-          <i v-if="saving" class="fas fa-circle-notch spinner"></i>
-          <i v-else class="fas fa-check"></i>
-          {{ saving ? 'Salvando...' : (answeredCount < points.length ? 'Concluir auditoria (' + answeredCount + '/' + points.length + ')' : 'Concluir auditoria') }}
-        </button>
-      </template>
-
-      <!-- ====== AUDITORIAS ====== -->
-      <template v-if="currentView === 'audits'">
-        <div class="subtab">
-          <button :class="{active: auditsTab==='received'}" @click="auditsTab='received'">Recebidas</button>
-          <button :class="{active: auditsTab==='made'}" @click="auditsTab='made'">Feitas por nós</button>
-          <button v-if="isAdmin" :class="{active: auditsTab==='all'}" @click="auditsTab='all'">Todas</button>
-        </div>
-
-        <div class="card">
-          <div class="field" style="margin:0">
-            <label>Mês de referência</label>
-            <input type="month" class="input" v-model="auditsMonth">
-          </div>
-        </div>
-
-        <div class="card" v-if="auditsTab === 'received' && auditsList.length">
-          <div class="card-title"><i class="fas fa-inbox"></i> Como sua equipe foi avaliada</div>
-          <div class="card-sub">Avaliações que a {{ myTeam }} recebeu no mês selecionado.</div>
-          <div class="stat-grid">
-            <div class="stat-box"><div class="num">{{ receivedAverage }}%</div><div class="lbl">Média recebida</div></div>
-            <div class="stat-box"><div class="num">{{ auditsList.length }}</div><div class="lbl">Auditorias</div></div>
-          </div>
-        </div>
-
-        <div v-if="loadingAudits" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando...</div>
-        <div v-else-if="!auditsList.length" class="card empty">
-          <i class="fas fa-clipboard"></i>
-          <p>{{ auditsTab === 'received' ? 'Sua equipe ainda não foi auditada neste mês.' : 'Nenhuma auditoria neste mês.' }}</p>
-        </div>
-
-        <div v-else v-for="item in auditsList" :key="item._id" class="audit-card">
-          <div class="audit-head" @click="toggleAudit(item._id)">
-            <div class="avatar">{{ (item.team || '?').replace('Equipe ','E') }}</div>
-            <div class="audit-info">
-              <div class="l1">{{ item.team }} <span style="font-weight:600;color:var(--text-3)">auditada por</span> {{ item.auditorTeam || '—' }}</div>
-              <div class="l2">{{ fmtDate(item.date) }} · {{ item.shift || '-' }} · {{ nonConformities(item).length }} não conf.<span v-if="item.auditorName"> · {{ item.auditorName }}</span></div>
-            </div>
-            <div class="score-badge" :class="(item.score >= (item.meta || meta)) ? 'pass' : 'fail'">{{ Math.round(item.score) }}%</div>
-            <i class="fas fa-chevron-down" :style="{transform: openAudits[item._id] ? 'rotate(180deg)' : '', color:'var(--text-3)'}"></i>
-          </div>
-          <div class="audit-detail" v-if="openAudits[item._id]">
-            <div v-for="p in item.points" :key="p.name" class="d-row" :class="(p.status==='ok' || p.checked) ? 'ok' : 'nok'">
-              <i :class="(p.status==='ok' || p.checked) ? 'fas fa-check' : 'fas fa-xmark'" style="margin-top:2px"></i>
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:700">{{ p.name }}</div>
-                <div class="d-reason" v-if="(p.reason || p.obs) && !(p.status==='ok' || p.checked)">{{ p.reason || p.obs }}</div>
-              </div>
-              <img v-if="p.photoUrl" class="d-thumb" :src="p.photoUrl" @click="openImage(p.photoUrl)">
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- ====== RELATÓRIOS ====== -->
-      <template v-if="currentView === 'reports'">
-        <div class="subtab no-print">
-          <button :class="{active: reportType==='monthly'}" @click="reportType='monthly'">Mensal</button>
-          <button :class="{active: reportType==='annual'}" @click="reportType='annual'">Anual</button>
-          <button :class="{active: reportType==='daily'}" @click="reportType='daily'">Diário</button>
-        </div>
-
-        <div class="card no-print">
-          <div class="field" style="margin:0">
-            <label>Período</label>
-            <input v-if="reportType==='monthly'" type="month" class="input" v-model="reportMonth">
-            <select v-else-if="reportType==='annual'" v-model="reportYear">
-              <option v-for="y in [2024,2025,2026,2027]" :key="y" :value="y">{{ y }}</option>
-            </select>
-            <input v-else type="date" class="input" v-model="dailyDate">
-          </div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn btn-ghost btn-sm" style="flex:1" @click="generatePDF"><i class="fas fa-file-pdf"></i> PDF</button>
-            <button class="btn btn-ghost btn-sm" style="flex:1" @click="takeScreenshot"><i class="fas fa-image"></i> Print</button>
-            <button class="btn btn-ghost btn-sm" style="flex:1" @click="exportCSV"><i class="fas fa-file-csv"></i> CSV</button>
-          </div>
-        </div>
-
-        <div id="reportContent" class="card">
-          <div v-if="loadingReports" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando...</div>
-          <template v-else>
-            <div class="card-title" style="margin-bottom:12px">
-              <i class="fas fa-chart-pie"></i>
-              {{ reportType==='monthly' ? 'Desempenho mensal' : reportType==='annual' ? 'Evolução anual' : 'Relatório diário' }}
-            </div>
-
-            <div v-if="reportType !== 'daily'" class="chart-box"><canvas id="mainChart"></canvas></div>
-
-            <table class="report" v-if="reportType==='monthly' && teamStats.length">
-              <thead><tr><th>#</th><th>Equipe</th><th>Média</th><th>Aud.</th></tr></thead>
-              <tbody>
-                <tr v-for="s in teamStats" :key="s.name">
-                  <td>{{ s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : s.rank + 'º' }}</td>
-                  <td>{{ s.name }}</td>
-                  <td :style="{color: s.average >= meta ? 'var(--green-600)' : 'var(--red-600)', fontWeight:800}">{{ s.average }}%</td>
-                  <td>{{ s.count }}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div v-if="reportType==='monthly' && !teamStats.length" class="empty"><i class="fas fa-chart-simple"></i><p>Sem dados neste mês.</p></div>
-
-            <div v-if="reportType==='daily'">
-              <div v-if="!dailyDataList.length" class="empty"><i class="fas fa-calendar-day"></i><p>Nenhuma auditoria nesta data.</p></div>
-              <div v-for="r in dailyDataList" :key="r._id" style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div style="width:74px;flex-shrink:0"><canvas :id="chartId(r._id)"></canvas></div>
-                  <div style="flex:1;min-width:0">
-                    <div style="font-size:14px;font-weight:800">{{ r.team }}</div>
-                    <div style="font-size:11.5px;color:var(--text-3);font-weight:600">
-                      Turno {{ r.shift || '-' }} · auditada por {{ r.auditorTeam || '—' }}
-                    </div>
-                    <div style="font-size:18px;font-weight:800;margin-top:3px"
-                         :style="{color: r.score >= meta ? 'var(--green-600)' : 'var(--red-600)'}">{{ Math.round(r.score) }}%</div>
-                  </div>
-                </div>
-                <div v-if="nonConformities(r).length" style="margin-top:10px;display:flex;flex-direction:column;gap:7px">
-                  <div v-for="p in nonConformities(r)" :key="p.name" class="d-reason">
-                    <b>{{ p.name }}</b><template v-if="p.reason || p.obs"> — {{ p.reason || p.obs }}</template>
-                  </div>
-                </div>
-                <div v-else class="d-row ok" style="margin-top:10px"><i class="fas fa-circle-check"></i> Todos os pontos conformes</div>
-              </div>
-            </div>
-          </template>
-        </div>
-      </template>
-
-      <!-- ====== ADMIN ====== -->
-      <template v-if="currentView === 'admin' && isAdmin">
-        <div class="subtab">
-          <button :class="{active: adminTab==='audits'}" @click="adminTab='audits'">Avaliações</button>
-          <button :class="{active: adminTab==='users'}" @click="adminTab='users'; loadUsers()">Usuários</button>
-          <button :class="{active: adminTab==='config'}" @click="adminTab='config'">Config.</button>
-        </div>
-
-        <!-- Avaliações -->
-        <template v-if="adminTab === 'audits'">
-          <div class="card">
-            <div class="field" style="margin:0">
-              <label>Mês de referência</label>
-              <input type="month" class="input" v-model="adminMonth">
-            </div>
-          </div>
-          <div v-if="loadingAdminAudits" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando...</div>
-          <div v-else-if="!adminAudits.length" class="card empty"><i class="fas fa-folder-open"></i><p>Nenhuma auditoria neste mês.</p></div>
-          <div v-else class="card">
-            <div class="section-label">Avaliações ({{ adminAudits.length }})</div>
-            <div v-for="a in adminAudits" :key="a._id" class="list-row">
-              <div class="li">
-                {{ a.team }} <span style="color:var(--text-3);font-weight:600">por {{ a.auditorTeam || '—' }}</span>
-                <div class="ls">{{ fmtDate(a.date) }} · {{ a.shift || '-' }} · {{ Math.round(a.score) }}%<span v-if="a.auditorName"> · {{ a.auditorName }}</span></div>
-              </div>
-              <button class="icon-btn" @click="openEdit(a)"><i class="fas fa-pen-to-square"></i></button>
-              <button class="icon-btn danger" @click="deleteAudit(a)"><i class="fas fa-trash"></i></button>
-            </div>
-            <button class="btn btn-ghost btn-sm" style="margin-top:10px" @click="exportCSV"><i class="fas fa-file-csv"></i> Exportar CSV do mês</button>
-          </div>
-        </template>
-
-        <!-- Usuários -->
-        <template v-if="adminTab === 'users'">
-          <div class="card">
-            <div class="card-title"><i class="fas fa-users"></i> Usuários cadastrados</div>
-            <div class="card-sub">Cada auditor entra com e-mail e senha. A equipe do usuário define quem ele audita.</div>
-            <div v-if="loadingUsers" class="center-load"><i class="fas fa-circle-notch spinner"></i></div>
-            <template v-else>
-              <div v-for="u in usersList" :key="u.uid" class="list-row">
-                <div class="avatar">{{ initials(u.name) }}</div>
-                <div class="li">{{ u.name }}
-                  <div class="ls">{{ u.team }} · {{ u.role === 'admin' ? 'Administrador' : 'Auditor' }} · {{ u.email }}</div>
-                </div>
-                <button class="icon-btn" @click="resetPassword(u.email)" title="Enviar redefinição de senha"><i class="fas fa-key"></i></button>
-                <button class="icon-btn" @click="editUser(u)"><i class="fas fa-pen-to-square"></i></button>
-                <button class="icon-btn danger" @click="deleteUser(u)"><i class="fas fa-trash"></i></button>
-              </div>
-              <button class="btn btn-ghost btn-sm" style="margin-top:10px" @click="newUser"><i class="fas fa-plus"></i> Cadastrar usuário</button>
-            </template>
-          </div>
-        </template>
-
-        <!-- Config -->
-        <template v-if="adminTab === 'config'">
-          <div class="card">
-            <div class="card-title"><i class="fas fa-bullseye"></i> Meta de desempenho</div>
-            <div style="height:12px"></div>
-            <div class="slider-row">
-              <input type="range" min="0" max="100" v-model.number="meta">
-              <div class="target-val">{{ meta }}%</div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-title"><i class="fas fa-users"></i> Equipes</div>
-            <div style="height:12px"></div>
-            <div v-for="t in teams" :key="t" class="cfg-row">
-              <div class="input" style="flex:1">{{ t }}</div>
-              <button class="icon-btn danger" @click="removeTeam(t)"><i class="fas fa-trash"></i></button>
-            </div>
-            <div class="cfg-row">
-              <input class="input" v-model="newTeamName" placeholder="Nova equipe" @keydown.enter="addTeam">
-              <button class="icon-btn" @click="addTeam"><i class="fas fa-plus"></i></button>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-title"><i class="fas fa-arrow-right-arrow-left"></i> Rodízio de auditoria</div>
-            <div class="card-sub">Quem cada equipe audita ao chegar no turno. Padrão: 1→4, 4→3, 3→2, 2→1.</div>
-            <div v-for="t in teams" :key="'rot'+t" class="rot-row">
-              <div class="rot-from">{{ t }}</div>
-              <i class="fas fa-arrow-right" style="color:var(--text-3)"></i>
-              <select v-model="rotation[t]">
-                <option value="">— não audita —</option>
-                <option v-for="x in teams.filter(y => y !== t)" :key="x" :value="x">{{ x }}</option>
-              </select>
-            </div>
-          </div>
-
-          <button class="btn btn-primary btn-block" :disabled="savingConfig" @click="saveGeneralConfig">
-            <i v-if="savingConfig" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-floppy-disk"></i>
-            Salvar meta, equipes e rodízio
-          </button>
-
-          <div class="card">
-            <div class="card-title"><i class="fas fa-clipboard-list"></i> Pontos de verificação</div>
-            <div class="card-sub">Salvos individualmente na coleção <code>config_pontos</code>.</div>
-            <div v-for="p in pointsConfig" :key="p.id" class="cfg-row">
-              <input class="input" v-model="p.name" @blur="renamePoint(p)">
-              <button class="icon-btn danger" @click="deletePoint(p.id)"><i class="fas fa-trash"></i></button>
-            </div>
-            <div class="cfg-row">
-              <input class="input" v-model="newPointName" placeholder="Novo ponto de verificação" @keydown.enter="addPoint">
-              <button class="icon-btn" @click="addPoint"><i class="fas fa-plus"></i></button>
-            </div>
-          </div>
-        </template>
-      </template>
-
-      <!-- ====== SOBRE ====== -->
-      <template v-if="currentView === 'about'">
-        <div class="card" style="text-align:center">
-          <div class="login-logo" style="margin-bottom:12px"><i class="fas fa-shield-halved"></i></div>
-          <h3 style="font-size:18px">ControlPoint</h3>
-          <p style="font-size:12.5px;color:var(--text-3);font-weight:600;margin:6px 0 0">
-            Versão {{ appVersion }} · {{ versionStatus }}
-          </p>
-          <p style="font-size:12px;color:var(--text-3);margin:10px 0 0;line-height:1.5">
-            Auditoria cruzada de limpeza e organização na virada de turno.
-          </p>
-        </div>
-        <div class="card" v-if="versionInfo.features && versionInfo.features.length">
-          <div class="card-title"><i class="fas fa-star"></i> Nesta versão</div>
-          <div style="height:10px"></div>
-          <div v-for="(f,i) in versionInfo.features" :key="i" class="d-row ok" style="padding:4px 0">
-            <i class="fas fa-check" style="margin-top:2px"></i><span>{{ f }}</span>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title"><i class="fas fa-user"></i> Minha conta</div>
-          <div style="height:10px"></div>
-          <div class="list-row">
-            <div class="avatar">{{ initials(profile.name) }}</div>
-            <div class="li">{{ profile.name }}<div class="ls">{{ profile.team }} · {{ profile.email }}</div></div>
-          </div>
-          <div class="warn" style="margin-top:12px" v-if="rotation[myTeam]">
-            <i class="fas fa-arrow-right-long"></i><span>Sua equipe audita a <b>{{ rotation[myTeam] }}</b>.</span>
-          </div>
-          <button class="btn btn-ghost btn-block" style="margin-top:12px" @click="logout">
-            <i class="fas fa-right-from-bracket"></i> Sair da conta
-          </button>
-        </div>
-      </template>
-
-    </div>
-
-    <!-- tabbar -->
-    <div class="tabbar">
-      <button v-for="item in menuItems" :key="item.id" class="tab-btn"
-              :class="{active: currentView === item.id}" @click="currentView = item.id">
-        <i :class="item.icon"></i>{{ item.label }}
-      </button>
-    </div>
-  </div>
-
-  <!-- ============ MODAL: EDITAR AVALIAÇÃO ============ -->
-  <div class="modal-ov" v-if="editing" @click.self="closeEdit">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <div class="modal-head">
-        <h3>Editar avaliação</h3>
-        <button class="icon-btn" @click="closeEdit"><i class="fas fa-xmark"></i></button>
-      </div>
-      <div class="card-sub">{{ editing.team }} auditada por {{ editing.auditorTeam || '—' }} · {{ fmtDate(editing.date) }}</div>
-
-      <div class="field">
-        <label>Turno</label>
-        <div class="chip-row">
-          <button v-for="s in SHIFTS" :key="s" class="chip" :class="{active: editing.shift === s}" @click="editing.shift = s">{{ s }}</button>
-        </div>
-      </div>
-
-      <div class="section-label" style="margin-top:6px">Pontos</div>
-      <div class="cp-list">
-        <div v-for="(p,i) in editing.points" :key="i" class="cp-item" :class="{ok: p.status==='ok' || p.checked, nok: p.status==='nok' || (p.status==null && p.checked===false)}">
-          <div class="cp-row">
-            <div class="cp-num">{{ i+1 }}</div>
-            <div class="cp-label">{{ p.name }}</div>
-            <div class="cp-ctrl">
-              <button class="cp-btn" :class="{'sel-ok': p.status==='ok'}" @click="setEditStatus(p,'ok')"><i class="fas fa-check"></i></button>
-              <button class="cp-btn" :class="{'sel-nok': p.status==='nok'}" @click="setEditStatus(p,'nok')"><i class="fas fa-xmark"></i></button>
-            </div>
-          </div>
-          <div class="cp-extra" v-if="p.photoUrl">
-            <div class="cp-links"><button class="cp-link" @click="openImage(p.photoUrl)"><i class="fas fa-image"></i> Visualizar imagem</button></div>
-          </div>
-          <div class="cp-extra" v-if="p.status === 'nok'">
-            <label>Motivo *</label>
-            <textarea v-model="p.reason" rows="2"></textarea>
-          </div>
-        </div>
-      </div>
-
-      <button class="btn btn-primary btn-block" style="margin-top:12px" @click="saveEdit">
-        <i class="fas fa-floppy-disk"></i> Salvar alterações
-      </button>
-    </div>
-  </div>
-
-  <!-- ============ MODAL: USUÁRIO ============ -->
-  <div class="modal-ov" v-if="userForm" @click.self="closeUserForm">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <div class="modal-head">
-        <h3>{{ userForm.uid ? 'Editar usuário' : 'Novo usuário' }}</h3>
-        <button class="icon-btn" @click="closeUserForm"><i class="fas fa-xmark"></i></button>
-      </div>
-      <div class="field"><label>Nome completo</label><input class="input" v-model="userForm.name" placeholder="Ex.: Maria Silva"></div>
-      <div class="field">
-        <label>E-mail</label>
-        <input class="input" type="email" v-model="userForm.email" :disabled="!!userForm.uid" placeholder="maria@empresa.com">
-      </div>
-      <div class="field" v-if="!userForm.uid">
-        <label>Senha provisória (mín. 6 caracteres)</label>
-        <input class="input" type="text" v-model="userForm.password" placeholder="••••••">
-      </div>
-      <div class="field">
-        <label>Equipe</label>
-        <select v-model="userForm.team"><option v-for="t in teams" :key="t" :value="t">{{ t }}</option></select>
-      </div>
-      <div class="field">
-        <label>Perfil</label>
-        <div class="chip-row">
-          <button class="chip" :class="{active: userForm.role==='auditor'}" @click="userForm.role='auditor'">Auditor</button>
-          <button class="chip" :class="{active: userForm.role==='admin'}" @click="userForm.role='admin'">Administrador</button>
-        </div>
-      </div>
-      <button class="btn btn-primary btn-block" :disabled="savingUser" @click="saveUser">
-        <i v-if="savingUser" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-check"></i>
-        {{ userForm.uid ? 'Salvar alterações' : 'Cadastrar usuário' }}
-      </button>
-    </div>
-  </div>
-
-  <!-- ============ LIGHTBOX ============ -->
-  <div class="lightbox" v-if="lightboxUrl" @click.self="closeImage">
-    <button class="lb-close" @click="closeImage"><i class="fas fa-xmark"></i></button>
-    <img :src="lightboxUrl">
-  </div>
-
-  <!-- ============ TOASTS ============ -->
-  <div class="toasts">
-    <div v-for="n in notifications" :key="n.id" class="toast" :class="n.type" @click="removeNotification(n.id)">
-      <i :class="n.type==='success' ? 'fas fa-circle-check' : n.type==='error' ? 'fas fa-circle-exclamation' : n.type==='warning' ? 'fas fa-triangle-exclamation' : 'fas fa-circle-info'"></i>
-      <span style="flex:1">{{ n.message }}</span>
-    </div>
-  </div>
-
-  <input type="file" ref="fileInput" accept="image/*" capture="environment" style="display:none" @change="onPhotoSelected">
-</div>
-
-<script type="module" src="./app.js"></script>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+import { createApp, ref, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
+import {
+  db, auth, storage,
+  collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
+  where, getDoc, orderBy, limit,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
+  storageRef, uploadBytes, getDownloadURL,
+  createUserAsAdmin
+} from './firebase.js'
+
+createApp({
+  setup() {
+    /* ==================== ESTADO GERAL ==================== */
+    const booting = ref(true)
+    const user = ref(null)              // usuário do Firebase Auth
+    const profile = ref(null)           // documento users/{uid}
+    const profileMissing = ref(false)   // logado no Auth mas sem cadastro
+    const bootstrapMode = ref(false)    // nenhum usuário cadastrado ainda
+    const authForm = ref({ email: '', password: '', name: '' })
+    const authError = ref('')
+    const loading = ref(false)
+    const isDarkMode = ref(localStorage.getItem('darkMode') === 'true')
+
+    const isAdmin = computed(() => profile.value?.role === 'admin')
+    const myTeam = computed(() => profile.value?.team || '')
+
+    /* ==================== NOTIFICAÇÕES ==================== */
+    const notifications = ref([])
+    let notificationId = 0
+    const showNotification = (message, type = 'info', duration = 3200) => {
+      const id = ++notificationId
+      notifications.value.push({ id, message, type })
+      if (duration > 0) setTimeout(() => removeNotification(id), duration)
+      return id
+    }
+    const removeNotification = (id) => { notifications.value = notifications.value.filter(n => n.id !== id) }
+    const showSuccess = (m, d = 3000) => showNotification(m, 'success', d)
+    const showError = (m, d = 5000) => showNotification(m, 'error', d)
+    const showWarning = (m, d = 4000) => showNotification(m, 'warning', d)
+    const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
+
+    /* ==================== VERSÃO ==================== */
+    const appVersion = ref('3.0.0')
+    const versionStatus = ref('Stable')
+    const versionInfo = ref({})
+    const loadVersionInfo = async () => {
+      try {
+        const r = await fetch('./version.json')
+        if (!r.ok) return
+        const d = await r.json()
+        appVersion.value = d.version
+        versionStatus.value = (d.status || '').charAt(0).toUpperCase() + (d.status || '').slice(1)
+        versionInfo.value = d
+      } catch (e) { /* offline */ }
+    }
+
+    /* ==================== NAVEGAÇÃO ==================== */
+    const currentView = ref('audit')
+    const menuItems = computed(() => {
+      const base = [
+        { id: 'audit', label: 'Auditar', icon: 'fas fa-clipboard-check' },
+        { id: 'audits', label: 'Auditorias', icon: 'fas fa-inbox' },
+        { id: 'reports', label: 'Relatórios', icon: 'fas fa-chart-pie' }
+      ]
+      if (isAdmin.value) base.push({ id: 'admin', label: 'Admin', icon: 'fas fa-user-shield' })
+      base.push({ id: 'about', label: 'Sobre', icon: 'fas fa-circle-info' })
+      return base
+    })
+
+    /* ==================== CONFIGURAÇÃO ==================== */
+    const DEFAULT_TEAMS = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4']
+    // Rodízio: quem chega audita quem sai
+    const DEFAULT_ROTATION = { 'Equipe 1': 'Equipe 4', 'Equipe 4': 'Equipe 3', 'Equipe 3': 'Equipe 2', 'Equipe 2': 'Equipe 1' }
+    const SHIFTS = ['Dia', 'Noite']
+
+    const teams = ref([...DEFAULT_TEAMS])
+    const rotation = ref({ ...DEFAULT_ROTATION })
+    const meta = ref(93)
+    const pointsConfig = ref([])
+    const newPointName = ref('')
+    const configLoaded = ref(false)
+
+    const loadConfig = async () => {
+      if (!db) return
+      try {
+        const [mSnap, rSnap, tSnap] = await Promise.all([
+          getDoc(doc(db, 'config_geral', 'meta_padrao')),
+          getDoc(doc(db, 'config_geral', 'rodizio')),
+          getDoc(doc(db, 'config_geral', 'equipes'))
+        ])
+        if (mSnap.exists()) meta.value = mSnap.data().valor ?? 93
+        if (tSnap.exists() && Array.isArray(tSnap.data().lista) && tSnap.data().lista.length) teams.value = tSnap.data().lista
+        if (rSnap.exists() && rSnap.data().mapa) rotation.value = rSnap.data().mapa
+        else rotation.value = { ...DEFAULT_ROTATION }
+      } catch (e) { console.warn('Config padrão em uso:', e.message) }
+      configLoaded.value = true
+    }
+
+    const loadMasterPoints = async () => {
+      if (!db) return
+      loadingPoints.value = true
+      try {
+        const snap = await getDocs(query(collection(db, 'config_pontos')))
+        const list = []
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }))
+        list.sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || String(a.name).localeCompare(String(b.name)))
+        pointsConfig.value = list
+      } catch (e) { console.error('Erro ao carregar pontos:', e) }
+      finally { loadingPoints.value = false }
+    }
+
+    /* ==================== AUDITORIA ==================== */
+    const loadingPoints = ref(false)
+    const saving = ref(false)
+    const auditDate = ref(new Date().toISOString().split('T')[0])
+    const auditShift = ref(new Date().getHours() >= 6 && new Date().getHours() < 18 ? 'Dia' : 'Noite')
+    const adminAuditorTeam = ref('')      // admin pode escolher a equipe auditora
+    const points = ref([])
+    const showErrors = ref(false)
+    const uploadingIndex = ref(null)
+
+    const auditorTeam = computed(() => isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value)
+    const auditedTeam = computed(() => rotation.value[auditorTeam.value] || '')
+
+    const okCount = computed(() => points.value.filter(p => p.status === 'ok').length)
+    const nokCount = computed(() => points.value.filter(p => p.status === 'nok').length)
+    const answeredCount = computed(() => okCount.value + nokCount.value)
+    const progress = computed(() => points.value.length ? Math.round(okCount.value / points.value.length * 100) : 0)
+    const pendingPhotos = computed(() => points.value.filter(p => p.status === 'nok' && !p.photoUrl).length)
+    const pendingReasons = computed(() => points.value.filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length)
+    const canSubmit = computed(() =>
+      points.value.length > 0 && answeredCount.value === points.value.length &&
+      !!auditedTeam.value && pendingPhotos.value === 0 && pendingReasons.value === 0
+    )
+
+    const auditDocId = () => `${auditedTeam.value}_${auditDate.value}_${auditShift.value}`
+
+    const buildChecklist = () => {
+      points.value = pointsConfig.value.map(p => ({
+        id: p.id, name: p.name, status: null, reason: '', photoUrl: '', photoPath: ''
+      }))
+      showErrors.value = false
+    }
+
+    const loadExistingAudit = async () => {
+      if (!pointsConfig.value.length) return
+      buildChecklist()
+      if (!db || !auditedTeam.value) return
+      try {
+        const snap = await getDoc(doc(db, 'inspections', auditDocId()))
+        if (!snap.exists()) return
+        const data = snap.data()
+        points.value.forEach(p => {
+          const found = (data.points || []).find(sp => sp.name === p.name)
+          if (found) {
+            p.status = found.status || (found.checked ? 'ok' : null)
+            p.reason = found.reason || found.obs || ''
+            p.photoUrl = found.photoUrl || ''
+            p.photoPath = found.photoPath || ''
+          }
+        })
+        showInfo('Auditoria existente carregada para edição')
+      } catch (e) { /* nova auditoria */ }
+    }
+
+    const setStatus = (point, status) => {
+      point.status = point.status === status ? null : status
+      if (point.status !== 'nok') point.reason = ''
+    }
+
+    /* --- Fotos --- */
+    const fileInput = ref(null)
+    let pendingPhotoPoint = null
+    const triggerPhoto = (point, index) => {
+      pendingPhotoPoint = point
+      uploadingIndex.value = null
+      if (fileInput.value) { fileInput.value.value = ''; fileInput.value.click() }
+    }
+
+    const resizeImage = (file, maxDim = 1280, quality = 0.72) => new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        let w = img.width, h = img.height
+        if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim }
+        else if (h >= w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim }
+        const c = document.createElement('canvas')
+        c.width = w; c.height = h
+        c.getContext('2d').drawImage(img, 0, 0, w, h)
+        URL.revokeObjectURL(url)
+        c.toBlob(b => b ? resolve(b) : reject(new Error('Falha ao processar imagem')), 'image/jpeg', quality)
+      }
+      img.onerror = () => reject(new Error('Imagem inválida'))
+      img.src = url
+    })
+
+    const onPhotoSelected = async (ev) => {
+      const file = ev.target.files && ev.target.files[0]
+      ev.target.value = ''
+      const point = pendingPhotoPoint
+      pendingPhotoPoint = null
+      if (!file || !point) return
+      if (!storage) { showError('Firebase Storage indisponível'); return }
+      const idx = points.value.indexOf(point)
+      uploadingIndex.value = idx
+      try {
+        const blob = await resizeImage(file)
+        const path = `inspecoes/${auditDocId()}/${Date.now()}_${idx}.jpg`
+        const r = storageRef(storage, path)
+        await uploadBytes(r, blob, { contentType: 'image/jpeg' })
+        point.photoUrl = await getDownloadURL(r)
+        point.photoPath = path
+        showSuccess('Foto anexada')
+      } catch (e) {
+        console.error(e)
+        showError('Não foi possível enviar a foto: ' + e.message)
+      } finally { uploadingIndex.value = null }
+    }
+
+    const removePhoto = (point) => { point.photoUrl = ''; point.photoPath = '' }
+
+    /* --- Lightbox --- */
+    const lightboxUrl = ref('')
+    const openImage = (url) => { if (url) lightboxUrl.value = url }
+    const closeImage = () => { lightboxUrl.value = '' }
+
+    /* --- Salvar --- */
+    const saveAudit = async () => {
+      if (!db) { showError('Banco de dados desconectado'); return }
+      if (!auditedTeam.value) { showError('Rodízio não configurado para sua equipe'); return }
+      if (answeredCount.value < points.value.length) { showWarning('Verifique todos os pontos'); return }
+      if (pendingPhotos.value || pendingReasons.value) {
+        showErrors.value = true
+        showWarning('Complete as não conformidades (motivo e foto)')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      saving.value = true
+      try {
+        const payload = {
+          team: auditedTeam.value,              // equipe avaliada (compatível com relatórios)
+          auditorTeam: auditorTeam.value,       // equipe que auditou
+          auditorName: profile.value?.name || user.value.email,
+          auditorUid: user.value.uid,
+          date: auditDate.value,
+          shift: auditShift.value,
+          score: progress.value,
+          meta: meta.value,
+          points: points.value.map(p => ({
+            name: p.name,
+            status: p.status,
+            checked: p.status === 'ok',        // compatibilidade com dados antigos
+            reason: p.status === 'nok' ? (p.reason || '').trim() : '',
+            obs: p.status === 'nok' ? (p.reason || '').trim() : '',
+            photoUrl: p.photoUrl || '',
+            photoPath: p.photoPath || ''
+          })),
+          updatedAt: new Date().toISOString()
+        }
+        await setDoc(doc(db, 'inspections', auditDocId()), payload)
+        showSuccess('Auditoria registrada com sucesso!')
+        currentView.value = 'audits'
+        auditsTab.value = 'made'
+        loadAudits()
+      } catch (e) {
+        console.error(e)
+        showError('Erro ao salvar: ' + e.message)
+      } finally { saving.value = false }
+    }
+
+    /* ==================== AUDITORIAS (recebidas / feitas) ==================== */
+    const auditsTab = ref('received')
+    const auditsList = ref([])
+    const loadingAudits = ref(false)
+    const auditsMonth = ref(new Date().toISOString().slice(0, 7))
+    const openAudits = ref({})
+
+    const toggleAudit = (id) => { openAudits.value[id] = !openAudits.value[id] }
+
+    const loadAudits = async () => {
+      if (!db || !profile.value) return
+      loadingAudits.value = true
+      auditsList.value = []
+      try {
+        const start = auditsMonth.value + '-01'
+        const end = auditsMonth.value + '-31'
+        const field = auditsTab.value === 'received' ? 'team' : 'auditorTeam'
+        let list = []
+        if (auditsTab.value === 'all') {
+          const snap = await getDocs(query(collection(db, 'inspections'), where('date', '>=', start), where('date', '<=', end)))
+          snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
+        } else {
+          const snap = await getDocs(query(collection(db, 'inspections'), where(field, '==', myTeam.value)))
+          snap.forEach(d => {
+            const data = d.data()
+            if (data.date >= start && data.date <= end) list.push({ _id: d.id, ...data })
+          })
+        }
+        list.sort((a, b) => b.date.localeCompare(a.date) || String(a.team).localeCompare(String(b.team)))
+        auditsList.value = list
+      } catch (e) {
+        console.error(e)
+        showError('Erro ao carregar auditorias: ' + e.message)
+      } finally { loadingAudits.value = false }
+    }
+
+    const receivedAverage = computed(() => {
+      if (!auditsList.value.length) return 0
+      return Math.round(auditsList.value.reduce((s, a) => s + (parseFloat(a.score) || 0), 0) / auditsList.value.length)
+    })
+
+    const nonConformities = (item) => (item.points || []).filter(p => p.status === 'nok' || p.checked === false)
+
+    /* ==================== ADMIN: AVALIAÇÕES ==================== */
+    const adminTab = ref('audits')
+    const adminAudits = ref([])
+    const loadingAdminAudits = ref(false)
+    const adminMonth = ref(new Date().toISOString().slice(0, 7))
+
+    const loadAdminAudits = async () => {
+      if (!db || !isAdmin.value) return
+      loadingAdminAudits.value = true
+      try {
+        const start = adminMonth.value + '-01'
+        const end = adminMonth.value + '-31'
+        const snap = await getDocs(query(collection(db, 'inspections'), where('date', '>=', start), where('date', '<=', end)))
+        const list = []
+        snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
+        list.sort((a, b) => b.date.localeCompare(a.date) || String(a.team).localeCompare(String(b.team)))
+        adminAudits.value = list
+      } catch (e) { showError('Erro: ' + e.message) }
+      finally { loadingAdminAudits.value = false }
+    }
+
+    const editing = ref(null) // cópia da auditoria em edição
+    const openEdit = (item) => { editing.value = JSON.parse(JSON.stringify(item)) }
+    const closeEdit = () => { editing.value = null }
+    const setEditStatus = (p, status) => {
+      p.status = p.status === status ? null : status
+      p.checked = p.status === 'ok'
+      if (p.status !== 'nok') { p.reason = ''; p.obs = '' }
+    }
+    const saveEdit = async () => {
+      const e0 = editing.value
+      if (!e0) return
+      const bad = (e0.points || []).filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length
+      if (bad) { showWarning('Descreva o motivo de todas as não conformidades'); return }
+      try {
+        const total = e0.points.length
+        const ok = e0.points.filter(p => p.status === 'ok').length
+        const payload = {
+          points: e0.points.map(p => ({ ...p, checked: p.status === 'ok', obs: p.reason || '' })),
+          score: total ? Math.round(ok / total * 100) : 0,
+          shift: e0.shift || 'Dia',
+          updatedAt: new Date().toISOString(),
+          editedBy: profile.value?.name || user.value.email
+        }
+        await updateDoc(doc(db, 'inspections', e0._id), payload)
+        showSuccess('Avaliação atualizada')
+        closeEdit()
+        loadAdminAudits()
+      } catch (err) { showError('Erro ao salvar: ' + err.message) }
+    }
+
+    const deleteAudit = async (item) => {
+      if (!confirm(`Excluir a auditoria da ${item.team} de ${item.date.split('-').reverse().join('/')} (${item.shift || '-'})?`)) return
+      try {
+        await deleteDoc(doc(db, 'inspections', item._id))
+        adminAudits.value = adminAudits.value.filter(a => a._id !== item._id)
+        auditsList.value = auditsList.value.filter(a => a._id !== item._id)
+        showSuccess('Auditoria excluída')
+      } catch (e) { showError('Erro ao excluir: ' + e.message) }
+    }
+
+    /* ==================== ADMIN: USUÁRIOS ==================== */
+    const usersList = ref([])
+    const loadingUsers = ref(false)
+    const userForm = ref(null)
+    const savingUser = ref(false)
+
+    const loadUsers = async () => {
+      if (!db) return
+      loadingUsers.value = true
+      try {
+        const snap = await getDocs(collection(db, 'users'))
+        const list = []
+        snap.forEach(d => list.push({ uid: d.id, ...d.data() }))
+        list.sort((a, b) => String(a.team).localeCompare(String(b.team)) || String(a.name).localeCompare(String(b.name)))
+        usersList.value = list
+      } catch (e) { console.error(e) }
+      finally { loadingUsers.value = false }
+    }
+
+    const newUser = () => { userForm.value = { uid: null, name: '', email: '', password: '', team: teams.value[0] || '', role: 'auditor' } }
+    const editUser = (u) => { userForm.value = { uid: u.uid, name: u.name, email: u.email, password: '', team: u.team, role: u.role } }
+    const closeUserForm = () => { userForm.value = null }
+
+    const saveUser = async () => {
+      const f = userForm.value
+      if (!f) return
+      if (!f.name || f.name.trim().length < 2) { showWarning('Informe o nome'); return }
+      savingUser.value = true
+      try {
+        if (f.uid) {
+          await updateDoc(doc(db, 'users', f.uid), { name: f.name.trim(), team: f.team, role: f.role })
+          showSuccess('Usuário atualizado')
+        } else {
+          if (!f.email || !f.email.includes('@')) { showWarning('E-mail inválido'); savingUser.value = false; return }
+          if (!f.password || f.password.length < 6) { showWarning('A senha precisa de ao menos 6 caracteres'); savingUser.value = false; return }
+          const uid = await createUserAsAdmin(f.email.trim(), f.password)
+          await setDoc(doc(db, 'users', uid), {
+            name: f.name.trim(), email: f.email.trim(), team: f.team, role: f.role, createdAt: new Date().toISOString()
+          })
+          showSuccess('Usuário cadastrado')
+        }
+        closeUserForm()
+        loadUsers()
+      } catch (e) {
+        showError('Erro: ' + (e.code === 'auth/email-already-in-use' ? 'este e-mail já está cadastrado' : e.message))
+      } finally { savingUser.value = false }
+    }
+
+    const deleteUser = async (u) => {
+      if (u.uid === user.value.uid) { showWarning('Você não pode remover seu próprio usuário'); return }
+      if (u.role === 'admin' && usersList.value.filter(x => x.role === 'admin').length <= 1) { showWarning('Mantenha ao menos um administrador'); return }
+      if (!confirm(`Remover o acesso de ${u.name}?`)) return
+      try {
+        await deleteDoc(doc(db, 'users', u.uid))
+        usersList.value = usersList.value.filter(x => x.uid !== u.uid)
+        showSuccess('Acesso removido. A conta de login continua no Authentication — exclua no console se desejar.')
+      } catch (e) { showError('Erro: ' + e.message) }
+    }
+
+    const resetPassword = async (email) => {
+      try { await sendPasswordResetEmail(auth, email); showSuccess('E-mail de redefinição enviado para ' + email) }
+      catch (e) { showError('Erro: ' + e.message) }
+    }
+
+    /* ==================== ADMIN: CONFIGURAÇÕES ==================== */
+    const savingConfig = ref(false)
+    const newTeamName = ref('')
+
+    const addTeam = () => {
+      const n = newTeamName.value.trim()
+      if (!n) return
+      if (teams.value.includes(n)) { showWarning('Equipe já existe'); return }
+      teams.value.push(n); newTeamName.value = ''
+    }
+    const removeTeam = (t) => {
+      teams.value = teams.value.filter(x => x !== t)
+      delete rotation.value[t]
+      Object.keys(rotation.value).forEach(k => { if (rotation.value[k] === t) rotation.value[k] = '' })
+    }
+
+    const saveGeneralConfig = async () => {
+      savingConfig.value = true
+      try {
+        await Promise.all([
+          setDoc(doc(db, 'config_geral', 'meta_padrao'), { valor: meta.value }),
+          setDoc(doc(db, 'config_geral', 'equipes'), { lista: teams.value }),
+          setDoc(doc(db, 'config_geral', 'rodizio'), { mapa: rotation.value })
+        ])
+        showSuccess('Configurações salvas')
+      } catch (e) { showError('Erro ao salvar: ' + e.message) }
+      finally { savingConfig.value = false }
+    }
+
+    const addPoint = async () => {
+      const n = newPointName.value.trim()
+      if (!n) return
+      try {
+        const r = await addDoc(collection(db, 'config_pontos'), { name: n, ordem: pointsConfig.value.length + 1 })
+        pointsConfig.value.push({ id: r.id, name: n, ordem: pointsConfig.value.length + 1 })
+        newPointName.value = ''
+        showSuccess('Ponto adicionado')
+      } catch (e) { showError('Erro: ' + e.message) }
+    }
+    const deletePoint = async (id) => {
+      if (!confirm('Remover este ponto de verificação?')) return
+      try {
+        await deleteDoc(doc(db, 'config_pontos', id))
+        pointsConfig.value = pointsConfig.value.filter(p => p.id !== id)
+        showSuccess('Ponto removido')
+      } catch (e) { showError('Erro: ' + e.message) }
+    }
+    const renamePoint = async (p) => {
+      try { await updateDoc(doc(db, 'config_pontos', p.id), { name: p.name }); showSuccess('Ponto atualizado') }
+      catch (e) { showError('Erro: ' + e.message) }
+    }
+
+    /* ==================== RELATÓRIOS ==================== */
+    const reportType = ref('monthly')
+    const reportMonth = ref(new Date().toISOString().slice(0, 7))
+    const reportYear = ref(new Date().getFullYear())
+    const dailyDate = ref(new Date().toISOString().split('T')[0])
+    const loadingReports = ref(false)
+    const teamStats = ref([])
+    const dailyDataList = ref([])
+
+    const loadReports = async () => {
+      if (!db || !user.value) return
+      loadingReports.value = true
+      teamStats.value = []
+      dailyDataList.value = []
+      try {
+        if (reportType.value === 'monthly') {
+          const snap = await getDocs(query(collection(db, 'inspections'),
+            where('date', '>=', reportMonth.value + '-01'), where('date', '<=', reportMonth.value + '-31')))
+          const stats = {}
+          snap.forEach(d => {
+            const x = d.data()
+            const score = parseFloat(x.score) || 0
+            if (!stats[x.team]) stats[x.team] = { total: 0, count: 0, name: x.team }
+            stats[x.team].total += score
+            stats[x.team].count++
+          })
+          let sorted = Object.values(stats).map(s => ({
+            name: s.name, average: parseFloat((s.total / s.count).toFixed(1)), count: s.count
+          })).sort((a, b) => b.average - a.average)
+          let rank = 1
+          for (let i = 0; i < sorted.length; i++) {
+            if (i > 0 && sorted[i].average < sorted[i - 1].average) rank++
+            sorted[i].rank = rank
+          }
+          teamStats.value = sorted
+          loadingReports.value = false
+          setTimeout(() => renderChart('bar'), 120)
+        } else if (reportType.value === 'annual') {
+          const snap = await getDocs(query(collection(db, 'inspections'),
+            where('date', '>=', reportYear.value + '-01-01'), where('date', '<=', reportYear.value + '-12-31')))
+          const raw = []
+          snap.forEach(d => raw.push(d.data()))
+          const td = {}
+          teams.value.forEach(t => td[t] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 })))
+          raw.forEach(d => {
+            if (!td[d.team]) td[d.team] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 }))
+            const m = parseInt(d.date.split('-')[1]) - 1
+            td[d.team][m].total += parseFloat(d.score) || 0
+            td[d.team][m].count++
+          })
+          teamStats.value = Object.keys(td).map(t => ({
+            name: t, data: td[t].map(m => m.count ? parseFloat((m.total / m.count).toFixed(1)) : null)
+          }))
+          loadingReports.value = false
+          setTimeout(() => renderChart('line'), 120)
+        } else {
+          const snap = await getDocs(query(collection(db, 'inspections'), where('date', '==', dailyDate.value)))
+          const list = []
+          snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
+          list.sort((a, b) => String(a.team).localeCompare(String(b.team)) || String(a.shift).localeCompare(String(b.shift)))
+          dailyDataList.value = list
+          loadingReports.value = false
+          renderDailyCharts()
+        }
+      } catch (e) { console.error(e); loadingReports.value = false; showError('Erro nos relatórios: ' + e.message) }
+    }
+
+    const chartId = (id) => 'dailyChart_' + String(id).replace(/[^a-zA-Z0-9_-]/g, '_')
+
+    const renderDailyCharts = () => {
+      nextTick(() => {
+        dailyDataList.value.forEach(report => {
+          const ctx = document.getElementById(chartId(report._id))
+          if (!ctx || !window.Chart) return
+          const ex = window.Chart.getChart(ctx)
+          if (ex) ex.destroy()
+          const ok = (report.points || []).filter(p => p.status === 'ok' || p.checked).length
+          const nok = (report.points || []).length - ok
+          new window.Chart(ctx, {
+            type: 'doughnut',
+            data: { datasets: [{ data: [ok, nok], backgroundColor: ['#14b8a6', nok === 0 ? 'transparent' : '#ef4444'], borderWidth: 0, spacing: nok === 0 ? 0 : 4 }] },
+            options: { responsive: true, maintainAspectRatio: true, cutout: '76%', plugins: { legend: { display: false } } }
+          })
+        })
+      })
+    }
+
+    const renderChart = (type) => {
+      const ctx = document.getElementById('mainChart')
+      if (!ctx || !window.Chart) return
+      const ex = window.Chart.getChart(ctx)
+      if (ex) ex.destroy()
+      const textColor = isDarkMode.value ? '#a9b8b6' : '#4b5a58'
+      const currentMeta = meta.value
+      if (type === 'bar') {
+        const labels = teams.value
+        const data = labels.map(t => { const s = teamStats.value.find(x => x.name === t); return s ? s.average : 0 })
+        const colors = data.map(v => v >= currentMeta ? '#14b8a6' : '#ef4444')
+        new window.Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Média (%)', data, backgroundColor: colors, borderRadius: 6, order: 2 },
+              { type: 'line', label: `Meta: ${currentMeta}%`, data: labels.map(() => currentMeta), borderColor: isDarkMode.value ? '#fff' : '#334', borderDash: [5, 5], borderWidth: 2, pointRadius: 0, order: 1 }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { color: textColor } }, x: { ticks: { color: textColor } } }, plugins: { legend: { position: 'bottom', labels: { color: textColor } } } }
+        })
+      } else {
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        const palette = ['#14b8a6', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+        new window.Chart(ctx, {
+          type: 'line',
+          data: { labels: months, datasets: teamStats.value.map((t, i) => ({ label: t.name, data: t.data, borderColor: palette[i % palette.length], tension: .3, spanGaps: true })) },
+          options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { color: textColor } }, x: { ticks: { color: textColor } } }, plugins: { legend: { position: 'bottom', labels: { color: textColor } } } }
+        })
+      }
+    }
+
+    const generatePDF = async () => {
+      const el = document.getElementById('reportContent')
+      if (!el) return
+      try {
+        const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: isDarkMode.value ? '#151f1e' : '#ffffff' })
+        const imgData = canvas.toDataURL('image/jpeg', 0.85)
+        const { jsPDF } = window.jspdf
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const w = pdf.internal.pageSize.getWidth()
+        const h = (canvas.height * w) / canvas.width
+        pdf.addImage(imgData, 'JPEG', 0, 10, w, h)
+        pdf.save(`Relatorio_${reportType.value}.pdf`)
+        showSuccess('PDF gerado')
+      } catch (e) { showError('Erro ao gerar PDF') }
+    }
+
+    const takeScreenshot = async () => {
+      const el = document.getElementById('reportContent')
+      if (!el) return
+      try {
+        const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: isDarkMode.value ? '#151f1e' : '#ffffff' })
+        const link = document.createElement('a')
+        link.download = `Print_${reportType.value}.png`
+        link.href = canvas.toDataURL('image/png', 0.9)
+        link.click()
+        showSuccess('Print salvo')
+      } catch (e) { showError('Erro ao gerar print') }
+    }
+
+    const exportCSV = async () => {
+      try {
+        const rows = [['Data', 'Turno', 'Equipe auditora', 'Equipe auditada', 'Auditor', 'Score', 'Ponto', 'Status', 'Motivo']]
+        const source = adminAudits.value.length ? adminAudits.value : auditsList.value
+        source.forEach(a => (a.points || []).forEach(p => rows.push([
+          a.date, a.shift || '', a.auditorTeam || '', a.team || '', a.auditorName || '', a.score,
+          p.name, (p.status === 'ok' || p.checked) ? 'Conforme' : 'Não conforme', (p.reason || p.obs || '').replace(/\s+/g, ' ')
+        ])))
+        const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\r\n')
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `controlpoint_${new Date().toISOString().slice(0, 10)}.csv`
+        document.body.appendChild(a); a.click()
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 400)
+        showSuccess('CSV exportado')
+      } catch (e) { showError('Erro ao exportar') }
+    }
+
+    /* ==================== AUTENTICAÇÃO ==================== */
+    const handleLogin = async () => {
+      loading.value = true
+      authError.value = ''
+      try {
+        await signInWithEmailAndPassword(auth, authForm.value.email.trim(), authForm.value.password)
+      } catch (e) {
+        const map = {
+          'auth/invalid-credential': 'E-mail ou senha incorretos',
+          'auth/user-not-found': 'Usuário não encontrado',
+          'auth/wrong-password': 'Senha incorreta',
+          'auth/too-many-requests': 'Muitas tentativas. Tente novamente em instantes',
+          'auth/invalid-email': 'E-mail inválido'
+        }
+        authError.value = map[e.code] || ('Erro: ' + e.message)
+      } finally { loading.value = false }
+    }
+
+    const handleBootstrap = async () => {
+      // Cria o PRIMEIRO administrador. A conta é criada no Authentication e, já
+      // autenticado, verificamos se a coleção users está vazia antes de gravar o perfil.
+      loading.value = true
+      authError.value = ''
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, authForm.value.email.trim(), authForm.value.password)
+        const uid = cred.user.uid
+        const snap = await getDocs(query(collection(db, 'users'), limit(1)))
+        if (!snap.empty) {
+          authError.value = 'Já existem usuários cadastrados. Sua conta foi criada, mas precisa ser liberada pelo administrador.'
+          profileMissing.value = true
+          bootstrapMode.value = false
+          return
+        }
+        await setDoc(doc(db, 'users', uid), {
+          name: authForm.value.name.trim() || 'Administrador',
+          email: authForm.value.email.trim(),
+          team: teams.value[0] || 'Equipe 1',
+          role: 'admin',
+          createdAt: new Date().toISOString()
+        })
+        await loadProfile(uid)
+        await loadConfig()
+        await loadMasterPoints()
+        adminAuditorTeam.value = myTeam.value
+        await loadExistingAudit()
+        bootstrapMode.value = false
+        showSuccess('Administrador criado com sucesso!')
+      } catch (e) {
+        authError.value = e.code === 'auth/email-already-in-use'
+          ? 'Este e-mail já tem conta. Entre normalmente pela tela de login.'
+          : e.code === 'auth/weak-password'
+            ? 'A senha precisa de ao menos 6 caracteres.'
+            : ('Erro: ' + e.message)
+      } finally { loading.value = false }
+    }
+
+    const forgotPassword = async () => {
+      if (!authForm.value.email) { authError.value = 'Informe o e-mail para redefinir a senha'; return }
+      try { await sendPasswordResetEmail(auth, authForm.value.email.trim()); showSuccess('E-mail de redefinição enviado') }
+      catch (e) { authError.value = 'Erro: ' + e.message }
+    }
+
+    const logout = async () => { await signOut(auth); profile.value = null; profileMissing.value = false }
+
+    const toggleBootstrap = () => { bootstrapMode.value = !bootstrapMode.value; authError.value = '' }
+
+    const loadProfile = async (uid) => {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid))
+        if (snap.exists()) { profile.value = { uid, ...snap.data() }; profileMissing.value = false }
+        else { profile.value = null; profileMissing.value = true }
+      } catch (e) { profile.value = null; profileMissing.value = true }
+    }
+
+    /* ==================== WATCHERS / CICLO ==================== */
+    watch(isDarkMode, (v) => {
+      document.documentElement.classList.toggle('dark', v)
+      localStorage.setItem('darkMode', v)
+      if (currentView.value === 'reports' && reportType.value !== 'daily') {
+        setTimeout(() => renderChart(reportType.value === 'annual' ? 'line' : 'bar'), 250)
+      }
+    }, { immediate: true })
+
+    watch(currentView, (v) => {
+      if (v === 'audits') loadAudits()
+      if (v === 'reports') loadReports()
+      if (v === 'admin') { loadAdminAudits(); loadUsers() }
+      if (v === 'audit' && !points.value.length) buildChecklist()
+      window.scrollTo({ top: 0 })
+    })
+
+    watch([auditsTab, auditsMonth], () => { if (currentView.value === 'audits') loadAudits() })
+    watch(adminMonth, () => { if (currentView.value === 'admin' && adminTab.value === 'audits') loadAdminAudits() })
+    watch([reportType, reportMonth, reportYear, dailyDate], () => { if (currentView.value === 'reports') loadReports() })
+    watch([auditedTeam, auditDate, auditShift], () => { if (user.value && pointsConfig.value.length) loadExistingAudit() })
+
+    onMounted(() => {
+      loadVersionInfo()
+      if (!auth) { booting.value = false; return }
+      onAuthStateChanged(auth, async (u) => {
+        user.value = u
+        if (u) {
+          await loadProfile(u.uid)
+          if (profile.value) {
+            await loadConfig()
+            await loadMasterPoints()
+            adminAuditorTeam.value = myTeam.value
+            await loadExistingAudit()
+          }
+        } else {
+          profile.value = null
+        }
+        booting.value = false
+      })
+    })
+
+    /* ==================== HELPERS DE VIEW ==================== */
+    const fmtDate = (iso) => iso ? iso.split('-').reverse().join('/') : '-'
+    const initials = (n) => {
+      const w = String(n || '?').trim().split(/\s+/)
+      return ((w[0] || '?')[0] + (w[1] ? w[1][0] : '')).toUpperCase()
+    }
+    const toggleDarkMode = () => isDarkMode.value = !isDarkMode.value
+
+    return {
+      // geral
+      booting, user, profile, profileMissing, bootstrapMode, authForm, authError, loading,
+      isDarkMode, toggleDarkMode, isAdmin, myTeam, currentView, menuItems,
+      handleLogin, handleBootstrap, toggleBootstrap, forgotPassword, logout,
+      notifications, removeNotification,
+      appVersion, versionStatus, versionInfo,
+      // config
+      teams, rotation, meta, pointsConfig, newPointName, SHIFTS,
+      addPoint, deletePoint, renamePoint, addTeam, removeTeam, newTeamName,
+      saveGeneralConfig, savingConfig,
+      // auditoria
+      auditDate, auditShift, auditorTeam, auditedTeam, adminAuditorTeam,
+      points, loadingPoints, saving, showErrors, uploadingIndex,
+      okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
+      setStatus, triggerPhoto, onPhotoSelected, removePhoto, saveAudit, fileInput,
+      lightboxUrl, openImage, closeImage,
+      // auditorias
+      auditsTab, auditsList, loadingAudits, auditsMonth, openAudits, toggleAudit,
+      receivedAverage, nonConformities, loadAudits,
+      // admin
+      adminTab, adminAudits, loadingAdminAudits, adminMonth, loadAdminAudits,
+      editing, openEdit, closeEdit, setEditStatus, saveEdit, deleteAudit,
+      usersList, loadingUsers, userForm, savingUser, newUser, editUser, closeUserForm,
+      saveUser, deleteUser, resetPassword, loadUsers,
+      // relatórios
+      reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
+      generatePDF, takeScreenshot, exportCSV,
+      // helpers
+      fmtDate, initials, chartId
+    }
   }
-</script>
-</body>
-</html>
+}).mount('#app')
