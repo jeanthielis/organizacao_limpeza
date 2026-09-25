@@ -1,193 +1,176 @@
-ControlPoint - Sistema de Acompanhamento de Metas para Equipes
-Descrição
-O ControlPoint é uma aplicação web desenvolvida para gerenciar e acompanhar o cumprimento de metas de limpeza e organização por equipes. O sistema permite registrar verificações diárias, acompanhar o progresso em tempo real, gerar relatórios detalhados e visualizar rankings de desempenho entre as equipes.
-
-Funcionalidades Principais
-🎯 Controle de Metas
-Ajuste dinâmico de metas: Controle deslizante para definir a meta de desempenho (0-100%)
-
-Barra de progresso visual: Exibe o progresso atual em relação à meta estabelecida
-
-Status da meta: Indicação clara se a meta foi atingida ou não
-
-👥 Gerenciamento de Equipes
-Suporte para 4 equipes diferentes
-
-Interface intuitiva para alternar entre equipes
-
-Dados armazenados separadamente para cada equipe
-
-📋 Sistema de Verificação
-16 pontos de verificação com descrições específicas:
-
-Sala de Tonalidade L4
-
-Sala de Padrões L4
-
-Área da Qualitron L4
-
-Área de Inspeção L4
-
-Área de Retido L4
-
-Antigo Falcon L4
-
-Deformação L4/L5
-
-Sala de Tonalidade L5/L6
-
-Sala de Padrões L5/L6
-
-Área da Qualitron L5
-
-Área de Inspeção L5/L6
-
-Área de Retido L5
-
-Área da Qualitrons L6
-
-Cavaletes de Empeno
-
-Área de Retido L6
-
-Deformação L6
-
-📊 Relatórios e Análises
-Relatório Diário: Desempenho por data específica
-
-Relatório Mensal: Média de desempenho durante o mês
-
-Ranking Geral: Classificação histórica de todas as equipes
-
-Relatório Combinado: Mensal + Ranking (ideal para impressão)
-
-💾 Histórico e Armazenamento
-Histórico completo: Todas as verificações salvas com data
-
-Edição de registros: Possibilidade de editar verificações passadas
-
-Exclusão segura: Controle para remover registros específicos
-
-🔄 Importação/Exportação
-Exportação CSV: Download dos dados em formato CSV
-
-Importação CSV: Carregamento de dados a partir de arquivos CSV
-
-Backup automático: Dados salvos no localStorage do navegador
-
-🖨️ Funcionalidades de Impressão
-Captura de tela: Salvar relatório como imagem PNG
-
-Impressão otimizada: Layout especial para impressão física
-
-Gráficos incluídos: Visualizações mantidas na impressão
-
-Tecnologias Utilizadas
-HTML5: Estrutura da aplicação
-
-CSS3: Estilização com variáveis CSS e design responsivo
-
-JavaScript: Lógica de aplicação e interatividade
-
-Chart.js: Gráficos e visualizações de dados
-
-Font Awesome: Ícones e elementos visuais
-
-html2canvas: Captura de tela para exportação
-
-Chart.js Datalabels: Plugin para labels em gráficos
-
-Como Usar
-1. Primeiro Acesso
-Abra o arquivo organizacao_limpeza.html em um navegador web
-
-O sistema carregará automaticamente com a data atual
-
-2. Realizar Verificação Diária
-Selecione a equipe desejada
-
-Verifique os pontos de limpeza concluídos
-
-Ajuste a meta se necessário
-
-Clique em "Salvar Verificação"
-
-3. Gerar Relatórios
-Selecione o tipo de relatório (Diário, Mensal, Ranking ou Combinado)
-
-Escolha a equipe ou "Todas as Equipes"
-
-Defina o período (data ou mês)
-
-Clique em "Gerar Relatório"
-
-4. Exportar Dados
-CSV: Use "Exportar para CSV" para backup
-
-Imagem: Use "Tirar Print" para salvar como PNG
-
-Impressão: Use "Imprimir Relatório" para versão física
-
-Estrutura de Dados
-Armazenamento Local
-Os dados são salvos no localStorage com a chave:
-
-text
-checkpoints_[NOME_EQUIPE]_[DATA]
-Exemplo: checkpoints_Equipe 1_2024-01-15
-
-Formato CSV para Importação
-text
-Equipe,Data,Pontos_Concluidos
-Equipe 1,2024-01-15,12
-Equipe 2,2024-01-15,14
-Personalização
-Ajuste de Metas
-Use o controle deslizante na seção de progresso
-
-Meta padrão: 93%
-
-Range disponível: 0% a 100%
-
-Modo de Impressão
-Layout otimizado para impressão
-
-Remove elementos não essenciais
-
-Mantém gráficos e tabelas
-
-Compatibilidade
-✅ Navegadores modernos (Chrome, Firefox, Safari, Edge)
-
-✅ Dispositivos móveis (design responsivo)
-
-✅ Funciona offline (após carregamento inicial)
-
-Desenvolvimento
-Estrutura de Arquivos
-text
-organizacao_limpeza.html  # Arquivo principal
-Dependências Externas
-Font Awesome 6.4.0
-
-Chart.js 3.x
-
-html2canvas 1.4.1
-
-Chart.js Datalabels 2.x
-
-Manutenção
-Backup de Dados
-Exporte regularmente para CSV
-
-Os dados ficam armazenados no navegador do usuário
-
-Atualizações
-Substitua o arquivo HTML para atualizar a aplicação
-
-Os dados existentes serão mantidos no localStorage
-
-Suporte
-Para questões ou sugestões, entre em contato com a equipe de desenvolvimento.
-
-ControlPoint - Simplificando o acompanhamento de metas de limpeza e organização.
+# ControlPoint 3.0 — Auditoria de Virada de Turno
+
+PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
+
+Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore + Storage · Chart.js · PWA.
+
+---
+
+## O que mudou na versão 3.0
+
+| Antes | Agora |
+|---|---|
+| Cada equipe registrava a própria inspeção | Rodízio cruzado: 1→4, 4→3, 3→2, 2→1 (configurável) |
+| Cadastro livre de conta | Login por e-mail/senha, contas criadas pelo administrador |
+| Sem turno | Dois turnos: Dia e Noite |
+| Checkbox simples + observação opcional | Conforme / Não conforme, com **motivo** e **foto** obrigatórios na não conformidade |
+| Sem visão para a equipe avaliada | Aba "Recebidas" mostra o que a equipe recebeu, com fotos e motivos |
+| Admin só editava pontos e meta | Painel com avaliações (editar/excluir), usuários, equipes, rodízio, meta e pontos |
+| Layout desktop adaptado | Interface mobile-first, tema claro/escuro |
+
+---
+
+## Configuração do Firebase
+
+O projeto já aponta para `controlpoint-1728a`. Antes de usar, habilite e configure:
+
+### 1. Authentication
+Console → **Authentication → Sign-in method → E-mail/senha → Ativar**.
+
+### 2. Firestore — regras
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn()  { return request.auth != null; }
+    function profile()   { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isAdmin()   { return signedIn() && profile().role == 'admin'; }
+
+    // Perfis: cada um lê o próprio; admin lê e escreve todos.
+    match /users/{uid} {
+      allow get:    if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list:   if signedIn();                       // usado no 1º acesso e pelo admin
+      allow create: if signedIn() && request.auth.uid == uid;  // bootstrap do 1º admin
+      allow write:  if isAdmin();                        // cadastro/edição pelo admin
+    }
+
+    // Auditorias: todos os autenticados leem; escrita por autenticados; exclusão só admin.
+    match /inspections/{id} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Configuração: leitura geral, escrita só admin.
+    match /config_geral/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /config_pontos/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
+```
+
+> **Depois de criar o primeiro administrador**, troque as duas linhas de bootstrap por regras mais restritas:
+> ```
+> allow list:   if isAdmin();
+> allow create: if isAdmin();
+> ```
+> Assim ninguém consegue se autopromover criando o próprio documento em `users`.
+
+### 3. Storage — regras
+
+Console → **Storage → Começar** (se ainda não iniciado) → aba **Rules**:
+
+```
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /inspecoes/{auditId}/{file} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 3 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}
+```
+
+### 4. Domínios autorizados
+Console → **Authentication → Settings → Authorized domains** → adicione `SEU-USUARIO.github.io`.
+
+---
+
+## Primeiro acesso
+
+1. Abra o app e toque em **"Primeiro acesso — criar administrador"** na tela de login.
+2. Informe nome, e-mail e senha. Se a coleção `users` estiver vazia, essa conta é gravada com `role: admin`; se já houver usuários, a conta fica pendente de liberação.
+3. Em **Admin → Config.**, cadastre as equipes, o rodízio, a meta e os pontos de verificação.
+4. Em **Admin → Usuários**, cadastre os auditores (nome, e-mail, senha provisória, equipe, perfil).
+
+O cadastro de usuários usa uma instância secundária do Firebase App, então o administrador **não é deslogado** ao criar contas.
+
+Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas a conta permanece no Authentication — exclua pelo console se quiser removê-la de vez.
+
+---
+
+## Modelo de dados
+
+### `users/{uid}`
+```json
+{ "name": "Maria Silva", "email": "maria@empresa.com", "team": "Equipe 1", "role": "auditor", "createdAt": "..." }
+```
+
+### `config_geral/meta_padrao` · `config_geral/equipes` · `config_geral/rodizio`
+```json
+{ "valor": 93 }
+{ "lista": ["Equipe 1","Equipe 2","Equipe 3","Equipe 4"] }
+{ "mapa": { "Equipe 1": "Equipe 4", "Equipe 4": "Equipe 3", "Equipe 3": "Equipe 2", "Equipe 2": "Equipe 1" } }
+```
+
+### `config_pontos/{id}`
+```json
+{ "name": "Sala de Tonalidade L4", "ordem": 1 }
+```
+
+### `inspections/{equipeAuditada}_{data}_{turno}`
+```json
+{
+  "team": "Equipe 4",
+  "auditorTeam": "Equipe 1",
+  "auditorName": "Maria Silva",
+  "auditorUid": "...",
+  "date": "2026-09-25",
+  "shift": "Noite",
+  "score": 94,
+  "meta": 93,
+  "points": [
+    { "name": "Sala de Tonalidade L4", "status": "ok",  "checked": true,  "reason": "", "photoUrl": "", "photoPath": "" },
+    { "name": "Área de Retido L5",     "status": "nok", "checked": false, "reason": "Resíduo de óleo junto à bancada", "photoUrl": "https://...", "photoPath": "inspecoes/..." }
+  ],
+  "updatedAt": "..."
+}
+```
+
+`team` continua sendo a equipe **avaliada** e `checked` é mantido junto de `status`, então as auditorias antigas e os relatórios seguem funcionando.
+
+As fotos ficam em `inspecoes/{auditId}/{timestamp}_{índice}.jpg` no Storage, redimensionadas para no máximo 1280 px e comprimidas em JPEG antes do upload.
+
+---
+
+## Publicar no GitHub Pages
+
+1. Envie todos os arquivos para a raiz do repositório.
+2. **Settings → Pages → Deploy from a branch → `main` / `(root)`**.
+3. Adicione o domínio `SEU-USUARIO.github.io` nos domínios autorizados do Firebase Auth (passo 4 acima).
+
+O app funciona como PWA: pode ser instalado na tela inicial do celular e abre offline (a gravação exige conexão).
+
+---
+
+## Arquivos
+
+```
+index.html      # interface (Vue template + estilos)
+app.js          # lógica da aplicação
+firebase.js     # credenciais, SDK e criação de usuário pelo admin
+sw.js           # service worker (network-first)
+manifest.json   # PWA
+version.json    # versão exibida na aba Sobre
+icon-192.png / icon-512.png
+```
