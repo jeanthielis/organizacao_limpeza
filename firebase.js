@@ -1,7 +1,8 @@
 // firebase.js — ControlPoint 3.0
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
 import {
-  getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query,
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, addDoc, getDocs, doc, deleteDoc, query,
   setDoc, updateDoc, where, getDoc, orderBy, limit, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 import {
@@ -29,7 +30,15 @@ let app, db, auth, storage;
 
 try {
   app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
+  // Cache persistente: a app continua funcionando sem rede e sincroniza depois
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+  } catch (err) {
+    console.warn("Cache persistente indisponível, usando memória:", err.message);
+    db = getFirestore(app);
+  }
   auth = getAuth(app);
   storage = getStorage(app);
   console.log("%c✅ Firebase conectado", "color:#0d9488;font-weight:bold");
