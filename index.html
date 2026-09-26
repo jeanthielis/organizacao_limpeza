@@ -265,6 +265,23 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .prev-d{width:62px;flex-shrink:0;color:var(--text-3);font-weight:700;font-size:11px}
 .prev-chip{flex:1;text-align:center;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:6px 4px;font-size:11.5px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conn-pill{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;font-size:10px;font-weight:800;
+  background:rgba(255,255,255,.16);color:#fff;white-space:nowrap;flex-shrink:0}
+.conn-pill.off{background:rgba(245,158,11,.3)}
+.area-head{display:flex;align-items:center;gap:8px;margin:14px 0 8px;font-size:10.5px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--text-3)}
+.area-head:first-child{margin-top:0}
+.area-head::after{content:'';flex:1;height:1px;background:var(--border)}
+.peso-tag{font-size:9px;font-weight:800;padding:2px 5px;border-radius:5px;background:var(--amber-100,#fef3c7);color:var(--amber-600);flex-shrink:0}
+.st-tag{font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:7px;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0}
+.st-aberta{background:var(--red-100);color:var(--red-600)}
+.st-andamento{background:var(--warn-bg);color:var(--warn-fg)}
+.st-resolvida{background:var(--green-100);color:var(--green-600)}
+.st-atrasada{background:var(--red-500);color:#fff}
+.ack-bar{display:flex;gap:7px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.ack-note{font-size:11.5px;font-weight:600;border-radius:10px;padding:8px 10px;margin-top:10px;line-height:1.4}
+.ack-ok{background:var(--green-100);color:var(--green-600)}
+.ack-contested{background:var(--warn-bg);color:var(--warn-fg)}
 .spinner{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .center-load{text-align:center;padding:36px;color:var(--text-3);font-size:13px;font-weight:600}
@@ -445,6 +462,15 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
         <h1>ControlPoint</h1>
         <p>{{ profile.name }} · {{ profile.team }}<span v-if="isAdmin"> · Admin</span></p>
       </div>
+      <div class="conn-pill" :class="{off: !isOnline || pendingUploads}" @click="syncNow"
+           :title="isOnline ? 'Sincronizar agora' : 'Sem conexão'">
+        <i v-if="syncing" class="fas fa-circle-notch spinner"></i>
+        <i v-else-if="!isOnline" class="fas fa-cloud-slash"></i>
+        <i v-else-if="pendingUploads" class="fas fa-cloud-arrow-up"></i>
+        <i v-else class="fas fa-cloud"></i>
+        <span v-if="!isOnline">Offline</span>
+        <span v-else-if="pendingUploads">{{ pendingUploads }}</span>
+      </div>
       <div class="bell-wrap">
         <button class="top-btn" @click="currentView = 'alerts'" title="Notificações"><i class="fas fa-bell"></i></button>
         <span class="badge" v-if="alertsCount">{{ alertsCount > 99 ? '99+' : alertsCount }}</span>
@@ -569,40 +595,47 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <i class="fas fa-clipboard-list"></i>
             <p>Nenhum ponto cadastrado. O administrador precisa cadastrá-los em Admin › Configurações.</p>
           </div>
-          <div v-else class="cp-list">
-            <div v-for="(p, i) in points" :key="p.id" class="cp-item" :class="{ok: p.status==='ok', nok: p.status==='nok'}">
-              <div class="cp-row">
-                <div class="cp-num">{{ i + 1 }}</div>
-                <div class="cp-label">{{ p.name }}</div>
-                <div class="cp-ctrl">
-                  <button class="cp-btn" :class="{'sel-ok': p.status==='ok'}" @click="setStatus(p,'ok')" title="Conforme">
-                    <i class="fas fa-check"></i>
-                  </button>
-                  <button class="cp-btn" :class="{'sel-nok': p.status==='nok'}" @click="setStatus(p,'nok')" title="Não conforme">
-                    <i class="fas fa-xmark"></i>
-                  </button>
-                  <button class="cp-btn" :class="{'has-photo': p.photoUrl}" @click="triggerPhoto(p, i)" title="Foto">
-                    <i v-if="uploadingIndex === i" class="fas fa-circle-notch spinner"></i>
-                    <i v-else class="fas fa-camera"></i>
-                  </button>
+          <div v-else>
+            <template v-for="g in pointsGrouped" :key="g.area">
+              <div class="area-head">{{ g.area }}</div>
+              <div class="cp-list">
+                <div v-for="e in g.items" :key="e.p.id" class="cp-item" :class="{ok: e.p.status==='ok', nok: e.p.status==='nok'}">
+                  <div class="cp-row">
+                    <div class="cp-num">{{ e.i + 1 }}</div>
+                    <div class="cp-label">{{ e.p.name }}</div>
+                    <span class="peso-tag" v-if="(e.p.peso || 1) > 1">peso {{ e.p.peso }}</span>
+                    <div class="cp-ctrl">
+                      <button class="cp-btn" :class="{'sel-ok': e.p.status==='ok'}" @click="setStatus(e.p,'ok')" title="Conforme">
+                        <i class="fas fa-check"></i>
+                      </button>
+                      <button class="cp-btn" :class="{'sel-nok': e.p.status==='nok'}" @click="setStatus(e.p,'nok')" title="Não conforme">
+                        <i class="fas fa-xmark"></i>
+                      </button>
+                      <button class="cp-btn" :class="{'has-photo': hasPhoto(e.p)}" @click="triggerPhoto(e.p, e.i)" title="Foto">
+                        <i v-if="uploadingIndex === e.i" class="fas fa-circle-notch spinner"></i>
+                        <i v-else class="fas fa-camera"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="cp-extra" v-if="hasPhoto(e.p)">
+                    <div class="cp-links">
+                      <button class="cp-link" @click="openImage(photoPreview(e.p))"><i class="fas fa-image"></i> Visualizar imagem</button>
+                      <button class="cp-link muted" @click="removePhotoFromPoint(e.p)">Remover</button>
+                      <span v-if="e.p.photoLocalId" class="st-tag st-andamento">na fila</span>
+                    </div>
+                  </div>
+
+                  <div class="cp-extra" v-if="e.p.status === 'nok'">
+                    <label>Motivo da não conformidade *</label>
+                    <textarea v-model="e.p.reason" rows="2"
+                      :class="{invalid: showErrors && (e.p.reason || '').trim().length < 5}"
+                      placeholder="Descreva o que foi encontrado (ex.: piso com resíduo de óleo próximo à bancada)"></textarea>
+                    <div class="cp-hint" v-if="!hasPhoto(e.p)"><i class="fas fa-triangle-exclamation"></i> Foto de evidência obrigatória</div>
+                  </div>
                 </div>
               </div>
-
-              <div class="cp-extra" v-if="p.photoUrl">
-                <div class="cp-links">
-                  <button class="cp-link" @click="openImage(p.photoUrl)"><i class="fas fa-image"></i> Visualizar imagem</button>
-                  <button class="cp-link muted" @click="removePhoto(p)">Remover</button>
-                </div>
-              </div>
-
-              <div class="cp-extra" v-if="p.status === 'nok'">
-                <label>Motivo da não conformidade *</label>
-                <textarea v-model="p.reason" rows="2"
-                  :class="{invalid: showErrors && (p.reason || '').trim().length < 5}"
-                  placeholder="Descreva o que foi encontrado (ex.: piso com resíduo de óleo próximo à bancada)"></textarea>
-                <div class="cp-hint" v-if="!p.photoUrl"><i class="fas fa-triangle-exclamation"></i> Foto de evidência obrigatória</div>
-              </div>
-            </div>
+            </template>
           </div>
         </div>
 
@@ -654,6 +687,16 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <button class="icon-btn" @click.stop="openShare(item)" title="Compartilhar"><i class="fas fa-share-nodes"></i></button>
             <i class="fas fa-chevron-down" :style="{transform: openAudits[item._id] ? 'rotate(180deg)' : '', color:'var(--text-3)'}"></i>
           </div>
+          <div class="ack-note" :class="ackOf(item).status === 'ok' ? 'ack-ok' : 'ack-contested'" v-if="ackOf(item)">
+            <i :class="ackOf(item).status === 'ok' ? 'fas fa-circle-check' : 'fas fa-circle-exclamation'"></i>
+            {{ ackOf(item).status === 'ok' ? 'Ciência registrada' : 'Contestada' }} por {{ ackOf(item).name }}
+            <template v-if="ackOf(item).comment"> — {{ ackOf(item).comment }}</template>
+          </div>
+          <div class="ack-bar" v-else-if="canAck(item)">
+            <button class="btn btn-ghost btn-sm" style="flex:1" @click="openAck(item,'ok')"><i class="fas fa-check"></i> Dar ciência</button>
+            <button class="btn btn-danger btn-sm" style="flex:1" @click="openAck(item,'contested')"><i class="fas fa-flag"></i> Contestar</button>
+          </div>
+
           <div class="audit-detail" v-if="openAudits[item._id]">
             <div v-for="p in item.points" :key="p.name" class="d-row" :class="(p.status==='ok' || p.checked) ? 'ok' : 'nok'">
               <i :class="(p.status==='ok' || p.checked) ? 'fas fa-check' : 'fas fa-xmark'" style="margin-top:2px"></i>
@@ -702,11 +745,23 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <i class="fas fa-circle-info"></i>
             <span>A detecção de pendências usa a escala 12x36. Ative-a em Admin › Config. para acompanhar os turnos sem auditoria.</span>
           </div>
-          <div v-else-if="!pendingList.length" class="card empty">
+          <div v-else-if="!pendingList.length && !pendingAcks.length" class="card empty">
             <i class="fas fa-circle-check" style="color:var(--green-500);opacity:.8"></i>
-            <p>Nenhuma auditoria pendente. Todos os turnos encerrados foram registrados.</p>
+            <p>Nada pendente. Todos os turnos foram auditados e as ciências estão em dia.</p>
           </div>
-          <div v-else class="card">
+          <div class="card" v-if="pendingAcks.length">
+            <div class="section-label">Aguardando ciência ({{ pendingAcks.length }})</div>
+            <div v-for="a in pendingAcks" :key="'ack'+a._id" class="alert-item">
+              <div class="alert-ic pend"><i class="fas fa-signature"></i></div>
+              <div class="alert-body">
+                <div class="alert-t">{{ a.team }} — {{ Math.round(a.score) }}% · {{ fmtDate(a.date) }}</div>
+                <div class="alert-s">Auditada por {{ a.auditorTeam }} · turno {{ a.shift }}</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" v-if="canAck(a)" @click="openAck(a,'ok')">Dar ciência</button>
+            </div>
+          </div>
+
+          <div v-if="pendingList.length" class="card">
             <div class="section-label">Turnos encerrados sem auditoria (últimos 7 dias)</div>
             <div v-for="p in pendingList" :key="p.id" class="alert-item">
               <div class="alert-ic pend"><i :class="p.shift === 'Dia' ? 'fas fa-sun' : 'fas fa-moon'"></i></div>
@@ -726,6 +781,32 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <button :class="{active: ncScope==='made'}" @click="ncScope='made'">Que reportamos</button>
           </div>
 
+          <div class="card">
+            <div class="section-label">Situação das tratativas</div>
+            <div class="stat-grid">
+              <div class="stat-box"><div class="num" style="color:var(--red-600)">{{ treatStats.aberta }}</div><div class="lbl">Abertas</div></div>
+              <div class="stat-box"><div class="num" style="color:var(--amber-600)">{{ treatStats.andamento }}</div><div class="lbl">Em tratativa</div></div>
+              <div class="stat-box"><div class="num" style="color:var(--green-600)">{{ treatStats.resolvida }}</div><div class="lbl">Resolvidas</div></div>
+              <div class="stat-box"><div class="num" :style="{color: treatStats.atrasada ? 'var(--red-600)' : 'var(--text)'}">{{ treatStats.atrasada }}</div><div class="lbl">Fora do prazo</div></div>
+            </div>
+            <div class="section-label" style="margin-top:14px">Filtrar</div>
+            <div class="filter-row chip-row">
+              <button class="chip" :class="{active: ncFilter==='todas'}" @click="ncFilter='todas'">Todas</button>
+              <button class="chip" :class="{active: ncFilter==='aberta'}" @click="ncFilter='aberta'">Abertas</button>
+              <button class="chip" :class="{active: ncFilter==='andamento'}" @click="ncFilter='andamento'">Em tratativa</button>
+              <button class="chip" :class="{active: ncFilter==='resolvida'}" @click="ncFilter='resolvida'">Resolvidas</button>
+              <button class="chip" :class="{active: ncFilter==='atrasada'}" @click="ncFilter='atrasada'">Atrasadas</button>
+            </div>
+          </div>
+
+          <div class="card" v-if="ncByArea.length > 1">
+            <div class="section-label">Ocorrências por área (30 dias)</div>
+            <div v-for="r in ncByArea" :key="r.area" class="list-row">
+              <div class="li">{{ r.area }}</div>
+              <div class="score-badge fail">{{ r.count }}x</div>
+            </div>
+          </div>
+
           <div class="card" v-if="ncByPoint.length">
             <div class="section-label">Pontos com mais ocorrências (30 dias)</div>
             <div v-for="r in ncByPoint" :key="r.name" class="list-row">
@@ -741,13 +822,28 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div v-else class="card">
             <div class="section-label">Ocorrências ({{ ncList.length }})</div>
             <div v-for="r in ncList" :key="r.key" class="alert-item">
-              <div class="alert-ic nc"><i class="fas fa-triangle-exclamation"></i></div>
-              <div class="alert-body">
-                <div class="alert-t">{{ r.name }}</div>
-                <div class="alert-s">{{ r.team }} · {{ fmtDate(r.date) }} · turno {{ r.shift }} · auditada por {{ r.auditorTeam }}</div>
-                <div class="alert-r" v-if="r.reason">{{ r.reason }}</div>
+              <div class="alert-ic nc" :style="treatOf(r).status === 'resolvida' ? 'background:var(--green-100);color:var(--green-600)' : ''">
+                <i :class="treatOf(r).status === 'resolvida' ? 'fas fa-circle-check' : 'fas fa-triangle-exclamation'"></i>
               </div>
-              <img v-if="r.photoUrl" class="d-thumb" :src="r.photoUrl" @click="openImage(r.photoUrl)">
+              <div class="alert-body">
+                <div class="alert-t">
+                  {{ r.name }}
+                  <span class="st-tag" :class="isOverdue(treatOf(r)) ? 'st-atrasada' : 'st-' + (treatOf(r).status || 'aberta')">
+                    {{ isOverdue(treatOf(r)) ? 'Atrasada' : (treatOf(r).status || 'aberta') }}
+                  </span>
+                </div>
+                <div class="alert-s">{{ r.team }} · {{ r.area }} · {{ fmtDate(r.date) }} · turno {{ r.shift }}</div>
+                <div class="alert-r" v-if="r.reason">{{ r.reason }}</div>
+                <div class="alert-s" v-if="treatOf(r).responsavel || treatOf(r).prazo" style="margin-top:5px">
+                  <i class="fas fa-user-check"></i> {{ treatOf(r).responsavel || 'sem responsável' }}
+                  <template v-if="treatOf(r).prazo"> · prazo {{ fmtDate(treatOf(r).prazo) }}</template>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:8px;align-items:center">
+                  <button class="cp-link" @click="openTreat(r)"><i class="fas fa-screwdriver-wrench"></i> Tratativa</button>
+                  <button class="cp-link muted" v-if="r.photoUrl" @click="openImage(r.photoUrl)">Foto antes</button>
+                  <button class="cp-link muted" v-if="treatOf(r).afterPhotoUrl" @click="openImage(treatOf(r).afterPhotoUrl)">Foto depois</button>
+                </div>
+              </div>
             </div>
           </div>
         </template>
@@ -969,9 +1065,19 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div class="card">
             <div class="card-title"><i class="fas fa-clipboard-list"></i> Pontos de verificação</div>
             <div class="card-sub">Salvos individualmente na coleção <code>config_pontos</code>.</div>
-            <div v-for="p in pointsConfig" :key="p.id" class="cfg-row">
-              <input class="input" v-model="p.name" @blur="renamePoint(p)">
-              <button class="icon-btn danger" @click="deletePoint(p.id)"><i class="fas fa-trash"></i></button>
+            <div v-for="p in pointsConfig" :key="p.id" style="border:1px solid var(--border);border-radius:13px;padding:10px;margin-bottom:8px">
+              <div class="cfg-row" style="margin-bottom:6px">
+                <input class="input" v-model="p.name" @blur="renamePoint(p)">
+                <button class="icon-btn danger" @click="deletePoint(p.id)"><i class="fas fa-trash"></i></button>
+              </div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:8px">
+                <input class="input" v-model="p.area" placeholder="Área (ex.: L4)" @blur="renamePoint(p)">
+                <select v-model.number="p.peso" @change="renamePoint(p)">
+                  <option :value="1">Peso 1</option>
+                  <option :value="2">Peso 2 — crítico</option>
+                  <option :value="3">Peso 3 — muito crítico</option>
+                </select>
+              </div>
             </div>
             <div class="cfg-row">
               <input class="input" v-model="newPointName" placeholder="Novo ponto de verificação" @keydown.enter="addPoint">
@@ -1023,6 +1129,83 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
       <button v-for="item in menuItems" :key="item.id" class="tab-btn"
               :class="{active: currentView === item.id}" @click="currentView = item.id">
         <i :class="item.icon"></i>{{ item.label }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: CIÊNCIA ============ -->
+  <div class="modal-ov" v-if="ackModal" @click.self="closeAck">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h3>{{ ackModal.decision === 'ok' ? 'Dar ciência' : 'Contestar auditoria' }}</h3>
+        <button class="icon-btn" @click="closeAck"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="card-sub">
+        {{ ackModal.item.team }} · {{ fmtDate(ackModal.item.date) }} · turno {{ ackModal.item.shift }} ·
+        {{ Math.round(ackModal.item.score) }}%
+      </div>
+      <div class="chip-row" style="margin-bottom:12px">
+        <button class="chip" :class="{active: ackModal.decision === 'ok'}" @click="ackModal.decision = 'ok'">
+          <i class="fas fa-check"></i> De acordo
+        </button>
+        <button class="chip" :class="{active: ackModal.decision === 'contested'}" @click="ackModal.decision = 'contested'">
+          <i class="fas fa-flag"></i> Contestar
+        </button>
+      </div>
+      <div class="field">
+        <label>{{ ackModal.decision === 'contested' ? 'Motivo da contestação *' : 'Comentário (opcional)' }}</label>
+        <textarea v-model="ackModal.comment" rows="3"
+                  :placeholder="ackModal.decision === 'contested' ? 'Explique o que discorda no apontamento' : 'Algum registro adicional'"></textarea>
+      </div>
+      <button class="btn btn-primary btn-block" @click="submitAck">
+        <i class="fas fa-signature"></i> Registrar
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: TRATATIVA ============ -->
+  <div class="modal-ov" v-if="treatModal" @click.self="closeTreat">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h3>Tratativa</h3>
+        <button class="icon-btn" @click="closeTreat"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="card-sub">
+        <b>{{ treatModal.row.name }}</b> · {{ treatModal.row.team }} · {{ fmtDate(treatModal.row.date) }}
+      </div>
+      <div class="alert-r" v-if="treatModal.row.reason" style="margin-bottom:12px">{{ treatModal.row.reason }}</div>
+
+      <div class="field">
+        <label>Situação</label>
+        <div class="chip-row">
+          <button class="chip" :class="{active: treatModal.status==='aberta'}" @click="treatModal.status='aberta'">Aberta</button>
+          <button class="chip" :class="{active: treatModal.status==='andamento'}" @click="treatModal.status='andamento'">Em tratativa</button>
+          <button class="chip" :class="{active: treatModal.status==='resolvida'}" @click="treatModal.status='resolvida'">Resolvida</button>
+        </div>
+      </div>
+      <div class="field"><label>Responsável</label><input class="input" v-model="treatModal.responsavel" placeholder="Quem vai resolver"></div>
+      <div class="field"><label>Prazo</label><input type="date" class="input" v-model="treatModal.prazo"></div>
+      <div class="field"><label>Observação</label><textarea v-model="treatModal.nota" rows="2" placeholder="O que foi feito"></textarea></div>
+
+      <div class="field">
+        <label>Foto do depois {{ treatModal.status === 'resolvida' ? '*' : '(opcional)' }}</label>
+        <div class="cp-links" style="margin-bottom:8px" v-if="treatModal.afterUrl || treatModal.afterLocalId">
+          <button class="cp-link" @click="openImage(treatModal.afterUrl || localPhotoUrls[treatModal.afterLocalId])">
+            <i class="fas fa-image"></i> Visualizar imagem
+          </button>
+          <span v-if="treatModal.afterLocalId" class="st-tag st-andamento">na fila</span>
+        </div>
+        <button class="btn btn-ghost btn-sm btn-block" @click="triggerAfterPhoto">
+          <i v-if="uploadingAfter" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-camera"></i>
+          {{ (treatModal.afterUrl || treatModal.afterLocalId) ? 'Trocar foto' : 'Anexar foto da correção' }}
+        </button>
+      </div>
+
+      <button class="btn btn-primary btn-block" :disabled="savingTreat" @click="saveTreat">
+        <i v-if="savingTreat" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-floppy-disk"></i>
+        Salvar tratativa
       </button>
     </div>
   </div>
@@ -1159,13 +1342,14 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   </div>
 
   <input type="file" ref="fileInput" accept="image/*" capture="environment" style="display:none" @change="onPhotoSelected">
+  <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.2.0"></script>
+<script type="module" src="./app.js?v=3.3.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v32';
+    var CURRENT = 'controlpoint-v33';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1173,7 +1357,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.2.0')
+        navigator.serviceWorker.register('./sw.js?v=3.3.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
