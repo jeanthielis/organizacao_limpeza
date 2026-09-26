@@ -851,11 +851,24 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="fileInput" accept="image/*" capture="environment" style="display:none" @change="onPhotoSelected">
 </div>
 
-<script type="module" src="./app.js"></script>
+<script type="module" src="./app.js?v=3.0.0"></script>
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
-  }
+  // Limpa caches de versões anteriores antes de registrar o service worker atual.
+  (function () {
+    var CURRENT = 'controlpoint-v3';
+    if ('caches' in window) {
+      caches.keys().then(function (names) {
+        names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
+      }).catch(function () {});
+    }
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js?v=3.0.0')
+          .then(function (reg) { reg.update(); })
+          .catch(function () {});
+      });
+    }
+  })();
 </script>
 </body>
 </html>
