@@ -239,6 +239,32 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .toast.success i{color:var(--green-500)} .toast.error i{color:var(--red-500)}
 .toast.warning i{color:var(--amber-600)} .toast.info i{color:var(--teal-500)}
 
+.bell-wrap{position:relative;flex-shrink:0}
+.badge{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:var(--red-500);
+  color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--teal-600)}
+.alert-item{display:flex;gap:11px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--border)}
+.alert-item:last-child{border-bottom:none}
+.alert-ic{width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.alert-ic.pend{background:var(--warn-bg);color:var(--amber-600)}
+.alert-ic.nc{background:var(--red-100);color:var(--red-600)}
+.alert-body{flex:1;min-width:0}
+.alert-t{font-size:12.8px;font-weight:800;line-height:1.3}
+.alert-s{font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px}
+.alert-r{font-size:11.5px;font-weight:600;color:var(--text-2);background:var(--surface-2);border-radius:9px;padding:7px 9px;margin-top:6px;line-height:1.4}
+.scale-card{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:14px 16px;box-shadow:var(--shadow-sm)}
+.scale-live{display:flex;align-items:center;gap:11px}
+.scale-ic{width:40px;height:40px;border-radius:13px;background:var(--teal-100);color:var(--teal-700);display:flex;align-items:center;
+  justify-content:center;font-size:16px;flex-shrink:0}
+.scale-body{flex:1;min-width:0}
+.scale-t{font-size:13px;font-weight:800}
+.scale-s{font-size:11px;color:var(--text-3);font-weight:600;margin-top:2px}
+.auto-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:var(--teal-600);color:#fff;
+  padding:3px 7px;border-radius:7px;flex-shrink:0}
+.prev-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;font-weight:700}
+.prev-row:last-child{border-bottom:none}
+.prev-d{width:62px;flex-shrink:0;color:var(--text-3);font-weight:700;font-size:11px}
+.prev-chip{flex:1;text-align:center;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:6px 4px;font-size:11.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .spinner{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .center-load{text-align:center;padding:36px;color:var(--text-3);font-size:13px;font-weight:600}
@@ -336,6 +362,10 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
         <h1>ControlPoint</h1>
         <p>{{ profile.name }} · {{ profile.team }}<span v-if="isAdmin"> · Admin</span></p>
       </div>
+      <div class="bell-wrap">
+        <button class="top-btn" @click="currentView = 'alerts'" title="Notificações"><i class="fas fa-bell"></i></button>
+        <span class="badge" v-if="alertsCount">{{ alertsCount > 99 ? '99+' : alertsCount }}</span>
+      </div>
       <button class="top-btn" @click="toggleDarkMode" :title="isDarkMode ? 'Modo claro' : 'Modo escuro'">
         <i :class="isDarkMode ? 'fas fa-sun' : 'fas fa-moon'"></i>
       </button>
@@ -362,8 +392,27 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div class="pair-foot">Rodízio definido pelo administrador</div>
         </div>
 
-        <div class="card" v-if="isAdmin">
-          <div class="section-label">Equipe auditora (modo admin)</div>
+        <div class="scale-card" v-if="scale.ativo">
+          <div class="scale-live">
+            <div class="scale-ic"><i :class="shiftNow.shift === 'Dia' ? 'fas fa-sun' : 'fas fa-moon'"></i></div>
+            <div class="scale-body">
+              <div class="scale-t">Agora: turno {{ shiftNow.shift }} · {{ shiftNow.team }}</div>
+              <div class="scale-s">{{ shiftNow.from }}–{{ shiftNow.to }} · próxima virada {{ shiftNow.nextAt }}, entra {{ shiftNow.nextTeam }}</div>
+            </div>
+            <span class="auto-tag">Auto</span>
+          </div>
+          <button class="btn btn-ghost btn-sm btn-block" style="margin-top:11px" @click="applyCurrentShift">
+            <i class="fas fa-rotate"></i> Usar o turno que acabou de encerrar
+          </button>
+        </div>
+
+        <div class="warn" v-if="scaleMismatch">
+          <i class="fas fa-circle-info"></i>
+          <span>Pela escala, quem assume este turno é a <b>{{ auditorTeam }}</b> e você é da {{ myTeam }}. Confira a data e o turno antes de registrar.</span>
+        </div>
+
+        <div class="card" v-if="isAdmin && !scale.ativo">
+          <div class="section-label">Equipe auditora (modo manual)</div>
           <select v-model="adminAuditorTeam">
             <option v-for="t in teams" :key="t" :value="t">{{ t }}</option>
           </select>
@@ -376,7 +425,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
         <div class="card">
           <div class="field">
-            <label>Turno que está terminando</label>
+            <label>Turno auditado (o que está terminando)</label>
             <div class="chip-row">
               <button v-for="s in SHIFTS" :key="s" class="chip" :class="{active: auditShift === s}" @click="auditShift = s">
                 <i :class="s === 'Dia' ? 'fas fa-sun' : 'fas fa-moon'" style="margin-right:5px"></i>{{ s }}
@@ -523,6 +572,92 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             </div>
           </div>
         </div>
+      </template>
+
+
+      <!-- ====== NOTIFICAÇÕES ====== -->
+      <template v-if="currentView === 'alerts'">
+        <div class="card">
+          <div class="card-title"><i class="fas fa-bell"></i> Central de notificações</div>
+          <div class="card-sub">
+            {{ isAdmin ? 'Visão geral de todas as equipes.' : 'Pendências e não conformidades da ' + myTeam + '.' }}
+          </div>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="num" :style="{color: pendingList.length ? 'var(--amber-600)' : 'var(--text)'}">{{ pendingList.length }}</div><div class="lbl">Auditorias pendentes</div></div>
+            <div class="stat-box"><div class="num" :style="{color: ncRecent.length ? 'var(--red-600)' : 'var(--text)'}">{{ ncRecent.length }}</div><div class="lbl">Não conf. (7 dias)</div></div>
+          </div>
+        </div>
+
+        <div class="subtab">
+          <button :class="{active: alertsTab==='pending'}" @click="alertsTab='pending'">Pendentes ({{ pendingList.length }})</button>
+          <button :class="{active: alertsTab==='nc'}" @click="alertsTab='nc'">Não conformidades</button>
+        </div>
+
+        <div class="card" v-if="isAdmin">
+          <div class="section-label">Filtrar por equipe</div>
+          <div class="filter-row chip-row">
+            <button class="chip" :class="{active: alertsTeamFilter==='todas'}" @click="alertsTeamFilter='todas'">Todas</button>
+            <button v-for="t in teams" :key="'f'+t" class="chip" :class="{active: alertsTeamFilter===t}" @click="alertsTeamFilter=t">{{ t }}</button>
+          </div>
+        </div>
+
+        <div v-if="loadingAlerts" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando...</div>
+
+        <!-- pendentes -->
+        <template v-else-if="alertsTab === 'pending'">
+          <div class="warn" v-if="!scale.ativo">
+            <i class="fas fa-circle-info"></i>
+            <span>A detecção de pendências usa a escala 12x36. Ative-a em Admin › Config. para acompanhar os turnos sem auditoria.</span>
+          </div>
+          <div v-else-if="!pendingList.length" class="card empty">
+            <i class="fas fa-circle-check" style="color:var(--green-500);opacity:.8"></i>
+            <p>Nenhuma auditoria pendente. Todos os turnos encerrados foram registrados.</p>
+          </div>
+          <div v-else class="card">
+            <div class="section-label">Turnos encerrados sem auditoria (últimos 7 dias)</div>
+            <div v-for="p in pendingList" :key="p.id" class="alert-item">
+              <div class="alert-ic pend"><i :class="p.shift === 'Dia' ? 'fas fa-sun' : 'fas fa-moon'"></i></div>
+              <div class="alert-body">
+                <div class="alert-t">{{ p.audited }} — turno {{ p.shift }} de {{ fmtDate(p.date) }}</div>
+                <div class="alert-s">Responsável pela auditoria: {{ p.auditor }} · encerrado há {{ p.atrasoH }}h</div>
+              </div>
+              <button class="btn btn-primary btn-sm" v-if="isAdmin || p.auditor === myTeam" @click="auditPending(p)">Auditar</button>
+            </div>
+          </div>
+        </template>
+
+        <!-- não conformidades -->
+        <template v-else>
+          <div class="subtab" v-if="!isAdmin">
+            <button :class="{active: ncScope==='mine'}" @click="ncScope='mine'">Da nossa equipe</button>
+            <button :class="{active: ncScope==='made'}" @click="ncScope='made'">Que reportamos</button>
+          </div>
+
+          <div class="card" v-if="ncByPoint.length">
+            <div class="section-label">Pontos com mais ocorrências (30 dias)</div>
+            <div v-for="r in ncByPoint" :key="r.name" class="list-row">
+              <div class="li">{{ r.name }}</div>
+              <div class="score-badge fail">{{ r.count }}x</div>
+            </div>
+          </div>
+
+          <div v-if="!ncList.length" class="card empty">
+            <i class="fas fa-circle-check" style="color:var(--green-500);opacity:.8"></i>
+            <p>Nenhuma não conformidade registrada nos últimos 30 dias.</p>
+          </div>
+          <div v-else class="card">
+            <div class="section-label">Ocorrências ({{ ncList.length }})</div>
+            <div v-for="r in ncList" :key="r.key" class="alert-item">
+              <div class="alert-ic nc"><i class="fas fa-triangle-exclamation"></i></div>
+              <div class="alert-body">
+                <div class="alert-t">{{ r.name }}</div>
+                <div class="alert-s">{{ r.team }} · {{ fmtDate(r.date) }} · turno {{ r.shift }} · auditada por {{ r.auditorTeam }}</div>
+                <div class="alert-r" v-if="r.reason">{{ r.reason }}</div>
+              </div>
+              <img v-if="r.photoUrl" class="d-thumb" :src="r.photoUrl" @click="openImage(r.photoUrl)">
+            </div>
+          </div>
+        </template>
       </template>
 
       <!-- ====== RELATÓRIOS ====== -->
@@ -677,8 +812,51 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           </div>
 
           <div class="card">
-            <div class="card-title"><i class="fas fa-arrow-right-arrow-left"></i> Rodízio de auditoria</div>
-            <div class="card-sub">Quem cada equipe audita ao chegar no turno. Padrão: 1→4, 4→3, 3→2, 2→1.</div>
+            <div class="card-title"><i class="fas fa-calendar-days"></i> Escala 12x36</div>
+            <div class="card-sub">Com a escala ativa, o app identifica sozinho o turno, a equipe que chega e a que sai — o rodízio manual deixa de ser usado.</div>
+            <div class="chip-row" style="margin-bottom:12px">
+              <button class="chip" :class="{active: scale.ativo}" @click="scale.ativo = true">Automática</button>
+              <button class="chip" :class="{active: !scale.ativo}" @click="scale.ativo = false">Manual</button>
+            </div>
+            <template v-if="scale.ativo">
+              <div class="field">
+                <label>Data de referência (dia do par A)</label>
+                <input type="date" class="input" v-model="scale.dataRef">
+              </div>
+              <div class="section-label" style="margin-top:6px">Par A — nesta data e a cada 2 dias</div>
+              <div class="rot-row">
+                <div class="rot-from"><i class="fas fa-sun"></i> Dia</div>
+                <select v-model="scale.diaA"><option v-for="t in teams" :key="'da'+t" :value="t">{{ t }}</option></select>
+              </div>
+              <div class="rot-row">
+                <div class="rot-from"><i class="fas fa-moon"></i> Noite</div>
+                <select v-model="scale.noiteA"><option v-for="t in teams" :key="'na'+t" :value="t">{{ t }}</option></select>
+              </div>
+              <div class="section-label" style="margin-top:10px">Par B — no dia seguinte</div>
+              <div class="rot-row">
+                <div class="rot-from"><i class="fas fa-sun"></i> Dia</div>
+                <select v-model="scale.diaB"><option v-for="t in teams" :key="'db'+t" :value="t">{{ t }}</option></select>
+              </div>
+              <div class="rot-row">
+                <div class="rot-from"><i class="fas fa-moon"></i> Noite</div>
+                <select v-model="scale.noiteB"><option v-for="t in teams" :key="'nb'+t" :value="t">{{ t }}</option></select>
+              </div>
+              <div class="select-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+                <div class="field"><label>Início do dia (h)</label><input type="number" min="0" max="23" class="input" v-model.number="scale.inicioDia"></div>
+                <div class="field"><label>Início da noite (h)</label><input type="number" min="0" max="23" class="input" v-model.number="scale.inicioNoite"></div>
+              </div>
+              <div class="section-label" style="margin-top:8px">Prévia</div>
+              <div v-for="d in scalePreview" :key="d.date" class="prev-row">
+                <div class="prev-d">{{ d.hoje ? 'Hoje' : fmtDate(d.date).slice(0,5) }}</div>
+                <div class="prev-chip"><i class="fas fa-sun" style="color:var(--amber-600)"></i> {{ d.dia }}</div>
+                <div class="prev-chip"><i class="fas fa-moon" style="color:var(--teal-600)"></i> {{ d.noite }}</div>
+              </div>
+            </template>
+          </div>
+
+          <div class="card" v-if="!scale.ativo">
+            <div class="card-title"><i class="fas fa-arrow-right-arrow-left"></i> Rodízio manual</div>
+            <div class="card-sub">Usado apenas com a escala no modo manual. Padrão: 1→4, 4→3, 3→2, 2→1.</div>
             <div v-for="t in teams" :key="'rot'+t" class="rot-row">
               <div class="rot-from">{{ t }}</div>
               <i class="fas fa-arrow-right" style="color:var(--text-3)"></i>
@@ -691,7 +869,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
           <button class="btn btn-primary btn-block" :disabled="savingConfig" @click="saveGeneralConfig">
             <i v-if="savingConfig" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-floppy-disk"></i>
-            Salvar meta, equipes e rodízio
+            Salvar meta, equipes, escala e rodízio
           </button>
 
           <div class="card">
@@ -851,11 +1029,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="fileInput" accept="image/*" capture="environment" style="display:none" @change="onPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.0.0"></script>
+<script type="module" src="./app.js?v=3.1.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v3';
+    var CURRENT = 'controlpoint-v31';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -863,7 +1041,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.0.0')
+        navigator.serviceWorker.register('./sw.js?v=3.1.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
