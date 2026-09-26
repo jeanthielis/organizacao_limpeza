@@ -7,7 +7,10 @@ import {
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   storageRef, uploadBytes, getDownloadURL,
   createUserAsAdmin
-} from './firebase.js?v=3.2.0'
+} from './firebase.js?v=3.3.0'
+import {
+  newQueueId, addPhoto, updatePhoto, listPhotos, removePhoto, countReady, purgeOrphans
+} from './offline.js?v=3.3.0'
 
 createApp({
   setup() {
@@ -40,7 +43,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.2.0')
+    const appVersion = ref('3.3.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -108,7 +111,7 @@ createApp({
         const list = []
         snap.forEach(d => list.push({ id: d.id, ...d.data() }))
         list.sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || String(a.name).localeCompare(String(b.name)))
-        pointsConfig.value = list
+        pointsConfig.value = list.map(p => ({ ...p, area: p.area || 'Geral', peso: p.peso || 1 }))
       } catch (e) { console.error('Erro ao carregar pontos:', e) }
       finally { loadingPoints.value = false }
     }
@@ -217,8 +220,22 @@ createApp({
     const okCount = computed(() => points.value.filter(p => p.status === 'ok').length)
     const nokCount = computed(() => points.value.filter(p => p.status === 'nok').length)
     const answeredCount = computed(() => okCount.value + nokCount.value)
-    const progress = computed(() => points.value.length ? Math.round(okCount.value / points.value.length * 100) : 0)
-    const pendingPhotos = computed(() => points.value.filter(p => p.status === 'nok' && !p.photoUrl).length)
+    const pesoTotal = computed(() => points.value.reduce((t, p) => t + (p.peso || 1), 0))
+    const pesoOk = computed(() => points.value.filter(p => p.status === 'ok').reduce((t, p) => t + (p.peso || 1), 0))
+    const progress = computed(() => pesoTotal.value ? Math.round(pesoOk.value / pesoTotal.value * 100) : 0)
+    const pointsGrouped = computed(() => {
+      const groups = []
+      points.value.forEach((p, i) => {
+        const area = p.area || 'Geral'
+        let g = groups.find(x => x.area === area)
+        if (!g) { g = { area, items: [] }; groups.push(g) }
+        g.items.push({ p, i })
+      })
+      return groups
+    })
+    const hasPhoto = (p) => !!(p.photoUrl || p.photoLocalId)
+    const photoPreview = (p) => p.photoUrl || (p.photoLocalId ? localPhotoUrls.value[p.photoLocalId] : '')
+    const pendingPhotos = computed(() => points.value.filter(p => p.status === 'nok' && !hasPhoto(p)).length)
     const pendingReasons = computed(() => points.value.filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length)
     const canSubmit = computed(() =>
       points.value.length > 0 && answeredCount.value === points.value.length &&
@@ -230,7 +247,8 @@ createApp({
 
     const buildChecklist = () => {
       points.value = pointsConfig.value.map(p => ({
-        id: p.id, name: p.name, status: null, reason: '', photoUrl: '', photoPath: ''
+        id: p.id, name: p.name, area: p.area || 'Geral', peso: p.peso || 1,
+        status: null, reason: '', photoUrl: '', photoPath: '', photoLocalId: ''
       }))
       showErrors.value = false
     }
@@ -260,6 +278,62 @@ createApp({
       point.status = point.status === status ? null : status
       if (point.status !== 'nok') point.reason = ''
     }
+
+    /* ==================== OFFLINE / FILA DE SINCRONIZAÇÃO ==================== */
+    const isOnline = ref(navigator.onLine)
+    const pendingUploads = ref(0)
+    const syncing = ref(false)
+    const localPhotoUrls = ref({})   // queueId -> objectURL (só nesta sessão)
+
+    const refreshQueue = async () => { try { pendingUploads.value = await countReady() } catch (e) {} }
+
+    const processQueue = async () => {
+      if (!storage || !db || syncing.value || !navigator.onLine) return
+      syncing.value = true
+      try {
+        const items = await listPhotos()
+        for (const it of items) {
+          if (!it.docId || !it.blob) continue
+          try {
+            const path = `inspecoes/${it.docId}/${it.id}.jpg`
+            const r = storageRef(storage, path)
+            await uploadBytes(r, it.blob, { contentType: 'image/jpeg' })
+            const url = await getDownloadURL(r)
+            const ref0 = doc(db, 'inspections', it.docId)
+            const snap = await getDoc(ref0)
+            if (snap.exists()) {
+              const data = snap.data()
+              const pts = (data.points || []).map(p => {
+                if (p.name !== it.pointName) return p
+                if (it.field === 'after') {
+                  return { ...p, treatment: { ...(p.treatment || {}), afterPhotoUrl: url, afterPhotoPending: false } }
+                }
+                return { ...p, photoUrl: url, photoPath: path, photoPending: false, photoLocalId: '' }
+              })
+              await updateDoc(ref0, { points: pts })
+            }
+            await removePhoto(it.id)
+            if (localPhotoUrls.value[it.id]) {
+              URL.revokeObjectURL(localPhotoUrls.value[it.id])
+              delete localPhotoUrls.value[it.id]
+            }
+          } catch (e) { console.warn('Envio pendente adiado:', e.message); break }
+        }
+      } finally {
+        syncing.value = false
+        await refreshQueue()
+      }
+    }
+
+    const syncNow = async () => {
+      if (!navigator.onLine) { showWarning('Sem conexão. Tentaremos assim que a rede voltar.'); return }
+      await processQueue()
+      if (pendingUploads.value === 0) showSuccess('Tudo sincronizado')
+      else showWarning(`${pendingUploads.value} foto(s) ainda na fila`)
+    }
+
+    window.addEventListener('online', () => { isOnline.value = true; showInfo('Conexão restabelecida. Sincronizando...'); processQueue() })
+    window.addEventListener('offline', () => { isOnline.value = false; showWarning('Você está offline. O trabalho continua e sincroniza depois.') })
 
     /* --- Fotos --- */
     const fileInput = ref(null)
@@ -293,24 +367,48 @@ createApp({
       const point = pendingPhotoPoint
       pendingPhotoPoint = null
       if (!file || !point) return
-      if (!storage) { showError('Firebase Storage indisponível'); return }
       const idx = points.value.indexOf(point)
       uploadingIndex.value = idx
       try {
         const blob = await resizeImage(file)
-        const path = `inspecoes/${auditDocId()}/${Date.now()}_${idx}.jpg`
-        const r = storageRef(storage, path)
-        await uploadBytes(r, blob, { contentType: 'image/jpeg' })
-        point.photoUrl = await getDownloadURL(r)
-        point.photoPath = path
-        showSuccess('Foto anexada')
+        if (navigator.onLine && storage) {
+          try {
+            const path = `inspecoes/${auditDocId()}/${Date.now()}_${idx}.jpg`
+            const r = storageRef(storage, path)
+            await uploadBytes(r, blob, { contentType: 'image/jpeg' })
+            point.photoUrl = await getDownloadURL(r)
+            point.photoPath = path
+            point.photoLocalId = ''
+            showSuccess('Foto anexada')
+            return
+          } catch (err) { console.warn('Upload direto falhou, indo para a fila:', err.message) }
+        }
+        const id = newQueueId()
+        await addPhoto({ id, blob, pointName: point.name, field: 'photo', docId: null, createdAt: Date.now() })
+        const url = URL.createObjectURL(blob)
+        localPhotoUrls.value = { ...localPhotoUrls.value, [id]: url }
+        point.photoLocalId = id
+        point.photoUrl = ''
+        point.photoPath = ''
+        await refreshQueue()
+        showInfo('Foto guardada no aparelho. Será enviada quando houver conexão.')
       } catch (e) {
         console.error(e)
-        showError('Não foi possível enviar a foto: ' + e.message)
+        showError('Não foi possível processar a foto: ' + e.message)
       } finally { uploadingIndex.value = null }
     }
 
-    const removePhoto = (point) => { point.photoUrl = ''; point.photoPath = '' }
+    const removePhotoFromPoint = async (point) => {
+      if (point.photoLocalId) {
+        try { await removePhoto(point.photoLocalId) } catch (e) {}
+        const url = localPhotoUrls.value[point.photoLocalId]
+        if (url) URL.revokeObjectURL(url)
+        const copy = { ...localPhotoUrls.value }; delete copy[point.photoLocalId]
+        localPhotoUrls.value = copy
+        await refreshQueue()
+      }
+      point.photoUrl = ''; point.photoPath = ''; point.photoLocalId = ''
+    }
 
     /* --- Lightbox --- */
     const lightboxUrl = ref('')
@@ -341,19 +439,31 @@ createApp({
           meta: meta.value,
           points: points.value.map(p => ({
             name: p.name,
+            area: p.area || 'Geral',
+            peso: p.peso || 1,
             status: p.status,
             checked: p.status === 'ok',        // compatibilidade com dados antigos
             reason: p.status === 'nok' ? (p.reason || '').trim() : '',
             obs: p.status === 'nok' ? (p.reason || '').trim() : '',
             photoUrl: p.photoUrl || '',
-            photoPath: p.photoPath || ''
+            photoPath: p.photoPath || '',
+            photoLocalId: p.photoLocalId || '',
+            photoPending: !!p.photoLocalId,
+            treatment: p.status === 'nok' ? { status: 'aberta' } : null
           })),
+          acknowledgement: null,
           updatedAt: new Date().toISOString()
         }
-        await setDoc(doc(db, 'inspections', auditDocId()), payload)
-        showSuccess('Auditoria registrada com sucesso!')
+        const docId = auditDocId()
+        await setDoc(doc(db, 'inspections', docId), payload)
+        for (const p of points.value) {
+          if (p.photoLocalId) await updatePhoto(p.photoLocalId, { docId, pointName: p.name, field: 'photo' })
+        }
+        await refreshQueue()
+        processQueue()
+        showSuccess(navigator.onLine ? 'Auditoria registrada com sucesso!' : 'Auditoria salva no aparelho. Será enviada quando a rede voltar.')
         shareFromSave.value = true
-        shareData.value = { _id: auditDocId(), ...payload }
+        shareData.value = { _id: docId, ...payload }
         loadAlerts()
       } catch (e) {
         console.error(e)
@@ -564,8 +674,8 @@ createApp({
       const n = newPointName.value.trim()
       if (!n) return
       try {
-        const r = await addDoc(collection(db, 'config_pontos'), { name: n, ordem: pointsConfig.value.length + 1 })
-        pointsConfig.value.push({ id: r.id, name: n, ordem: pointsConfig.value.length + 1 })
+        const r = await addDoc(collection(db, 'config_pontos'), { name: n, area: 'Geral', peso: 1, ordem: pointsConfig.value.length + 1 })
+        pointsConfig.value.push({ id: r.id, name: n, area: 'Geral', peso: 1, ordem: pointsConfig.value.length + 1 })
         newPointName.value = ''
         showSuccess('Ponto adicionado')
       } catch (e) { showError('Erro: ' + e.message) }
@@ -579,8 +689,12 @@ createApp({
       } catch (e) { showError('Erro: ' + e.message) }
     }
     const renamePoint = async (p) => {
-      try { await updateDoc(doc(db, 'config_pontos', p.id), { name: p.name }); showSuccess('Ponto atualizado') }
-      catch (e) { showError('Erro: ' + e.message) }
+      try {
+        await updateDoc(doc(db, 'config_pontos', p.id), {
+          name: p.name, area: (p.area || 'Geral').trim() || 'Geral', peso: p.peso || 1
+        })
+        showSuccess('Ponto atualizado')
+      } catch (e) { showError('Erro: ' + e.message) }
     }
 
     /* ==================== RELATÓRIOS ==================== */
@@ -958,6 +1072,8 @@ createApp({
             if (scale.value.ativo) applyCurrentShift()
             await loadExistingAudit()
             loadAlerts()
+            purgeOrphans().catch(() => {})
+            refreshQueue().then(() => processQueue())
           }
         } else {
           profile.value = null
@@ -1018,14 +1134,17 @@ createApp({
         : out.filter(p => p.auditor === myTeam.value)
     })
 
-    const ncList = computed(() => {
+    const ncAll = computed(() => {
       const rows = []
       alertsAudits.value.forEach(a => {
         (a.points || []).forEach(p => {
           if (p.status === 'nok' || (p.status == null && p.checked === false)) {
             rows.push({
               key: a._id + '|' + p.name,
-              name: p.name, reason: p.reason || p.obs || '', photoUrl: p.photoUrl || '',
+              docId: a._id,
+              name: p.name, area: p.area || 'Geral',
+              reason: p.reason || p.obs || '', photoUrl: p.photoUrl || '',
+              treatment: p.treatment || { status: 'aberta' },
               date: a.date, shift: a.shift || '-', team: a.team,
               auditorTeam: a.auditorTeam || '—', auditorName: a.auditorName || ''
             })
@@ -1043,9 +1162,22 @@ createApp({
       return filtered.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name))
     })
 
+    const ncList = computed(() => {
+      const f = ncFilter.value
+      if (f === 'todas') return ncAll.value
+      if (f === 'atrasada') return ncAll.value.filter(r => isOverdue(r.treatment))
+      return ncAll.value.filter(r => (r.treatment?.status || 'aberta') === f)
+    })
+
     const ncRecent = computed(() => {
       const cut = addDays(localToday(), -7)
       return ncList.value.filter(r => r.date >= cut)
+    })
+
+    const ncByArea = computed(() => {
+      const map = {}
+      ncAll.value.forEach(r => { const k = r.area || 'Geral'; map[k] = (map[k] || 0) + 1 })
+      return Object.entries(map).map(([area, count]) => ({ area, count })).sort((a, b) => b.count - a.count)
     })
 
     const ncByPoint = computed(() => {
@@ -1055,13 +1187,158 @@ createApp({
         .sort((a, b) => b.count - a.count).slice(0, 5)
     })
 
-    const alertsCount = computed(() => pendingList.value.length + ncRecent.value.length)
+    const alertsCount = computed(() => pendingList.value.length + ncRecent.value.length + pendingAcks.value.length)
 
     // Abre a tela de auditoria já posicionada na pendência escolhida
     const auditPending = (p) => {
       auditDate.value = p.date
       auditShift.value = p.shift
       currentView.value = 'audit'
+    }
+
+    /* ==================== CIÊNCIA DA EQUIPE AUDITADA ==================== */
+    const ackModal = ref(null)   // { item, decision, comment }
+
+    const ackOf = (item) => (item && item.acknowledgement) || null
+    const canAck = (item) => !!item && (isAdmin.value || item.team === myTeam.value)
+    const openAck = (item, decision) => { ackModal.value = { item, decision: decision || 'ok', comment: '' } }
+    const closeAck = () => { ackModal.value = null }
+
+    const submitAck = async () => {
+      const m = ackModal.value
+      if (!m) return
+      if (m.decision === 'contested' && m.comment.trim().length < 5) {
+        showWarning('Descreva o motivo da contestação'); return
+      }
+      try {
+        await updateDoc(doc(db, 'inspections', m.item._id), {
+          acknowledgement: {
+            status: m.decision,
+            by: user.value.uid,
+            name: profile.value?.name || user.value.email,
+            team: myTeam.value,
+            comment: m.comment.trim(),
+            at: new Date().toISOString()
+          }
+        })
+        const patch = (list) => list.forEach(a => {
+          if (a._id === m.item._id) a.acknowledgement = { status: m.decision, name: profile.value?.name, comment: m.comment.trim(), at: new Date().toISOString() }
+        })
+        patch(auditsList.value); patch(alertsAudits.value); patch(adminAudits.value)
+        showSuccess(m.decision === 'ok' ? 'Ciência registrada' : 'Contestação registrada')
+        closeAck()
+      } catch (e) { showError('Erro: ' + e.message) }
+    }
+
+    // Auditorias recebidas pela minha equipe que ainda não têm ciência
+    const pendingAcks = computed(() => alertsAudits.value.filter(a =>
+      (isAdmin.value ? true : a.team === myTeam.value) &&
+      !(a.acknowledgement && a.acknowledgement.status)
+    ).slice(0, 30))
+
+    /* ==================== TRATATIVA DAS NÃO CONFORMIDADES ==================== */
+    const treatModal = ref(null)   // { row, status, responsavel, prazo, nota, afterUrl, afterLocalId }
+    const savingTreat = ref(false)
+    const ncFilter = ref('todas')  // todas | aberta | andamento | resolvida | atrasada
+
+    const treatOf = (p) => (p && p.treatment) || { status: 'aberta' }
+    const isOverdue = (t) => t && t.status !== 'resolvida' && t.prazo && t.prazo < localToday()
+
+    const openTreat = (row) => {
+      const t = row.treatment || {}
+      treatModal.value = {
+        row,
+        status: t.status || 'aberta',
+        responsavel: t.responsavel || '',
+        prazo: t.prazo || '',
+        nota: t.nota || '',
+        afterUrl: t.afterPhotoUrl || '',
+        afterLocalId: ''
+      }
+    }
+    const closeTreat = () => { treatModal.value = null }
+
+    const saveTreat = async () => {
+      const m = treatModal.value
+      if (!m) return
+      if (m.status === 'resolvida' && !m.afterUrl && !m.afterLocalId) {
+        showWarning('Anexe a foto que comprova a correção'); return
+      }
+      savingTreat.value = true
+      try {
+        const ref0 = doc(db, 'inspections', m.row.docId)
+        const snap = await getDoc(ref0)
+        if (!snap.exists()) throw new Error('Auditoria não encontrada')
+        const data = snap.data()
+        const treatment = {
+          status: m.status,
+          responsavel: m.responsavel.trim(),
+          prazo: m.prazo || '',
+          nota: m.nota.trim(),
+          afterPhotoUrl: m.afterUrl || '',
+          afterPhotoPending: !!m.afterLocalId,
+          updatedAt: new Date().toISOString(),
+          updatedBy: profile.value?.name || user.value.email
+        }
+        if (m.status === 'resolvida') {
+          treatment.resolvedAt = new Date().toISOString()
+          treatment.resolvedBy = profile.value?.name || user.value.email
+        }
+        const pts = (data.points || []).map(p => p.name === m.row.name ? { ...p, treatment } : p)
+        await updateDoc(ref0, { points: pts })
+        if (m.afterLocalId) {
+          await updatePhoto(m.afterLocalId, { docId: m.row.docId, pointName: m.row.name, field: 'after' })
+          await refreshQueue()
+          processQueue()
+        }
+        const local = alertsAudits.value.find(a => a._id === m.row.docId)
+        if (local) local.points = pts
+        showSuccess('Tratativa atualizada')
+        closeTreat()
+      } catch (e) { showError('Erro: ' + e.message) }
+      finally { savingTreat.value = false }
+    }
+
+    const treatStats = computed(() => {
+      const s = { aberta: 0, andamento: 0, resolvida: 0, atrasada: 0 }
+      ncAll.value.forEach(r => {
+        const t = r.treatment || { status: 'aberta' }
+        s[t.status || 'aberta'] = (s[t.status || 'aberta'] || 0) + 1
+        if (isOverdue(t)) s.atrasada++
+      })
+      return s
+    })
+
+    /* --- Foto da correção (tratativa) --- */
+    const afterInput = ref(null)
+    const uploadingAfter = ref(false)
+    const triggerAfterPhoto = () => { if (afterInput.value) { afterInput.value.value = ''; afterInput.value.click() } }
+    const onAfterPhotoSelected = async (ev) => {
+      const file = ev.target.files && ev.target.files[0]
+      ev.target.value = ''
+      if (!file || !treatModal.value) return
+      uploadingAfter.value = true
+      try {
+        const blob = await resizeImage(file)
+        if (navigator.onLine && storage) {
+          try {
+            const path = `inspecoes/${treatModal.value.row.docId}/after_${Date.now()}.jpg`
+            const r = storageRef(storage, path)
+            await uploadBytes(r, blob, { contentType: 'image/jpeg' })
+            treatModal.value.afterUrl = await getDownloadURL(r)
+            treatModal.value.afterLocalId = ''
+            uploadingAfter.value = false
+            return
+          } catch (err) { console.warn('Upload direto falhou:', err.message) }
+        }
+        const id = newQueueId()
+        await addPhoto({ id, blob, pointName: treatModal.value.row.name, field: 'after', docId: null, createdAt: Date.now() })
+        localPhotoUrls.value = { ...localPhotoUrls.value, [id]: URL.createObjectURL(blob) }
+        treatModal.value.afterLocalId = id
+        treatModal.value.afterUrl = ''
+        showInfo('Foto guardada. Envio automático quando houver conexão.')
+      } catch (e) { showError('Erro na foto: ' + e.message) }
+      finally { uploadingAfter.value = false }
     }
 
     /* ==================== RELATÓRIO COMPARTILHÁVEL ==================== */
@@ -1157,7 +1434,9 @@ createApp({
       auditDate, auditShift, auditorTeam, auditedTeam, adminAuditorTeam,
       points, loadingPoints, saving, showErrors, uploadingIndex,
       okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
-      setStatus, triggerPhoto, onPhotoSelected, removePhoto, saveAudit, fileInput,
+      setStatus, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
+      hasPhoto, photoPreview, pointsGrouped, pesoTotal,
+      isOnline, pendingUploads, syncing, syncNow, localPhotoUrls,
       lightboxUrl, openImage, closeImage,
       // auditorias
       auditsTab, auditsList, loadingAudits, auditsMonth, openAudits, toggleAudit,
@@ -1170,6 +1449,11 @@ createApp({
       // relatórios
       reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
       generatePDF, takeScreenshot, exportCSV,
+      // ciência e tratativa
+      ackModal, ackOf, canAck, openAck, closeAck, submitAck, pendingAcks,
+      treatModal, savingTreat, ncFilter, ncAll, treatStats, treatOf, isOverdue,
+      openTreat, closeTreat, saveTreat,
+      afterInput, uploadingAfter, triggerAfterPhoto, onAfterPhotoSelected,
       // compartilhamento
       shareData, openShare, closeShare, shareNative, shareWhatsApp, copyReport, buildReportText,
       // equipes
@@ -1178,7 +1462,7 @@ createApp({
       scale, shiftNow, scalePreview, applyCurrentShift, scaleMismatch, teamFor,
       // notificações
       alertsAudits, loadingAlerts, alertsTab, ncScope, alertsTeamFilter, loadAlerts,
-      pendingList, ncList, ncRecent, ncByPoint, alertsCount, auditPending,
+      pendingList, ncList, ncRecent, ncByPoint, ncByArea, alertsCount, auditPending,
       // helpers
       fmtDate, initials, chartId
     }
