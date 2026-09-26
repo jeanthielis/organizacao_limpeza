@@ -287,50 +287,100 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     </div>
   </div>
 
-  <!-- ============ LOGIN ============ -->
-  <div v-else-if="!user" class="login">
+  <!-- ============ LOGIN / RECUPERAÇÃO ============ -->
+  <div v-else-if="!user || authView === 'reset'" class="login">
     <div class="login-inner">
       <div class="login-hero">
         <div class="login-logo"><i class="fas fa-shield-halved"></i></div>
         <h2>ControlPoint</h2>
-        <p>{{ bootstrapMode ? 'Crie a conta do administrador' : 'Entre para iniciar a auditoria' }}</p>
+        <p v-if="authView === 'login'">Entre para iniciar a auditoria</p>
+        <p v-else-if="authView === 'forgot'">Recuperação de senha</p>
+        <p v-else>Cadastre sua nova senha</p>
       </div>
+
       <div class="card">
         <div v-if="authError" class="auth-error"><i class="fas fa-circle-exclamation"></i> {{ authError }}</div>
 
-        <div v-if="bootstrapMode" class="warn" style="margin-bottom:12px">
-          <i class="fas fa-circle-info"></i>
-          <span>Use apenas na implantação: se ainda não houver nenhum usuário, esta conta vira o administrador, que depois cadastra os auditores.</span>
-        </div>
-
-        <div class="field" v-if="bootstrapMode">
-          <label>Nome</label>
-          <input class="input" v-model="authForm.name" placeholder="Seu nome">
-        </div>
-        <div class="field">
-          <label>E-mail</label>
-          <input class="input" type="email" inputmode="email" v-model="authForm.email" placeholder="voce@empresa.com">
-        </div>
-        <div class="field">
-          <label>Senha</label>
-          <input class="input" type="password" v-model="authForm.password" placeholder="••••••"
-                 @keydown.enter="bootstrapMode ? handleBootstrap() : handleLogin()">
-        </div>
-
-        <button class="btn btn-primary btn-block" :disabled="loading"
-                @click="bootstrapMode ? handleBootstrap() : handleLogin()">
-          <i v-if="loading" class="fas fa-circle-notch spinner"></i>
-          <i v-else :class="bootstrapMode ? 'fas fa-user-shield' : 'fas fa-right-to-bracket'"></i>
-          {{ bootstrapMode ? 'Criar administrador' : 'Entrar' }}
-        </button>
-
-        <div style="text-align:center;margin-top:6px;display:flex;flex-direction:column">
-          <button v-if="!bootstrapMode" class="link-btn" @click="forgotPassword">Esqueci minha senha</button>
-          <button class="link-btn" @click="toggleBootstrap">
-            {{ bootstrapMode ? 'Voltar para o login' : 'Primeiro acesso — criar administrador' }}
+        <!-- LOGIN -->
+        <template v-if="authView === 'login'">
+          <div class="warn" v-if="lockInfo.locked" style="margin-bottom:12px">
+            <i class="fas fa-lock"></i>
+            <span>Acesso bloqueado por excesso de tentativas. Aguarde {{ lockInfo.left }} min ou redefina sua senha.</span>
+          </div>
+          <div class="field">
+            <label>E-mail</label>
+            <input class="input" type="email" inputmode="email" autocomplete="username" v-model="authForm.email" placeholder="voce@empresa.com">
+          </div>
+          <div class="field">
+            <label>Senha</label>
+            <input class="input" type="password" autocomplete="current-password" v-model="authForm.password"
+                   placeholder="••••••" @keydown.enter="handleLogin">
+          </div>
+          <div v-if="!lockInfo.locked && lockInfo.remaining < 4"
+               style="font-size:11px;font-weight:700;color:var(--amber-600);margin:-4px 0 10px">
+            {{ lockInfo.remaining }} tentativa(s) antes do bloqueio
+          </div>
+          <button class="btn btn-primary btn-block" :disabled="loading || lockInfo.locked" @click="handleLogin">
+            <i v-if="loading" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-right-to-bracket"></i>
+            Entrar
           </button>
-        </div>
+          <div style="text-align:center;margin-top:6px">
+            <button class="link-btn" @click="goForgot">Esqueci minha senha</button>
+          </div>
+        </template>
+
+        <!-- ESQUECI A SENHA -->
+        <template v-else-if="authView === 'forgot'">
+          <template v-if="!resetSent">
+            <p style="font-size:12.5px;color:var(--text-2);font-weight:600;margin:0 0 12px;line-height:1.5">
+              Informe seu e-mail. Enviaremos um link que abre direto a tela para você cadastrar a nova senha.
+            </p>
+            <div class="field">
+              <label>E-mail</label>
+              <input class="input" type="email" inputmode="email" v-model="resetEmail"
+                     placeholder="voce@empresa.com" @keydown.enter="sendReset">
+            </div>
+            <button class="btn btn-primary btn-block" :disabled="loading" @click="sendReset">
+              <i v-if="loading" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-paper-plane"></i>
+              Enviar link de redefinição
+            </button>
+          </template>
+          <template v-else>
+            <div style="text-align:center;padding:10px 0 4px">
+              <i class="fas fa-envelope-circle-check" style="font-size:38px;color:var(--green-500)"></i>
+              <p style="font-size:13px;font-weight:700;margin:12px 0 4px">E-mail enviado</p>
+              <p style="font-size:12px;color:var(--text-3);font-weight:600;margin:0;line-height:1.5">
+                Abra o link enviado para <b>{{ resetEmail }}</b> pelo celular. Ele abre o ControlPoint na tela de nova senha.
+                Verifique também a caixa de spam.
+              </p>
+            </div>
+          </template>
+          <div style="text-align:center;margin-top:8px">
+            <button class="link-btn" @click="goLogin">Voltar para o login</button>
+          </div>
+        </template>
+
+        <!-- NOVA SENHA (via link do e-mail) -->
+        <template v-else>
+          <p style="font-size:12.5px;color:var(--text-2);font-weight:600;margin:0 0 12px">
+            Conta: <b>{{ resetAccount }}</b>
+          </p>
+          <div class="field">
+            <label>Nova senha (mín. 6 caracteres)</label>
+            <input class="input" type="password" autocomplete="new-password" v-model="newPass" placeholder="••••••">
+          </div>
+          <div class="field">
+            <label>Repita a nova senha</label>
+            <input class="input" type="password" autocomplete="new-password" v-model="newPass2"
+                   placeholder="••••••" @keydown.enter="submitNewPasswordFromLink">
+          </div>
+          <button class="btn btn-primary btn-block" :disabled="savingPass" @click="submitNewPasswordFromLink">
+            <i v-if="savingPass" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-key"></i>
+            Salvar nova senha e entrar
+          </button>
+        </template>
       </div>
+
       <p style="text-align:center;font-size:11px;color:var(--text-3);margin-top:14px;font-weight:600">
         Não tem acesso? Solicite o cadastro ao administrador.
       </p>
@@ -350,6 +400,39 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           Informe este e-mail ao administrador: <b>{{ user.email }}</b>
         </p>
         <button class="btn btn-ghost btn-block" @click="logout"><i class="fas fa-right-from-bracket"></i> Sair</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PRIMEIRO ACESSO: NOVA SENHA OBRIGATÓRIA ============ -->
+  <div v-else-if="mustChangePassword" class="login">
+    <div class="login-inner">
+      <div class="login-hero">
+        <div class="login-logo"><i class="fas fa-key"></i></div>
+        <h2>Primeiro acesso</h2>
+        <p>Defina uma senha pessoal para continuar</p>
+      </div>
+      <div class="card">
+        <div class="warn" style="margin-bottom:12px">
+          <i class="fas fa-circle-info"></i>
+          <span>A senha provisória criada pelo administrador precisa ser substituída antes de usar o app.</span>
+        </div>
+        <div class="field">
+          <label>Nova senha (mín. 6 caracteres)</label>
+          <input class="input" type="password" autocomplete="new-password" v-model="newPass" placeholder="••••••">
+        </div>
+        <div class="field">
+          <label>Repita a nova senha</label>
+          <input class="input" type="password" autocomplete="new-password" v-model="newPass2"
+                 placeholder="••••••" @keydown.enter="submitFirstAccessPassword">
+        </div>
+        <button class="btn btn-primary btn-block" :disabled="savingPass" @click="submitFirstAccessPassword">
+          <i v-if="savingPass" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-check"></i>
+          Salvar e continuar
+        </button>
+        <button class="btn btn-ghost btn-block" style="margin-top:8px" @click="logout">
+          <i class="fas fa-right-from-bracket"></i> Sair
+        </button>
       </div>
     </div>
   </div>
@@ -404,6 +487,15 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <button class="btn btn-ghost btn-sm btn-block" style="margin-top:11px" @click="applyCurrentShift">
             <i class="fas fa-rotate"></i> Usar o turno que acabou de encerrar
           </button>
+        </div>
+
+        <div class="card" v-if="canAuditAny">
+          <div class="card-title"><i class="fas fa-user-gear"></i> Auditoria livre ({{ myTeam === ADM_TEAM ? 'equipe ADM' : 'administrador' }})</div>
+          <div class="card-sub">Deixe em "Seguir a escala" para usar o rodízio automático ou escolha manualmente a equipe a auditar.</div>
+          <select v-model="manualAudited">
+            <option value="">Seguir a escala{{ auditedTeam ? ' — ' + auditedTeam : '' }}</option>
+            <option v-for="t in opTeams" :key="'ma'+t" :value="t">{{ t }}</option>
+          </select>
         </div>
 
         <div class="warn" v-if="scaleMismatch">
@@ -559,6 +651,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
               <div class="l2">{{ fmtDate(item.date) }} · {{ item.shift || '-' }} · {{ nonConformities(item).length }} não conf.<span v-if="item.auditorName"> · {{ item.auditorName }}</span></div>
             </div>
             <div class="score-badge" :class="(item.score >= (item.meta || meta)) ? 'pass' : 'fail'">{{ Math.round(item.score) }}%</div>
+            <button class="icon-btn" @click.stop="openShare(item)" title="Compartilhar"><i class="fas fa-share-nodes"></i></button>
             <i class="fas fa-chevron-down" :style="{transform: openAudits[item._id] ? 'rotate(180deg)' : '', color:'var(--text-3)'}"></i>
           </div>
           <div class="audit-detail" v-if="openAudits[item._id]">
@@ -759,6 +852,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                 {{ a.team }} <span style="color:var(--text-3);font-weight:600">por {{ a.auditorTeam || '—' }}</span>
                 <div class="ls">{{ fmtDate(a.date) }} · {{ a.shift || '-' }} · {{ Math.round(a.score) }}%<span v-if="a.auditorName"> · {{ a.auditorName }}</span></div>
               </div>
+              <button class="icon-btn" @click="openShare(a)"><i class="fas fa-share-nodes"></i></button>
               <button class="icon-btn" @click="openEdit(a)"><i class="fas fa-pen-to-square"></i></button>
               <button class="icon-btn danger" @click="deleteAudit(a)"><i class="fas fa-trash"></i></button>
             </div>
@@ -826,20 +920,20 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
               <div class="section-label" style="margin-top:6px">Par A — nesta data e a cada 2 dias</div>
               <div class="rot-row">
                 <div class="rot-from"><i class="fas fa-sun"></i> Dia</div>
-                <select v-model="scale.diaA"><option v-for="t in teams" :key="'da'+t" :value="t">{{ t }}</option></select>
+                <select v-model="scale.diaA"><option v-for="t in opTeams" :key="'da'+t" :value="t">{{ t }}</option></select>
               </div>
               <div class="rot-row">
                 <div class="rot-from"><i class="fas fa-moon"></i> Noite</div>
-                <select v-model="scale.noiteA"><option v-for="t in teams" :key="'na'+t" :value="t">{{ t }}</option></select>
+                <select v-model="scale.noiteA"><option v-for="t in opTeams" :key="'na'+t" :value="t">{{ t }}</option></select>
               </div>
               <div class="section-label" style="margin-top:10px">Par B — no dia seguinte</div>
               <div class="rot-row">
                 <div class="rot-from"><i class="fas fa-sun"></i> Dia</div>
-                <select v-model="scale.diaB"><option v-for="t in teams" :key="'db'+t" :value="t">{{ t }}</option></select>
+                <select v-model="scale.diaB"><option v-for="t in opTeams" :key="'db'+t" :value="t">{{ t }}</option></select>
               </div>
               <div class="rot-row">
                 <div class="rot-from"><i class="fas fa-moon"></i> Noite</div>
-                <select v-model="scale.noiteB"><option v-for="t in teams" :key="'nb'+t" :value="t">{{ t }}</option></select>
+                <select v-model="scale.noiteB"><option v-for="t in opTeams" :key="'nb'+t" :value="t">{{ t }}</option></select>
               </div>
               <div class="select-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
                 <div class="field"><label>Início do dia (h)</label><input type="number" min="0" max="23" class="input" v-model.number="scale.inicioDia"></div>
@@ -857,7 +951,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div class="card" v-if="!scale.ativo">
             <div class="card-title"><i class="fas fa-arrow-right-arrow-left"></i> Rodízio manual</div>
             <div class="card-sub">Usado apenas com a escala no modo manual. Padrão: 1→4, 4→3, 3→2, 2→1.</div>
-            <div v-for="t in teams" :key="'rot'+t" class="rot-row">
+            <div v-for="t in opTeams" :key="'rot'+t" class="rot-row">
               <div class="rot-from">{{ t }}</div>
               <i class="fas fa-arrow-right" style="color:var(--text-3)"></i>
               <select v-model="rotation[t]">
@@ -930,6 +1024,44 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
               :class="{active: currentView === item.id}" @click="currentView = item.id">
         <i :class="item.icon"></i>{{ item.label }}
       </button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: RELATÓRIO / COMPARTILHAR ============ -->
+  <div class="modal-ov" v-if="shareData" @click.self="closeShare">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h3>Relatório da auditoria</h3>
+        <button class="icon-btn" @click="closeShare"><i class="fas fa-xmark"></i></button>
+      </div>
+
+      <div class="scale-card" style="margin-bottom:12px">
+        <div class="scale-live">
+          <div class="scale-ic" :style="{background: shareData.score >= (shareData.meta || meta) ? 'var(--green-100)' : 'var(--red-100)',
+                                         color: shareData.score >= (shareData.meta || meta) ? 'var(--green-600)' : 'var(--red-600)'}">
+            <i :class="shareData.score >= (shareData.meta || meta) ? 'fas fa-circle-check' : 'fas fa-triangle-exclamation'"></i>
+          </div>
+          <div class="scale-body">
+            <div class="scale-t">{{ shareData.team }} — {{ Math.round(shareData.score) }}%</div>
+            <div class="scale-s">{{ fmtDate(shareData.date) }} · turno {{ shareData.shift }} · auditada por {{ shareData.auditorTeam }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">Prévia da mensagem</div>
+      <pre style="white-space:pre-wrap;word-break:break-word;font-family:var(--font-body);font-size:12px;font-weight:500;
+                  background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin:0 0 14px;
+                  max-height:210px;overflow-y:auto;color:var(--text-2)">{{ buildReportText(shareData) }}</pre>
+
+      <button class="btn btn-primary btn-block" @click="shareNative">
+        <i class="fas fa-share-nodes"></i> Compartilhar
+      </button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" style="flex:1" @click="shareWhatsApp"><i class="fab fa-whatsapp"></i> WhatsApp</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" @click="copyReport"><i class="fas fa-copy"></i> Copiar</button>
+      </div>
+      <button class="btn btn-ghost btn-block" style="margin-top:10px" @click="closeShare">Fechar</button>
     </div>
   </div>
 
@@ -1029,11 +1161,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="fileInput" accept="image/*" capture="environment" style="display:none" @change="onPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.1.0"></script>
+<script type="module" src="./app.js?v=3.2.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v31';
+    var CURRENT = 'controlpoint-v32';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1041,7 +1173,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.1.0')
+        navigator.serviceWorker.register('./sw.js?v=3.2.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
