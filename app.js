@@ -4,9 +4,10 @@ import {
   collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
   where, getDoc, orderBy, limit,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
+  verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   storageRef, uploadBytes, getDownloadURL,
   createUserAsAdmin
-} from './firebase.js?v=3.1.0'
+} from './firebase.js?v=3.2.0'
 
 createApp({
   setup() {
@@ -15,7 +16,6 @@ createApp({
     const user = ref(null)              // usuário do Firebase Auth
     const profile = ref(null)           // documento users/{uid}
     const profileMissing = ref(false)   // logado no Auth mas sem cadastro
-    const bootstrapMode = ref(false)    // nenhum usuário cadastrado ainda
     const authForm = ref({ email: '', password: '', name: '' })
     const authError = ref('')
     const loading = ref(false)
@@ -40,7 +40,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.1.0')
+    const appVersion = ref('3.2.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -68,12 +68,14 @@ createApp({
     })
 
     /* ==================== CONFIGURAÇÃO ==================== */
-    const DEFAULT_TEAMS = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4']
+    const ADM_TEAM = 'ADM'
+    const DEFAULT_TEAMS = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4', ADM_TEAM]
     // Rodízio: quem chega audita quem sai
     const DEFAULT_ROTATION = { 'Equipe 1': 'Equipe 4', 'Equipe 4': 'Equipe 3', 'Equipe 3': 'Equipe 2', 'Equipe 2': 'Equipe 1' }
     const SHIFTS = ['Dia', 'Noite']
 
     const teams = ref([...DEFAULT_TEAMS])
+    const opTeams = computed(() => teams.value.filter(t => t !== ADM_TEAM))
     const rotation = ref({ ...DEFAULT_ROTATION })
     const meta = ref(93)
     const pointsConfig = ref([])
@@ -195,18 +197,22 @@ createApp({
     }
 
     const auditorTeam = computed(() => {
+      if (myTeam.value === ADM_TEAM) return ADM_TEAM
       if (scale.value.ativo) {
         const nx = nextShift(auditDate.value, auditShift.value)
         return teamFor(nx.date, nx.shift) || ''
       }
       return isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value
     })
+    const manualAudited = ref('')
+    const canAuditAny = computed(() => isAdmin.value || myTeam.value === ADM_TEAM)
     const auditedTeam = computed(() => {
+      if (canAuditAny.value && manualAudited.value) return manualAudited.value
       if (scale.value.ativo) return teamFor(auditDate.value, auditShift.value) || ''
       return rotation.value[isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value] || ''
     })
     // A escala indica outra equipe assumindo agora?
-    const scaleMismatch = computed(() => scale.value.ativo && !isAdmin.value && !!auditorTeam.value && auditorTeam.value !== myTeam.value)
+    const scaleMismatch = computed(() => scale.value.ativo && !isAdmin.value && myTeam.value !== ADM_TEAM && !!auditorTeam.value && auditorTeam.value !== myTeam.value)
 
     const okCount = computed(() => points.value.filter(p => p.status === 'ok').length)
     const nokCount = computed(() => points.value.filter(p => p.status === 'nok').length)
@@ -219,7 +225,8 @@ createApp({
       !!auditedTeam.value && pendingPhotos.value === 0 && pendingReasons.value === 0
     )
 
-    const auditDocId = () => `${auditedTeam.value}_${auditDate.value}_${auditShift.value}`
+    const auditDocId = () => `${auditedTeam.value}_${auditDate.value}_${auditShift.value}` +
+      (auditorTeam.value === ADM_TEAM ? '_ADM' : '')
 
     const buildChecklist = () => {
       points.value = pointsConfig.value.map(p => ({
@@ -345,9 +352,9 @@ createApp({
         }
         await setDoc(doc(db, 'inspections', auditDocId()), payload)
         showSuccess('Auditoria registrada com sucesso!')
-        currentView.value = 'audits'
-        auditsTab.value = 'made'
-        loadAudits()
+        shareFromSave.value = true
+        shareData.value = { _id: auditDocId(), ...payload }
+        loadAlerts()
       } catch (e) {
         console.error(e)
         showError('Erro ao salvar: ' + e.message)
@@ -495,9 +502,10 @@ createApp({
           if (!f.password || f.password.length < 6) { showWarning('A senha precisa de ao menos 6 caracteres'); savingUser.value = false; return }
           const uid = await createUserAsAdmin(f.email.trim(), f.password)
           await setDoc(doc(db, 'users', uid), {
-            name: f.name.trim(), email: f.email.trim(), team: f.team, role: f.role, createdAt: new Date().toISOString()
+            name: f.name.trim(), email: f.email.trim(), team: f.team, role: f.role,
+            mustChangePassword: true, createdAt: new Date().toISOString()
           })
-          showSuccess('Usuário cadastrado')
+          showSuccess('Usuário cadastrado. Ele definirá a senha definitiva no primeiro acesso.')
         }
         closeUserForm()
         loadUsers()
@@ -618,7 +626,7 @@ createApp({
           const raw = []
           snap.forEach(d => raw.push(d.data()))
           const td = {}
-          teams.value.forEach(t => td[t] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 })))
+          opTeams.value.forEach(t => td[t] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 })))
           raw.forEach(d => {
             if (!td[d.team]) td[d.team] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 }))
             const m = parseInt(d.date.split('-')[1]) - 1
@@ -670,7 +678,7 @@ createApp({
       const textColor = isDarkMode.value ? '#a9b8b6' : '#4b5a58'
       const currentMeta = meta.value
       if (type === 'bar') {
-        const labels = teams.value
+        const labels = opTeams.value
         const data = labels.map(t => { const s = teamStats.value.find(x => x.name === t); return s ? s.average : 0 })
         const colors = data.map(v => v >= currentMeta ? '#14b8a6' : '#ef4444')
         new window.Chart(ctx, {
@@ -744,11 +752,140 @@ createApp({
     }
 
     /* ==================== AUTENTICAÇÃO ==================== */
+    /* ==================== SENHA: RESET, BLOQUEIO E 1º ACESSO ==================== */
+    const authView = ref('login')          // login | forgot | reset
+    const resetEmail = ref('')
+    const resetSent = ref(false)
+    const oobCode = ref('')
+    const resetAccount = ref('')
+    const newPass = ref('')
+    const newPass2 = ref('')
+    const savingPass = ref(false)
+    const MAX_ATTEMPTS = 4
+    const LOCK_MINUTES = 15
+    const lockTick = ref(Date.now())
+    setInterval(() => { lockTick.value = Date.now() }, 1000)
+
+    const attemptsKey = 'cp_login_attempts'
+    const readAttempts = () => { try { return JSON.parse(localStorage.getItem(attemptsKey) || '{}') } catch (e) { return {} } }
+    const writeAttempts = (o) => { try { localStorage.setItem(attemptsKey, JSON.stringify(o)) } catch (e) {} }
+    const emailKey = () => String(authForm.value.email || '').trim().toLowerCase()
+
+    const lockInfo = computed(() => {
+      lockTick.value
+      const rec = readAttempts()[emailKey()]
+      if (!rec) return { locked: false, left: 0, remaining: MAX_ATTEMPTS }
+      if (rec.until && rec.until > Date.now()) {
+        return { locked: true, left: Math.ceil((rec.until - Date.now()) / 60000), remaining: 0 }
+      }
+      return { locked: false, left: 0, remaining: Math.max(0, MAX_ATTEMPTS - (rec.count || 0)) }
+    })
+
+    const registerFailure = () => {
+      const all = readAttempts()
+      const k = emailKey()
+      const rec = all[k] || { count: 0, until: 0 }
+      if (rec.until && rec.until <= Date.now()) { rec.count = 0; rec.until = 0 }
+      rec.count = (rec.count || 0) + 1
+      if (rec.count >= MAX_ATTEMPTS) rec.until = Date.now() + LOCK_MINUTES * 60000
+      all[k] = rec
+      writeAttempts(all)
+      return rec
+    }
+    const clearFailures = () => { const all = readAttempts(); delete all[emailKey()]; writeAttempts(all) }
+
+    // Tela de recuperação: envia o e-mail com o link de redefinição
+    const sendReset = async () => {
+      const mail = String(resetEmail.value || '').trim()
+      if (!mail.includes('@')) { authError.value = 'Informe um e-mail válido'; return }
+      loading.value = true
+      authError.value = ''
+      try {
+        await sendPasswordResetEmail(auth, mail)
+        resetSent.value = true
+      } catch (e) {
+        authError.value = e.code === 'auth/user-not-found'
+          ? 'Não há conta com este e-mail. Fale com o administrador.'
+          : ('Erro: ' + e.message)
+      } finally { loading.value = false }
+    }
+
+    // O link do e-mail volta para o app com ?mode=resetPassword&oobCode=...
+    const checkActionUrl = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const mode = params.get('mode')
+        const code = params.get('oobCode')
+        if (mode !== 'resetPassword' || !code) return false
+        const mail = await verifyPasswordResetCode(auth, code)
+        oobCode.value = code
+        resetAccount.value = mail
+        authView.value = 'reset'
+        return true
+      } catch (e) {
+        authError.value = 'Este link de redefinição expirou ou já foi usado. Solicite um novo.'
+        authView.value = 'forgot'
+        return false
+      }
+    }
+
+    const clearUrlParams = () => {
+      try { window.history.replaceState({}, '', window.location.pathname) } catch (e) {}
+    }
+
+    const submitNewPasswordFromLink = async () => {
+      if (newPass.value.length < 6) { authError.value = 'A senha precisa de ao menos 6 caracteres'; return }
+      if (newPass.value !== newPass2.value) { authError.value = 'As senhas não conferem'; return }
+      savingPass.value = true
+      authError.value = ''
+      try {
+        await confirmPasswordReset(auth, oobCode.value, newPass.value)
+        const mail = resetAccount.value
+        await signInWithEmailAndPassword(auth, mail, newPass.value)
+        const all = readAttempts(); delete all[String(mail).toLowerCase()]; writeAttempts(all)
+        newPass.value = ''; newPass2.value = ''; oobCode.value = ''
+        authView.value = 'login'
+        clearUrlParams()
+        showSuccess('Senha redefinida com sucesso!')
+      } catch (e) {
+        authError.value = 'Não foi possível redefinir: ' + e.message
+      } finally { savingPass.value = false }
+    }
+
+    // Primeiro acesso: troca obrigatória da senha provisória
+    const mustChangePassword = computed(() => !!(profile.value && profile.value.mustChangePassword))
+
+    const submitFirstAccessPassword = async () => {
+      if (newPass.value.length < 6) { showWarning('A senha precisa de ao menos 6 caracteres'); return }
+      if (newPass.value !== newPass2.value) { showWarning('As senhas não conferem'); return }
+      savingPass.value = true
+      try {
+        await updatePassword(auth.currentUser, newPass.value)
+        await updateDoc(doc(db, 'users', user.value.uid), { mustChangePassword: false, passwordChangedAt: new Date().toISOString() })
+        profile.value = { ...profile.value, mustChangePassword: false }
+        newPass.value = ''; newPass2.value = ''
+        showSuccess('Senha definida. Bem-vindo!')
+      } catch (e) {
+        if (e.code === 'auth/requires-recent-login') {
+          showError('Sessão expirada. Entre novamente para definir a senha.')
+          await signOut(auth)
+        } else { showError('Erro: ' + e.message) }
+      } finally { savingPass.value = false }
+    }
+
+    const goForgot = () => { authView.value = 'forgot'; resetSent.value = false; authError.value = ''; resetEmail.value = authForm.value.email || '' }
+    const goLogin = () => { authView.value = 'login'; authError.value = ''; resetSent.value = false }
+
     const handleLogin = async () => {
+      if (lockInfo.value.locked) {
+        authError.value = `Acesso bloqueado por excesso de tentativas. Tente novamente em ${lockInfo.value.left} min ou redefina sua senha.`
+        return
+      }
       loading.value = true
       authError.value = ''
       try {
         await signInWithEmailAndPassword(auth, authForm.value.email.trim(), authForm.value.password)
+        clearFailures()
       } catch (e) {
         const map = {
           'auth/invalid-credential': 'E-mail ou senha incorretos',
@@ -757,58 +894,21 @@ createApp({
           'auth/too-many-requests': 'Muitas tentativas. Tente novamente em instantes',
           'auth/invalid-email': 'E-mail inválido'
         }
-        authError.value = map[e.code] || ('Erro: ' + e.message)
+        const base = map[e.code] || ('Erro: ' + e.message)
+        if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
+          const rec = registerFailure()
+          if (rec.until && rec.until > Date.now()) {
+            authError.value = `Acesso bloqueado por ${LOCK_MINUTES} minutos após ${MAX_ATTEMPTS} tentativas. Use "Esqueci minha senha" para redefinir.`
+          } else {
+            const left = Math.max(0, MAX_ATTEMPTS - rec.count)
+            authError.value = base + ` — ${left} tentativa${left === 1 ? '' : 's'} restante${left === 1 ? '' : 's'}`
+          }
+        } else { authError.value = base }
       } finally { loading.value = false }
-    }
-
-    const handleBootstrap = async () => {
-      // Cria o PRIMEIRO administrador. A conta é criada no Authentication e, já
-      // autenticado, verificamos se a coleção users está vazia antes de gravar o perfil.
-      loading.value = true
-      authError.value = ''
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, authForm.value.email.trim(), authForm.value.password)
-        const uid = cred.user.uid
-        const snap = await getDocs(query(collection(db, 'users'), limit(1)))
-        if (!snap.empty) {
-          authError.value = 'Já existem usuários cadastrados. Sua conta foi criada, mas precisa ser liberada pelo administrador.'
-          profileMissing.value = true
-          bootstrapMode.value = false
-          return
-        }
-        await setDoc(doc(db, 'users', uid), {
-          name: authForm.value.name.trim() || 'Administrador',
-          email: authForm.value.email.trim(),
-          team: teams.value[0] || 'Equipe 1',
-          role: 'admin',
-          createdAt: new Date().toISOString()
-        })
-        await loadProfile(uid)
-        await loadConfig()
-        await loadMasterPoints()
-        adminAuditorTeam.value = myTeam.value
-        if (scale.value.ativo) applyCurrentShift()
-        await loadExistingAudit()
-        bootstrapMode.value = false
-        showSuccess('Administrador criado com sucesso!')
-      } catch (e) {
-        authError.value = e.code === 'auth/email-already-in-use'
-          ? 'Este e-mail já tem conta. Entre normalmente pela tela de login.'
-          : e.code === 'auth/weak-password'
-            ? 'A senha precisa de ao menos 6 caracteres.'
-            : ('Erro: ' + e.message)
-      } finally { loading.value = false }
-    }
-
-    const forgotPassword = async () => {
-      if (!authForm.value.email) { authError.value = 'Informe o e-mail para redefinir a senha'; return }
-      try { await sendPasswordResetEmail(auth, authForm.value.email.trim()); showSuccess('E-mail de redefinição enviado') }
-      catch (e) { authError.value = 'Erro: ' + e.message }
     }
 
     const logout = async () => { await signOut(auth); profile.value = null; profileMissing.value = false }
 
-    const toggleBootstrap = () => { bootstrapMode.value = !bootstrapMode.value; authError.value = '' }
 
     const loadProfile = async (uid) => {
       try {
@@ -841,10 +941,13 @@ createApp({
     watch([reportType, reportMonth, reportYear, dailyDate], () => { if (currentView.value === 'reports') loadReports() })
     watch([auditedTeam, auditDate, auditShift], () => { if (user.value && pointsConfig.value.length) loadExistingAudit() })
 
-    onMounted(() => {
+    onMounted(async () => {
       loadVersionInfo()
       if (!auth) { booting.value = false; return }
+      const isResetLink = await checkActionUrl()
+      if (isResetLink) { booting.value = false }
       onAuthStateChanged(auth, async (u) => {
+        if (authView.value === 'reset') { booting.value = false; return }
         user.value = u
         if (u) {
           await loadProfile(u.uid)
@@ -886,7 +989,7 @@ createApp({
       } finally { loadingAlerts.value = false }
     }
 
-    const registeredIds = computed(() => new Set(alertsAudits.value.map(a => a._id)))
+    const registeredIds = computed(() => new Set(alertsAudits.value.map(a => `${a.team}|${a.date}|${a.shift}`)))
 
     // Turnos já encerrados nos últimos 7 dias que ainda não têm auditoria registrada
     const pendingList = computed(() => {
@@ -901,7 +1004,7 @@ createApp({
           const nx = nextShift(it.date, it.shift)
           const auditor = teamFor(nx.date, nx.shift)
           const id = `${audited}_${it.date}_${it.shift}`
-          if (!registeredIds.value.has(id)) {
+          if (!registeredIds.value.has(`${audited}|${it.date}|${it.shift}`)) {
             out.push({
               id, date: it.date, shift: it.shift, audited, auditor,
               atrasoH: Math.floor((now - shiftEndMs(it.date, it.shift)) / 3600000)
@@ -961,6 +1064,73 @@ createApp({
       currentView.value = 'audit'
     }
 
+    /* ==================== RELATÓRIO COMPARTILHÁVEL ==================== */
+    const shareData = ref(null)   // auditoria concluída, para o modal de compartilhamento
+
+    const buildReportText = (a) => {
+      const nc = (a.points || []).filter(p => p.status === 'nok' || (p.status == null && p.checked === false))
+      const total = (a.points || []).length
+      const ok = total - nc.length
+      const atingiu = a.score >= (a.meta || meta.value)
+      const L = []
+      L.push('*ControlPoint — Auditoria de Turno*')
+      L.push('')
+      L.push(`*Equipe auditada:* ${a.team}`)
+      L.push(`*Auditada por:* ${a.auditorTeam || '—'}${a.auditorName ? ' (' + a.auditorName + ')' : ''}`)
+      L.push(`*Data:* ${fmtDate(a.date)} · Turno ${a.shift || '-'}`)
+      L.push(`*Conformidade:* ${Math.round(a.score)}% (${ok}/${total}) · Meta ${a.meta || meta.value}% ${atingiu ? '✅' : '⚠️'}`)
+      L.push('')
+      if (!nc.length) {
+        L.push('✅ *Nenhuma não conformidade.* Todos os pontos verificados estão conformes.')
+      } else {
+        L.push(`❌ *Não conformidades (${nc.length}):*`)
+        nc.forEach((p, i) => {
+          L.push(`${i + 1}. ${p.name}`)
+          if (p.reason || p.obs) L.push(`   _${p.reason || p.obs}_`)
+          if (p.photoUrl) L.push(`   📷 ${p.photoUrl}`)
+        })
+      }
+      L.push('')
+      L.push('_Registrado pelo ControlPoint_')
+      return L.join('\n')
+    }
+
+    const shareFromSave = ref(false)
+    const openShare = (a) => { shareFromSave.value = false; shareData.value = a }
+    const closeShare = () => {
+      shareData.value = null
+      if (shareFromSave.value) {
+        shareFromSave.value = false
+        currentView.value = 'audits'
+        auditsTab.value = 'made'
+        loadAudits()
+      }
+    }
+
+    const shareNative = async () => {
+      const text = buildReportText(shareData.value)
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: 'Auditoria ' + shareData.value.team, text })
+        } else {
+          await navigator.clipboard.writeText(text)
+          showSuccess('Relatório copiado. Cole no aplicativo de mensagens.')
+        }
+      } catch (e) { if (e.name !== 'AbortError') showError('Não foi possível compartilhar') }
+    }
+
+    const shareWhatsApp = () => {
+      const text = buildReportText(shareData.value)
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank')
+    }
+
+    const copyReport = async () => {
+      try {
+        await navigator.clipboard.writeText(buildReportText(shareData.value))
+        showSuccess('Relatório copiado')
+      } catch (e) { showError('Não foi possível copiar') }
+    }
+
     /* ==================== HELPERS DE VIEW ==================== */
     const fmtDate = (iso) => iso ? iso.split('-').reverse().join('/') : '-'
     const initials = (n) => {
@@ -971,9 +1141,12 @@ createApp({
 
     return {
       // geral
-      booting, user, profile, profileMissing, bootstrapMode, authForm, authError, loading,
+      booting, user, profile, profileMissing, authForm, authError, loading,
       isDarkMode, toggleDarkMode, isAdmin, myTeam, currentView, menuItems,
-      handleLogin, handleBootstrap, toggleBootstrap, forgotPassword, logout,
+      handleLogin, logout,
+      authView, goForgot, goLogin, resetEmail, resetSent, sendReset, resetAccount,
+      newPass, newPass2, savingPass, submitNewPasswordFromLink,
+      mustChangePassword, submitFirstAccessPassword, lockInfo,
       notifications, removeNotification,
       appVersion, versionStatus, versionInfo,
       // config
@@ -997,6 +1170,10 @@ createApp({
       // relatórios
       reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
       generatePDF, takeScreenshot, exportCSV,
+      // compartilhamento
+      shareData, openShare, closeShare, shareNative, shareWhatsApp, copyReport, buildReportText,
+      // equipes
+      ADM_TEAM, opTeams, canAuditAny, manualAudited,
       // escala
       scale, shiftNow, scalePreview, applyCurrentShift, scaleMismatch, teamFor,
       // notificações
