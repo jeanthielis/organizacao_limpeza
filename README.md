@@ -1,8 +1,30 @@
-# ControlPoint 3.0 — Auditoria de Virada de Turno
+# ControlPoint 3.1 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore + Storage · Chart.js · PWA.
+
+---
+
+## Novidades da 3.1
+
+### Escala 12x36 automática
+O app identifica sozinho quem está em campo. A escala é de dois dias:
+
+| | Turno Dia (06h–18h) | Turno Noite (18h–06h) |
+|---|---|---|
+| Dia de referência (par A) | Equipe 1 | Equipe 2 |
+| Dia seguinte (par B) | Equipe 3 | Equipe 4 |
+
+Dessa escala sai o rodízio sozinho: quem chega audita o turno que acabou de encerrar — 1→4, 4→3, 3→2, 2→1. A tela de auditoria já abre no turno correto, e o auditor não escolhe mais nada. Configure em **Admin → Config. → Escala 12x36** (data de referência, pares e horários), com prévia dos próximos dias. O modo **Manual** desliga a automação e volta a usar o rodízio fixo.
+
+### Central de notificações
+Sino no topo, com contador. Duas abas:
+
+- **Pendentes** — turnos já encerrados nos últimos 7 dias sem auditoria registrada, com quantas horas de atraso e botão que abre a auditoria já posicionada na data e turno certos.
+- **Não conformidades** — ocorrências dos últimos 30 dias, com motivo e foto, além do ranking dos pontos que mais se repetem.
+
+Auditor vê apenas a própria equipe (com o recorte "Da nossa equipe" / "Que reportamos"); o administrador vê todas as equipes e pode filtrar por equipe.
 
 ---
 
@@ -116,12 +138,21 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
 { "name": "Maria Silva", "email": "maria@empresa.com", "team": "Equipe 1", "role": "auditor", "createdAt": "..." }
 ```
 
-### `config_geral/meta_padrao` · `config_geral/equipes` · `config_geral/rodizio`
+### `config_geral/meta_padrao` · `config_geral/equipes` · `config_geral/rodizio` · `config_geral/escala`
 ```json
 { "valor": 93 }
 { "lista": ["Equipe 1","Equipe 2","Equipe 3","Equipe 4"] }
 { "mapa": { "Equipe 1": "Equipe 4", "Equipe 4": "Equipe 3", "Equipe 3": "Equipe 2", "Equipe 2": "Equipe 1" } }
+{
+  "ativo": true,
+  "dataRef": "2026-09-26",
+  "diaA": "Equipe 1", "noiteA": "Equipe 2",
+  "diaB": "Equipe 3", "noiteB": "Equipe 4",
+  "inicioDia": 6, "inicioNoite": 18
+}
 ```
+
+`dataRef` é qualquer dia em que o par A esteja em campo; a paridade dos dias faz o resto. O turno da noite que atravessa a meia-noite continua pertencendo ao dia em que começou.
 
 ### `config_pontos/{id}`
 ```json
