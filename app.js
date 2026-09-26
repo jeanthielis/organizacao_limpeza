@@ -1,578 +1,815 @@
 import { createApp, ref, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
-import { db, auth, collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, where, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, getDoc } from './firebase.js'
+import {
+  db, auth, storage,
+  collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
+  where, getDoc, orderBy, limit,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
+  storageRef, uploadBytes, getDownloadURL,
+  createUserAsAdmin
+} from './firebase.js?v=3.0.0'
 
 createApp({
-    setup() {
-        // === ESTADO GERAL ===
-        const user = ref(null);
-        const authMode = ref('login');
-        const authForm = ref({ email: '', password: '' });
-        const authError = ref('');
-        const loading = ref(false);
-        const isDarkMode = ref(localStorage.getItem('darkMode') === 'true');
-        
-        // === NOTIFICAÇÕES ===
-        const notifications = ref([]);
-        let notificationId = 0;
-        
-        // === VERSÃO DA APLICAÇÃO ===
-        const appVersion = ref('2.2.0');
-        const versionStatus = ref('Stable');
-        const versionInfo = ref({});
-        
-        // Carregar informações de versão
-        const loadVersionInfo = async () => {
-            try {
-                const response = await fetch('./version.json');
-                if (response.ok) {
-                    const data = await response.json();
-                    appVersion.value = data.version;
-                    versionStatus.value = data.status.charAt(0).toUpperCase() + data.status.slice(1);
-                    versionInfo.value = data;
-                    
-                    // Log no console
-                    console.log(`%c⚡ ControlPoint v${data.version}`, 'color: #667eea; font-size: 16px; font-weight: bold;');
-                    console.log(`%c${data.codeName} - ${data.releaseDate}`, 'color: #764ba2; font-size: 12px;');
-                    console.log('%cFeatures:', 'color: #05CD99; font-weight: bold;');
-                    data.features.forEach(f => console.log(`  ✓ ${f}`));
-                }
-            } catch (e) {
-                console.warn('Não foi possível carregar version.json:', e);
-            }
-        };
-        
-        const currentView = ref('inspection');
-        const menuItems = [
-            { id: 'inspection', label: 'Inspeção', icon: 'fas fa-tasks' },
-            { id: 'history', label: 'Histórico', icon: 'fas fa-history' },
-            { id: 'reports', label: 'Relatórios', icon: 'fas fa-chart-pie' },
-            { id: 'admin', label: 'Admin', icon: 'fas fa-cogs' },
-            { id: 'about', label: 'Sobre', icon: 'fas fa-info-circle' },
-        ];
+  setup() {
+    /* ==================== ESTADO GERAL ==================== */
+    const booting = ref(true)
+    const user = ref(null)              // usuário do Firebase Auth
+    const profile = ref(null)           // documento users/{uid}
+    const profileMissing = ref(false)   // logado no Auth mas sem cadastro
+    const bootstrapMode = ref(false)    // nenhum usuário cadastrado ainda
+    const authForm = ref({ email: '', password: '', name: '' })
+    const authError = ref('')
+    const loading = ref(false)
+    const isDarkMode = ref(localStorage.getItem('darkMode') === 'true')
 
-        // === INSPEÇÃO ===
-        const currentTeam = ref('Equipe 1');
-        const currentDate = ref(new Date().toISOString().split('T')[0]);
-        const points = ref([]); 
-        const loadingPoints = ref(false);
-        const saving = ref(false);
-        const meta = ref(93); 
-        const inspectionObservation = ref(''); 
+    const isAdmin = computed(() => profile.value?.role === 'admin')
+    const myTeam = computed(() => profile.value?.team || '')
 
-        // === HISTÓRICO ===
-        const historyList = ref([]);
-        const loadingHistory = ref(false);
-        const historyMonth = ref(new Date().toISOString().slice(0, 7));
-
-        // === ADMIN ===
-        const pointsConfig = ref([]); 
-        const newPointName = ref('');
-
-        // === RELATÓRIOS ===
-        const reportType = ref('monthly'); 
-        const reportMonth = ref(new Date().toISOString().slice(0, 7));
-        const reportYear = ref(new Date().getFullYear());
-        const dailyDate = ref(new Date().toISOString().split('T')[0]);
-        const loadingReports = ref(false);
-        const teamStats = ref([]);
-        const dailyDataList = ref([]);
-
-        // === COMPUTED ===
-        const progress = computed(() => {
-            if (points.value.length === 0) return 0;
-            const checkedCount = points.value.filter(p => p.checked).length;
-            return (checkedCount / points.value.length) * 100;
-        });
-
-        const allSelected = computed(() => points.value.length > 0 && points.value.every(p => p.checked));
-
-        // === WATCHERS ===
-        watch(isDarkMode, (val) => {
-            if (val) document.documentElement.classList.add('dark');
-            else document.documentElement.classList.remove('dark');
-            localStorage.setItem('darkMode', val);
-            if(currentView.value === 'reports' && reportType.value !== 'daily') {
-                setTimeout(() => {
-                    renderChart(reportType.value === 'annual' ? 'line' : 'bar');
-                }, 300);
-            }
-        }, { immediate: true });
-
-        watch([currentView, reportType, reportMonth, reportYear, dailyDate, historyMonth], () => {
-            if (currentView.value === 'reports') loadReports();
-            if (currentView.value === 'history') loadHistory();
-            if (currentView.value === 'inspection') {
-                if (pointsConfig.value.length === 0) loadMasterPoints();
-                else initializeChecklist();
-            }
-        });
-
-        watch([currentTeam, currentDate], () => initializeChecklist());
-        watch(pointsConfig, () => { if (currentView.value === 'inspection') initializeChecklist(); });
-
-        // === INICIALIZAÇÃO ===
-        onMounted(() => {
-            // Carregar versão
-            loadVersionInfo();
-            
-            if (auth) {
-                onAuthStateChanged(auth, (u) => {
-                    user.value = u;
-                    if (u) {
-                        loadMasterPoints();
-                        loadMeta();
-                    }
-                });
-            }
-        });
-
-        // === FUNÇÕES DE NOTIFICAÇÃO ===
-        const showNotification = (message, type = 'info', duration = 3000) => {
-            const id = ++notificationId;
-            notifications.value.push({ id, message, type });
-            
-            // Auto-remover após duration
-            if (duration > 0) {
-                setTimeout(() => removeNotification(id), duration);
-            }
-            
-            return id;
-        };
-
-        const removeNotification = (id) => {
-            notifications.value = notifications.value.filter(n => n.id !== id);
-        };
-
-        // Atalhos para tipos específicos
-        const showSuccess = (message, duration = 3000) => showNotification(message, 'success', duration);
-        const showError = (message, duration = 5000) => showNotification(message, 'error', duration);
-        const showWarning = (message, duration = 4000) => showNotification(message, 'warning', duration);
-        const showInfo = (message, duration = 3000) => showNotification(message, 'info', duration);
-
-        // === FUNÇÕES GERAIS ===
-        const toggleDarkMode = () => isDarkMode.value = !isDarkMode.value;
-        const toggleAllPoints = () => {
-            const targetState = !allSelected.value;
-            points.value.forEach(p => p.checked = targetState);
-        };
-        const togglePoint = (point) => point.checked = !point.checked;
-
-        const handleAuth = async () => {
-            loading.value = true;
-            authError.value = '';
-            try {
-                if (authMode.value === 'login') await signInWithEmailAndPassword(auth, authForm.value.email, authForm.value.password);
-                else await createUserWithEmailAndPassword(auth, authForm.value.email, authForm.value.password);
-            } catch (e) { authError.value = "Erro: " + e.message; } 
-            finally { loading.value = false; }
-        };
-        const logout = () => signOut(auth);
-
-        const loadMeta = async () => {
-            if (!db) return;
-            try {
-                const docRef = doc(db, "config_geral", "meta_padrao");
-                const snap = await getDoc(docRef);
-                if (snap.exists()) meta.value = snap.data().valor;
-            } catch (e) { console.log("Usando meta padrão 93%"); }
-        };
-
-        const saveMeta = async () => {
-            if (!db) return;
-            try {
-                await setDoc(doc(db, "config_geral", "meta_padrao"), { valor: meta.value });
-                showSuccess("Meta definida com sucesso! 🎯");
-                if (currentView.value === 'reports' && reportType.value !== 'daily') {
-                   renderChart(reportType.value === 'annual' ? 'line' : 'bar');
-                }
-            } catch (e) { showError("Erro ao salvar meta: " + e.message); }
-        };
-
-        // === LÓGICA DE DADOS ===
-        const loadMasterPoints = async () => {
-            if (!db || !user.value) {
-                console.warn("❌ DB ou usuário não disponível");
-                return;
-            }
-            loadingPoints.value = true;
-            try {
-                console.log("📥 Carregando pontos de inspeção...");
-                const q = query(collection(db, "config_pontos"));
-                const querySnapshot = await getDocs(q);
-                let loadedPoints = [];
-                querySnapshot.forEach((doc) => {
-                    loadedPoints.push({ id: doc.id, ...doc.data() });
-                });
-                
-                if (loadedPoints.length === 0) {
-                    console.log("⚠️  Nenhum ponto encontrado. Usando padrões.");
-                    loadedPoints = [
-                        { name: 'Sala de Tonalidade L4' }, 
-                        { name: 'Área da Qualitron L4' }
-                    ].map(p => ({ ...p, id: 'temp_' + Math.random() })); 
-                } else {
-                    console.log(`✅ ${loadedPoints.length} ponto(s) carregado(s)`);
-                }
-                
-                pointsConfig.value = loadedPoints;
-                await initializeChecklist();
-            } catch (e) { 
-                console.error("❌ Erro ao carregar pontos:", e);
-            } finally { 
-                loadingPoints.value = false;
-            }
-        };
-
-        const initializeChecklist = async () => {
-            console.log("🔄 Inicializando checklist...");
-            
-            // Verificar se pointsConfig está vazio
-            if (!pointsConfig.value || pointsConfig.value.length === 0) {
-                console.warn("⚠️  Nenhum ponto disponível. Carregando...");
-                await loadMasterPoints();
-                return;
-            }
-            
-            const basePoints = pointsConfig.value.map(p => ({ 
-                id: p.id, name: p.name, checked: false, obs: '', showObs: false 
-            }));
-            inspectionObservation.value = '';
-
-            try {
-                const docId = `${currentTeam.value}_${currentDate.value}`;
-                const docRef = doc(db, "inspections", docId);
-                let sourceData = null;
-                
-                try {
-                   const docSnap = await getDoc(docRef);
-                   if (docSnap.exists()) {
-                       sourceData = docSnap.data();
-                       console.log(`✅ Inspeção encontrada: ${docId}`);
-                   }
-                } catch(err) { 
-                    console.log("ℹ️  Inspeção não encontrada no banco (é normal se for nova)");
-                }
-
-                if (!sourceData) {
-                    const localSaved = localStorage.getItem(`cp_temp_${docId}`);
-                    if (localSaved) {
-                        sourceData = JSON.parse(localSaved);
-                        console.log("✅ Inspeção carregada do localStorage");
-                    }
-                }
-
-                if (sourceData && sourceData.points) {
-                    basePoints.forEach(p => {
-                        const found = sourceData.points.find(sp => sp.name === p.name);
-                        if (found) {
-                            p.checked = found.checked;
-                            p.obs = found.obs || '';
-                            if(p.obs) p.showObs = true;
-                        }
-                    });
-                    if(sourceData.observation) inspectionObservation.value = sourceData.observation;
-                    console.log(`✅ Pontos restaurados: ${basePoints.filter(p => p.checked).length}/${basePoints.length}`);
-                }
-            } catch (e) { 
-                console.error("❌ Erro ao inicializar checklist:", e);
-            }
-            
-            console.log(`📊 Total de pontos a verificar: ${basePoints.length}`);
-            points.value = basePoints;
-        };
-
-        const saveInspection = async () => {
-            if (!db) {
-                showError("❌ Banco de dados desconectado!");
-                return;
-            }
-            saving.value = true;
-            try {
-                const docId = `${currentTeam.value}_${currentDate.value}`;
-                const payload = {
-                    team: currentTeam.value, date: currentDate.value,
-                    points: points.value.map(p => ({ name: p.name, checked: p.checked, obs: p.obs })),
-                    score: progress.value, user: user.value.email, updatedAt: new Date(),
-                    observation: inspectionObservation.value
-                };
-                localStorage.setItem(`cp_temp_${docId}`, JSON.stringify(payload));
-                await setDoc(doc(db, "inspections", docId), payload);
-                showSuccess("✅ Inspeção salva com sucesso!");
-            } catch (e) { showError("Erro: " + e.message); } finally { saving.value = false; }
-        };
-
-        const loadHistory = async () => {
-            if (!db || !user.value) return;
-            loadingHistory.value = true;
-            historyList.value = [];
-            try {
-                const startStr = historyMonth.value + "-01";
-                const endStr = historyMonth.value + "-31";
-                const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
-                const snapshot = await getDocs(q);
-                
-                let list = [];
-                snapshot.forEach(doc => list.push(doc.data()));
-                
-                list.sort((a, b) => {
-                    if (a.date !== b.date) return b.date.localeCompare(a.date);
-                    return a.team.localeCompare(b.team);
-                });
-                
-                historyList.value = list;
-            } catch (e) { console.error(e); } finally { loadingHistory.value = false; }
-        };
-
-        const editFromHistory = (item) => {
-            currentTeam.value = item.team;
-            currentDate.value = item.date;
-            currentView.value = 'inspection';
-        };
-
-        const deleteInspection = async (item) => {
-            if(!confirm(`Tem certeza que deseja excluir a inspeção da ${item.team} do dia ${item.date.split('-').reverse().join('/')}?`)) return;
-            try {
-                const docId = `${item.team}_${item.date}`;
-                await deleteDoc(doc(db, "inspections", docId));
-                historyList.value = historyList.value.filter(i => !(i.team === item.team && i.date === item.date));
-                localStorage.removeItem(`cp_temp_${docId}`);
-                showSuccess("✅ Inspeção excluída com sucesso!");
-            } catch (e) {
-                console.error(e);
-                showError("Erro ao excluir: " + e.message);
-            }
-        };
-
-        // === RELATÓRIOS ===
-        const loadReports = async () => {
-            if (!db || !user.value) return;
-            loadingReports.value = true;
-            teamStats.value = [];
-            dailyDataList.value = [];
-
-            try {
-                if (reportType.value === 'monthly') {
-                    const startStr = reportMonth.value + "-01";
-                    const endStr = reportMonth.value + "-31";
-                    const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
-                    const snapshot = await getDocs(q);
-                    
-                    const stats = {};
-                    snapshot.forEach(doc => {
-                        const d = doc.data();
-                        
-                        // Lógica de Estatísticas da Equipe
-                        const score = parseFloat(d.score) || 0;
-                        if (!stats[d.team]) stats[d.team] = { total: 0, count: 0, name: d.team };
-                        stats[d.team].total += score;
-                        stats[d.team].count++;
-                    });
-                    
-                    let sortedStats = Object.values(stats).map(s => ({
-                        name: s.name, average: parseFloat((s.total / s.count).toFixed(1)), count: s.count
-                    })).sort((a, b) => b.average - a.average);
-
-                    let currentRank = 1;
-                    for (let i = 0; i < sortedStats.length; i++) {
-                        if (i > 0 && sortedStats[i].average < sortedStats[i-1].average) currentRank++; 
-                        sortedStats[i].rank = currentRank;
-                    }
-                    teamStats.value = sortedStats;
-
-                    loadingReports.value = false;
-                    setTimeout(() => {
-                        renderChart('bar');
-                    }, 100);
-                } 
-                else if (reportType.value === 'annual') {
-                    const startStr = reportYear.value + "-01-01";
-                    const endStr = reportYear.value + "-12-31";
-                    const q = query(collection(db, "inspections"), where("date", ">=", startStr), where("date", "<=", endStr));
-                    const snapshot = await getDocs(q);
-                    const rawData = [];
-                    
-                    snapshot.forEach(doc => {
-                        rawData.push(doc.data());
-                    });
-
-                    const teamsData = {};
-                    ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'].forEach(t => teamsData[t] = Array(12).fill({ total: 0, count: 0 }));
-                    rawData.forEach(d => {
-                        if (teamsData[d.team]) {
-                            const month = parseInt(d.date.split('-')[1]) - 1; 
-                            teamsData[d.team][month] = { total: teamsData[d.team][month].total + (parseFloat(d.score)||0), count: teamsData[d.team][month].count + 1 };
-                        }
-                    });
-                    teamStats.value = Object.keys(teamsData).map(t => ({ name: t, data: teamsData[t].map(m => m.count > 0 ? parseFloat((m.total / m.count).toFixed(1)) : null) }));
-
-                    loadingReports.value = false;
-                    setTimeout(() => {
-                        renderChart('line');
-                    }, 100);
-                }
-                else if (reportType.value === 'daily') {
-                    const q = query(collection(db, "inspections"), where("date", "==", dailyDate.value));
-                    const snapshot = await getDocs(q);
-                    let list = [];
-                    snapshot.forEach(doc => list.push(doc.data()));
-                    list.sort((a, b) => a.team.localeCompare(b.team));
-                    dailyDataList.value = list;
-                    loadingReports.value = false;
-                    renderPremiumCharts();
-                }
-            } catch (e) { console.error(e); loadingReports.value = false; }
-        };
-
-        const renderPremiumCharts = () => {
-            nextTick(() => {
-                dailyDataList.value.forEach(report => {
-                    const chartId = 'dailyChart_' + report.team;
-                    const ctx = document.getElementById(chartId);
-                    if (!ctx) return;
-                    
-                    const existingChart = window.Chart.getChart(ctx);
-                    if (existingChart) existingChart.destroy();
-                    
-                    const checkedCount = report.points.filter(p => p.checked).length;
-                    const uncheckedCount = report.points.length - checkedCount;
-                    
-                    new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            datasets: [{
-                                data: [checkedCount, uncheckedCount],
-                                backgroundColor: [
-                                    uncheckedCount === 0 ? '#05CD99' : '#05CD99',
-                                    uncheckedCount === 0 ? 'transparent' : '#EE5D50'
-                                ],
-                                borderWidth: 0,
-                                borderRadius: 20,
-                                spacing: uncheckedCount === 0 ? 0 : 5
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            cutout: '80%',
-                            plugins: {
-                                legend: { display: false },
-                                tooltip: {
-                                    enabled: true,
-                                    backgroundColor: '#0B1437',
-                                    padding: 12,
-                                    cornerRadius: 10,
-                                    callbacks: {
-                                        label: function(context) {
-                                            const label = context.dataIndex === 0 ? 'Conformes' : 'Não Conformes';
-                                            return ` ${label}: ${context.parsed}`;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                });
-            });
-        };
-        
-        const renderChart = (type) => {
-            const ctx = document.getElementById('mainChart');
-            if (!ctx) return;
-            const existingChart = window.Chart.getChart(ctx);
-            if (existingChart) existingChart.destroy();
-
-            const textColor = isDarkMode.value ? '#94a3b8' : '#64748b';
-            const ChartConstructor = window.Chart;
-            const currentMeta = meta.value;
-
-            if (type === 'bar') {
-                const labels = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4'];
-                const data = labels.map(t => { const s = teamStats.value.find(x => x.name === t); return s ? s.average : 0; });
-                const colors = data.map(v => v >= currentMeta ? '#10b981' : '#ef4444');
-                
-                new ChartConstructor(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            { label: 'Média (%)', data: data, backgroundColor: colors, borderRadius: 5, order: 2 },
-                            { type: 'line', label: `Meta: ${currentMeta}%`, data: [currentMeta,currentMeta,currentMeta,currentMeta], borderColor: isDarkMode.value?'#fff':'#333', borderDash:[5,5], borderWidth: 3, pointRadius: 0, order: 1 }
-                        ]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 150, ticks:{color:textColor} }, x:{ticks:{color:textColor}} }, plugins:{ legend:{ display: true, position: 'bottom', labels:{color:textColor}} } }
-                });
-            } else if (type === 'line') {
-                const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                const datasets = teamStats.value.map((t, i) => ({
-                    label: t.name, data: t.data, borderColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'][i], tension: 0.3
-                }));
-                new ChartConstructor(ctx, {
-                    type: 'line', data: { labels: months, datasets: datasets },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 150, ticks:{color:textColor} }, x:{ticks:{color:textColor}} }, plugins:{ legend:{ position: 'bottom', labels:{color:textColor}} } }
-                });
-            }
-        };
-
-        const generatePDF = async () => {
-            const element = document.getElementById('reportContent');
-            if(!element) return;
-            try {
-                // scale: 2 ao invés de 4 = 50% menor mas qualidade excelente
-                const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
-                
-                // Converter para JPEG com compressão (mais leve que PNG)
-                const imgData = canvas.toDataURL('image/jpeg', 0.85); // 85% qualidade
-                
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                pdf.addImage(imgData, 'JPEG', 0, 10, pdfWidth, pdfHeight);
-                pdf.save(`Relatorio_${reportType.value}.pdf`);
-                showSuccess("📄 PDF gerado com sucesso! Tamanho super leve!", 3000);
-            } catch(e) { 
-                console.error(e); 
-                showError("Erro ao gerar PDF.");
-            }
-        };
-
-        const takeScreenshot = async () => {
-            const element = document.getElementById('reportContent');
-            if(!element) return;
-            try {
-                // scale: 2 para melhor equilibrio qualidade/tamanho
-                const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: isDarkMode.value ? '#1e293b' : '#ffffff' });
-                const link = document.createElement('a');
-                link.download = `Print_${reportType.value}.png`;
-                link.href = canvas.toDataURL('image/png', 0.9);
-                link.click();
-                showSuccess("🖼️ Print capturado com sucesso!", 3000);
-            } catch(e) { 
-                console.error(e); 
-                showError("Erro ao gerar print.");
-            }
-        };
-
-        const addPoint = async () => {
-            if (!newPointName.value.trim()) return;
-            try { const r = await addDoc(collection(db, "config_pontos"), { name: newPointName.value }); pointsConfig.value.push({id:r.id, name:newPointName.value}); newPointName.value=''; } catch(e){}
-        };
-        const deletePoint = async (id) => { if(confirm('Remover?')) { await deleteDoc(doc(db,"config_pontos",id)); pointsConfig.value=pointsConfig.value.filter(p=>p.id!==id); }};
-
-        return {
-            user, authMode, authForm, authError, loading, handleAuth, logout,
-            currentView, menuItems, currentTeam, currentDate, points, progress, meta, loadingPoints, saving, 
-            pointsConfig, newPointName, addPoint, deletePoint, 
-            isDarkMode, toggleDarkMode, toggleAllPoints, allSelected, inspectionObservation,
-            reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
-            generatePDF, takeScreenshot, saveInspection, togglePoint, saveMeta,
-            historyList, loadingHistory, historyMonth, editFromHistory, deleteInspection,
-            // Notificações
-            notifications, showNotification, removeNotification, showSuccess, showError, showWarning, showInfo,
-            // Versão
-            appVersion, versionStatus, versionInfo,
-            // Novo
-            renderPremiumCharts
-        };
+    /* ==================== NOTIFICAÇÕES ==================== */
+    const notifications = ref([])
+    let notificationId = 0
+    const showNotification = (message, type = 'info', duration = 3200) => {
+      const id = ++notificationId
+      notifications.value.push({ id, message, type })
+      if (duration > 0) setTimeout(() => removeNotification(id), duration)
+      return id
     }
+    const removeNotification = (id) => { notifications.value = notifications.value.filter(n => n.id !== id) }
+    const showSuccess = (m, d = 3000) => showNotification(m, 'success', d)
+    const showError = (m, d = 5000) => showNotification(m, 'error', d)
+    const showWarning = (m, d = 4000) => showNotification(m, 'warning', d)
+    const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
+
+    /* ==================== VERSÃO ==================== */
+    const appVersion = ref('3.0.0')
+    const versionStatus = ref('Stable')
+    const versionInfo = ref({})
+    const loadVersionInfo = async () => {
+      try {
+        const r = await fetch('./version.json')
+        if (!r.ok) return
+        const d = await r.json()
+        appVersion.value = d.version
+        versionStatus.value = (d.status || '').charAt(0).toUpperCase() + (d.status || '').slice(1)
+        versionInfo.value = d
+      } catch (e) { /* offline */ }
+    }
+
+    /* ==================== NAVEGAÇÃO ==================== */
+    const currentView = ref('audit')
+    const menuItems = computed(() => {
+      const base = [
+        { id: 'audit', label: 'Auditar', icon: 'fas fa-clipboard-check' },
+        { id: 'audits', label: 'Auditorias', icon: 'fas fa-inbox' },
+        { id: 'reports', label: 'Relatórios', icon: 'fas fa-chart-pie' }
+      ]
+      if (isAdmin.value) base.push({ id: 'admin', label: 'Admin', icon: 'fas fa-user-shield' })
+      base.push({ id: 'about', label: 'Sobre', icon: 'fas fa-circle-info' })
+      return base
+    })
+
+    /* ==================== CONFIGURAÇÃO ==================== */
+    const DEFAULT_TEAMS = ['Equipe 1', 'Equipe 2', 'Equipe 3', 'Equipe 4']
+    // Rodízio: quem chega audita quem sai
+    const DEFAULT_ROTATION = { 'Equipe 1': 'Equipe 4', 'Equipe 4': 'Equipe 3', 'Equipe 3': 'Equipe 2', 'Equipe 2': 'Equipe 1' }
+    const SHIFTS = ['Dia', 'Noite']
+
+    const teams = ref([...DEFAULT_TEAMS])
+    const rotation = ref({ ...DEFAULT_ROTATION })
+    const meta = ref(93)
+    const pointsConfig = ref([])
+    const newPointName = ref('')
+    const configLoaded = ref(false)
+
+    const loadConfig = async () => {
+      if (!db) return
+      try {
+        const [mSnap, rSnap, tSnap] = await Promise.all([
+          getDoc(doc(db, 'config_geral', 'meta_padrao')),
+          getDoc(doc(db, 'config_geral', 'rodizio')),
+          getDoc(doc(db, 'config_geral', 'equipes'))
+        ])
+        if (mSnap.exists()) meta.value = mSnap.data().valor ?? 93
+        if (tSnap.exists() && Array.isArray(tSnap.data().lista) && tSnap.data().lista.length) teams.value = tSnap.data().lista
+        if (rSnap.exists() && rSnap.data().mapa) rotation.value = rSnap.data().mapa
+        else rotation.value = { ...DEFAULT_ROTATION }
+      } catch (e) { console.warn('Config padrão em uso:', e.message) }
+      configLoaded.value = true
+    }
+
+    const loadMasterPoints = async () => {
+      if (!db) return
+      loadingPoints.value = true
+      try {
+        const snap = await getDocs(query(collection(db, 'config_pontos')))
+        const list = []
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }))
+        list.sort((a, b) => (a.ordem ?? 999) - (b.ordem ?? 999) || String(a.name).localeCompare(String(b.name)))
+        pointsConfig.value = list
+      } catch (e) { console.error('Erro ao carregar pontos:', e) }
+      finally { loadingPoints.value = false }
+    }
+
+    /* ==================== AUDITORIA ==================== */
+    const loadingPoints = ref(false)
+    const saving = ref(false)
+    const auditDate = ref(new Date().toISOString().split('T')[0])
+    const auditShift = ref(new Date().getHours() >= 6 && new Date().getHours() < 18 ? 'Dia' : 'Noite')
+    const adminAuditorTeam = ref('')      // admin pode escolher a equipe auditora
+    const points = ref([])
+    const showErrors = ref(false)
+    const uploadingIndex = ref(null)
+
+    const auditorTeam = computed(() => isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value)
+    const auditedTeam = computed(() => rotation.value[auditorTeam.value] || '')
+
+    const okCount = computed(() => points.value.filter(p => p.status === 'ok').length)
+    const nokCount = computed(() => points.value.filter(p => p.status === 'nok').length)
+    const answeredCount = computed(() => okCount.value + nokCount.value)
+    const progress = computed(() => points.value.length ? Math.round(okCount.value / points.value.length * 100) : 0)
+    const pendingPhotos = computed(() => points.value.filter(p => p.status === 'nok' && !p.photoUrl).length)
+    const pendingReasons = computed(() => points.value.filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length)
+    const canSubmit = computed(() =>
+      points.value.length > 0 && answeredCount.value === points.value.length &&
+      !!auditedTeam.value && pendingPhotos.value === 0 && pendingReasons.value === 0
+    )
+
+    const auditDocId = () => `${auditedTeam.value}_${auditDate.value}_${auditShift.value}`
+
+    const buildChecklist = () => {
+      points.value = pointsConfig.value.map(p => ({
+        id: p.id, name: p.name, status: null, reason: '', photoUrl: '', photoPath: ''
+      }))
+      showErrors.value = false
+    }
+
+    const loadExistingAudit = async () => {
+      if (!pointsConfig.value.length) return
+      buildChecklist()
+      if (!db || !auditedTeam.value) return
+      try {
+        const snap = await getDoc(doc(db, 'inspections', auditDocId()))
+        if (!snap.exists()) return
+        const data = snap.data()
+        points.value.forEach(p => {
+          const found = (data.points || []).find(sp => sp.name === p.name)
+          if (found) {
+            p.status = found.status || (found.checked ? 'ok' : null)
+            p.reason = found.reason || found.obs || ''
+            p.photoUrl = found.photoUrl || ''
+            p.photoPath = found.photoPath || ''
+          }
+        })
+        showInfo('Auditoria existente carregada para edição')
+      } catch (e) { /* nova auditoria */ }
+    }
+
+    const setStatus = (point, status) => {
+      point.status = point.status === status ? null : status
+      if (point.status !== 'nok') point.reason = ''
+    }
+
+    /* --- Fotos --- */
+    const fileInput = ref(null)
+    let pendingPhotoPoint = null
+    const triggerPhoto = (point, index) => {
+      pendingPhotoPoint = point
+      uploadingIndex.value = null
+      if (fileInput.value) { fileInput.value.value = ''; fileInput.value.click() }
+    }
+
+    const resizeImage = (file, maxDim = 1280, quality = 0.72) => new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        let w = img.width, h = img.height
+        if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim }
+        else if (h >= w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim }
+        const c = document.createElement('canvas')
+        c.width = w; c.height = h
+        c.getContext('2d').drawImage(img, 0, 0, w, h)
+        URL.revokeObjectURL(url)
+        c.toBlob(b => b ? resolve(b) : reject(new Error('Falha ao processar imagem')), 'image/jpeg', quality)
+      }
+      img.onerror = () => reject(new Error('Imagem inválida'))
+      img.src = url
+    })
+
+    const onPhotoSelected = async (ev) => {
+      const file = ev.target.files && ev.target.files[0]
+      ev.target.value = ''
+      const point = pendingPhotoPoint
+      pendingPhotoPoint = null
+      if (!file || !point) return
+      if (!storage) { showError('Firebase Storage indisponível'); return }
+      const idx = points.value.indexOf(point)
+      uploadingIndex.value = idx
+      try {
+        const blob = await resizeImage(file)
+        const path = `inspecoes/${auditDocId()}/${Date.now()}_${idx}.jpg`
+        const r = storageRef(storage, path)
+        await uploadBytes(r, blob, { contentType: 'image/jpeg' })
+        point.photoUrl = await getDownloadURL(r)
+        point.photoPath = path
+        showSuccess('Foto anexada')
+      } catch (e) {
+        console.error(e)
+        showError('Não foi possível enviar a foto: ' + e.message)
+      } finally { uploadingIndex.value = null }
+    }
+
+    const removePhoto = (point) => { point.photoUrl = ''; point.photoPath = '' }
+
+    /* --- Lightbox --- */
+    const lightboxUrl = ref('')
+    const openImage = (url) => { if (url) lightboxUrl.value = url }
+    const closeImage = () => { lightboxUrl.value = '' }
+
+    /* --- Salvar --- */
+    const saveAudit = async () => {
+      if (!db) { showError('Banco de dados desconectado'); return }
+      if (!auditedTeam.value) { showError('Rodízio não configurado para sua equipe'); return }
+      if (answeredCount.value < points.value.length) { showWarning('Verifique todos os pontos'); return }
+      if (pendingPhotos.value || pendingReasons.value) {
+        showErrors.value = true
+        showWarning('Complete as não conformidades (motivo e foto)')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      saving.value = true
+      try {
+        const payload = {
+          team: auditedTeam.value,              // equipe avaliada (compatível com relatórios)
+          auditorTeam: auditorTeam.value,       // equipe que auditou
+          auditorName: profile.value?.name || user.value.email,
+          auditorUid: user.value.uid,
+          date: auditDate.value,
+          shift: auditShift.value,
+          score: progress.value,
+          meta: meta.value,
+          points: points.value.map(p => ({
+            name: p.name,
+            status: p.status,
+            checked: p.status === 'ok',        // compatibilidade com dados antigos
+            reason: p.status === 'nok' ? (p.reason || '').trim() : '',
+            obs: p.status === 'nok' ? (p.reason || '').trim() : '',
+            photoUrl: p.photoUrl || '',
+            photoPath: p.photoPath || ''
+          })),
+          updatedAt: new Date().toISOString()
+        }
+        await setDoc(doc(db, 'inspections', auditDocId()), payload)
+        showSuccess('Auditoria registrada com sucesso!')
+        currentView.value = 'audits'
+        auditsTab.value = 'made'
+        loadAudits()
+      } catch (e) {
+        console.error(e)
+        showError('Erro ao salvar: ' + e.message)
+      } finally { saving.value = false }
+    }
+
+    /* ==================== AUDITORIAS (recebidas / feitas) ==================== */
+    const auditsTab = ref('received')
+    const auditsList = ref([])
+    const loadingAudits = ref(false)
+    const auditsMonth = ref(new Date().toISOString().slice(0, 7))
+    const openAudits = ref({})
+
+    const toggleAudit = (id) => { openAudits.value[id] = !openAudits.value[id] }
+
+    const loadAudits = async () => {
+      if (!db || !profile.value) return
+      loadingAudits.value = true
+      auditsList.value = []
+      try {
+        const start = auditsMonth.value + '-01'
+        const end = auditsMonth.value + '-31'
+        const field = auditsTab.value === 'received' ? 'team' : 'auditorTeam'
+        let list = []
+        if (auditsTab.value === 'all') {
+          const snap = await getDocs(query(collection(db, 'inspections'), where('date', '>=', start), where('date', '<=', end)))
+          snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
+        } else {
+          const snap = await getDocs(query(collection(db, 'inspections'), where(field, '==', myTeam.value)))
+          snap.forEach(d => {
+            const data = d.data()
+            if (data.date >= start && data.date <= end) list.push({ _id: d.id, ...data })
+          })
+        }
+        list.sort((a, b) => b.date.localeCompare(a.date) || String(a.team).localeCompare(String(b.team)))
+        auditsList.value = list
+      } catch (e) {
+        console.error(e)
+        showError('Erro ao carregar auditorias: ' + e.message)
+      } finally { loadingAudits.value = false }
+    }
+
+    const receivedAverage = computed(() => {
+      if (!auditsList.value.length) return 0
+      return Math.round(auditsList.value.reduce((s, a) => s + (parseFloat(a.score) || 0), 0) / auditsList.value.length)
+    })
+
+    const nonConformities = (item) => (item.points || []).filter(p => p.status === 'nok' || p.checked === false)
+
+    /* ==================== ADMIN: AVALIAÇÕES ==================== */
+    const adminTab = ref('audits')
+    const adminAudits = ref([])
+    const loadingAdminAudits = ref(false)
+    const adminMonth = ref(new Date().toISOString().slice(0, 7))
+
+    const loadAdminAudits = async () => {
+      if (!db || !isAdmin.value) return
+      loadingAdminAudits.value = true
+      try {
+        const start = adminMonth.value + '-01'
+        const end = adminMonth.value + '-31'
+        const snap = await getDocs(query(collection(db, 'inspections'), where('date', '>=', start), where('date', '<=', end)))
+        const list = []
+        snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
+        list.sort((a, b) => b.date.localeCompare(a.date) || String(a.team).localeCompare(String(b.team)))
+        adminAudits.value = list
+      } catch (e) { showError('Erro: ' + e.message) }
+      finally { loadingAdminAudits.value = false }
+    }
+
+    const editing = ref(null) // cópia da auditoria em edição
+    const openEdit = (item) => { editing.value = JSON.parse(JSON.stringify(item)) }
+    const closeEdit = () => { editing.value = null }
+    const setEditStatus = (p, status) => {
+      p.status = p.status === status ? null : status
+      p.checked = p.status === 'ok'
+      if (p.status !== 'nok') { p.reason = ''; p.obs = '' }
+    }
+    const saveEdit = async () => {
+      const e0 = editing.value
+      if (!e0) return
+      const bad = (e0.points || []).filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length
+      if (bad) { showWarning('Descreva o motivo de todas as não conformidades'); return }
+      try {
+        const total = e0.points.length
+        const ok = e0.points.filter(p => p.status === 'ok').length
+        const payload = {
+          points: e0.points.map(p => ({ ...p, checked: p.status === 'ok', obs: p.reason || '' })),
+          score: total ? Math.round(ok / total * 100) : 0,
+          shift: e0.shift || 'Dia',
+          updatedAt: new Date().toISOString(),
+          editedBy: profile.value?.name || user.value.email
+        }
+        await updateDoc(doc(db, 'inspections', e0._id), payload)
+        showSuccess('Avaliação atualizada')
+        closeEdit()
+        loadAdminAudits()
+      } catch (err) { showError('Erro ao salvar: ' + err.message) }
+    }
+
+    const deleteAudit = async (item) => {
+      if (!confirm(`Excluir a auditoria da ${item.team} de ${item.date.split('-').reverse().join('/')} (${item.shift || '-'})?`)) return
+      try {
+        await deleteDoc(doc(db, 'inspections', item._id))
+        adminAudits.value = adminAudits.value.filter(a => a._id !== item._id)
+        auditsList.value = auditsList.value.filter(a => a._id !== item._id)
+        showSuccess('Auditoria excluída')
+      } catch (e) { showError('Erro ao excluir: ' + e.message) }
+    }
+
+    /* ==================== ADMIN: USUÁRIOS ==================== */
+    const usersList = ref([])
+    const loadingUsers = ref(false)
+    const userForm = ref(null)
+    const savingUser = ref(false)
+
+    const loadUsers = async () => {
+      if (!db) return
+      loadingUsers.value = true
+      try {
+        const snap = await getDocs(collection(db, 'users'))
+        const list = []
+        snap.forEach(d => list.push({ uid: d.id, ...d.data() }))
+        list.sort((a, b) => String(a.team).localeCompare(String(b.team)) || String(a.name).localeCompare(String(b.name)))
+        usersList.value = list
+      } catch (e) { console.error(e) }
+      finally { loadingUsers.value = false }
+    }
+
+    const newUser = () => { userForm.value = { uid: null, name: '', email: '', password: '', team: teams.value[0] || '', role: 'auditor' } }
+    const editUser = (u) => { userForm.value = { uid: u.uid, name: u.name, email: u.email, password: '', team: u.team, role: u.role } }
+    const closeUserForm = () => { userForm.value = null }
+
+    const saveUser = async () => {
+      const f = userForm.value
+      if (!f) return
+      if (!f.name || f.name.trim().length < 2) { showWarning('Informe o nome'); return }
+      savingUser.value = true
+      try {
+        if (f.uid) {
+          await updateDoc(doc(db, 'users', f.uid), { name: f.name.trim(), team: f.team, role: f.role })
+          showSuccess('Usuário atualizado')
+        } else {
+          if (!f.email || !f.email.includes('@')) { showWarning('E-mail inválido'); savingUser.value = false; return }
+          if (!f.password || f.password.length < 6) { showWarning('A senha precisa de ao menos 6 caracteres'); savingUser.value = false; return }
+          const uid = await createUserAsAdmin(f.email.trim(), f.password)
+          await setDoc(doc(db, 'users', uid), {
+            name: f.name.trim(), email: f.email.trim(), team: f.team, role: f.role, createdAt: new Date().toISOString()
+          })
+          showSuccess('Usuário cadastrado')
+        }
+        closeUserForm()
+        loadUsers()
+      } catch (e) {
+        showError('Erro: ' + (e.code === 'auth/email-already-in-use' ? 'este e-mail já está cadastrado' : e.message))
+      } finally { savingUser.value = false }
+    }
+
+    const deleteUser = async (u) => {
+      if (u.uid === user.value.uid) { showWarning('Você não pode remover seu próprio usuário'); return }
+      if (u.role === 'admin' && usersList.value.filter(x => x.role === 'admin').length <= 1) { showWarning('Mantenha ao menos um administrador'); return }
+      if (!confirm(`Remover o acesso de ${u.name}?`)) return
+      try {
+        await deleteDoc(doc(db, 'users', u.uid))
+        usersList.value = usersList.value.filter(x => x.uid !== u.uid)
+        showSuccess('Acesso removido. A conta de login continua no Authentication — exclua no console se desejar.')
+      } catch (e) { showError('Erro: ' + e.message) }
+    }
+
+    const resetPassword = async (email) => {
+      try { await sendPasswordResetEmail(auth, email); showSuccess('E-mail de redefinição enviado para ' + email) }
+      catch (e) { showError('Erro: ' + e.message) }
+    }
+
+    /* ==================== ADMIN: CONFIGURAÇÕES ==================== */
+    const savingConfig = ref(false)
+    const newTeamName = ref('')
+
+    const addTeam = () => {
+      const n = newTeamName.value.trim()
+      if (!n) return
+      if (teams.value.includes(n)) { showWarning('Equipe já existe'); return }
+      teams.value.push(n); newTeamName.value = ''
+    }
+    const removeTeam = (t) => {
+      teams.value = teams.value.filter(x => x !== t)
+      delete rotation.value[t]
+      Object.keys(rotation.value).forEach(k => { if (rotation.value[k] === t) rotation.value[k] = '' })
+    }
+
+    const saveGeneralConfig = async () => {
+      savingConfig.value = true
+      try {
+        await Promise.all([
+          setDoc(doc(db, 'config_geral', 'meta_padrao'), { valor: meta.value }),
+          setDoc(doc(db, 'config_geral', 'equipes'), { lista: teams.value }),
+          setDoc(doc(db, 'config_geral', 'rodizio'), { mapa: rotation.value })
+        ])
+        showSuccess('Configurações salvas')
+      } catch (e) { showError('Erro ao salvar: ' + e.message) }
+      finally { savingConfig.value = false }
+    }
+
+    const addPoint = async () => {
+      const n = newPointName.value.trim()
+      if (!n) return
+      try {
+        const r = await addDoc(collection(db, 'config_pontos'), { name: n, ordem: pointsConfig.value.length + 1 })
+        pointsConfig.value.push({ id: r.id, name: n, ordem: pointsConfig.value.length + 1 })
+        newPointName.value = ''
+        showSuccess('Ponto adicionado')
+      } catch (e) { showError('Erro: ' + e.message) }
+    }
+    const deletePoint = async (id) => {
+      if (!confirm('Remover este ponto de verificação?')) return
+      try {
+        await deleteDoc(doc(db, 'config_pontos', id))
+        pointsConfig.value = pointsConfig.value.filter(p => p.id !== id)
+        showSuccess('Ponto removido')
+      } catch (e) { showError('Erro: ' + e.message) }
+    }
+    const renamePoint = async (p) => {
+      try { await updateDoc(doc(db, 'config_pontos', p.id), { name: p.name }); showSuccess('Ponto atualizado') }
+      catch (e) { showError('Erro: ' + e.message) }
+    }
+
+    /* ==================== RELATÓRIOS ==================== */
+    const reportType = ref('monthly')
+    const reportMonth = ref(new Date().toISOString().slice(0, 7))
+    const reportYear = ref(new Date().getFullYear())
+    const dailyDate = ref(new Date().toISOString().split('T')[0])
+    const loadingReports = ref(false)
+    const teamStats = ref([])
+    const dailyDataList = ref([])
+
+    const loadReports = async () => {
+      if (!db || !user.value) return
+      loadingReports.value = true
+      teamStats.value = []
+      dailyDataList.value = []
+      try {
+        if (reportType.value === 'monthly') {
+          const snap = await getDocs(query(collection(db, 'inspections'),
+            where('date', '>=', reportMonth.value + '-01'), where('date', '<=', reportMonth.value + '-31')))
+          const stats = {}
+          snap.forEach(d => {
+            const x = d.data()
+            const score = parseFloat(x.score) || 0
+            if (!stats[x.team]) stats[x.team] = { total: 0, count: 0, name: x.team }
+            stats[x.team].total += score
+            stats[x.team].count++
+          })
+          let sorted = Object.values(stats).map(s => ({
+            name: s.name, average: parseFloat((s.total / s.count).toFixed(1)), count: s.count
+          })).sort((a, b) => b.average - a.average)
+          let rank = 1
+          for (let i = 0; i < sorted.length; i++) {
+            if (i > 0 && sorted[i].average < sorted[i - 1].average) rank++
+            sorted[i].rank = rank
+          }
+          teamStats.value = sorted
+          loadingReports.value = false
+          setTimeout(() => renderChart('bar'), 120)
+        } else if (reportType.value === 'annual') {
+          const snap = await getDocs(query(collection(db, 'inspections'),
+            where('date', '>=', reportYear.value + '-01-01'), where('date', '<=', reportYear.value + '-12-31')))
+          const raw = []
+          snap.forEach(d => raw.push(d.data()))
+          const td = {}
+          teams.value.forEach(t => td[t] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 })))
+          raw.forEach(d => {
+            if (!td[d.team]) td[d.team] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 }))
+            const m = parseInt(d.date.split('-')[1]) - 1
+            td[d.team][m].total += parseFloat(d.score) || 0
+            td[d.team][m].count++
+          })
+          teamStats.value = Object.keys(td).map(t => ({
+            name: t, data: td[t].map(m => m.count ? parseFloat((m.total / m.count).toFixed(1)) : null)
+          }))
+          loadingReports.value = false
+          setTimeout(() => renderChart('line'), 120)
+        } else {
+          const snap = await getDocs(query(collection(db, 'inspections'), where('date', '==', dailyDate.value)))
+          const list = []
+          snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
+          list.sort((a, b) => String(a.team).localeCompare(String(b.team)) || String(a.shift).localeCompare(String(b.shift)))
+          dailyDataList.value = list
+          loadingReports.value = false
+          renderDailyCharts()
+        }
+      } catch (e) { console.error(e); loadingReports.value = false; showError('Erro nos relatórios: ' + e.message) }
+    }
+
+    const chartId = (id) => 'dailyChart_' + String(id).replace(/[^a-zA-Z0-9_-]/g, '_')
+
+    const renderDailyCharts = () => {
+      nextTick(() => {
+        dailyDataList.value.forEach(report => {
+          const ctx = document.getElementById(chartId(report._id))
+          if (!ctx || !window.Chart) return
+          const ex = window.Chart.getChart(ctx)
+          if (ex) ex.destroy()
+          const ok = (report.points || []).filter(p => p.status === 'ok' || p.checked).length
+          const nok = (report.points || []).length - ok
+          new window.Chart(ctx, {
+            type: 'doughnut',
+            data: { datasets: [{ data: [ok, nok], backgroundColor: ['#14b8a6', nok === 0 ? 'transparent' : '#ef4444'], borderWidth: 0, spacing: nok === 0 ? 0 : 4 }] },
+            options: { responsive: true, maintainAspectRatio: true, cutout: '76%', plugins: { legend: { display: false } } }
+          })
+        })
+      })
+    }
+
+    const renderChart = (type) => {
+      const ctx = document.getElementById('mainChart')
+      if (!ctx || !window.Chart) return
+      const ex = window.Chart.getChart(ctx)
+      if (ex) ex.destroy()
+      const textColor = isDarkMode.value ? '#a9b8b6' : '#4b5a58'
+      const currentMeta = meta.value
+      if (type === 'bar') {
+        const labels = teams.value
+        const data = labels.map(t => { const s = teamStats.value.find(x => x.name === t); return s ? s.average : 0 })
+        const colors = data.map(v => v >= currentMeta ? '#14b8a6' : '#ef4444')
+        new window.Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Média (%)', data, backgroundColor: colors, borderRadius: 6, order: 2 },
+              { type: 'line', label: `Meta: ${currentMeta}%`, data: labels.map(() => currentMeta), borderColor: isDarkMode.value ? '#fff' : '#334', borderDash: [5, 5], borderWidth: 2, pointRadius: 0, order: 1 }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { color: textColor } }, x: { ticks: { color: textColor } } }, plugins: { legend: { position: 'bottom', labels: { color: textColor } } } }
+        })
+      } else {
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        const palette = ['#14b8a6', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+        new window.Chart(ctx, {
+          type: 'line',
+          data: { labels: months, datasets: teamStats.value.map((t, i) => ({ label: t.name, data: t.data, borderColor: palette[i % palette.length], tension: .3, spanGaps: true })) },
+          options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, ticks: { color: textColor } }, x: { ticks: { color: textColor } } }, plugins: { legend: { position: 'bottom', labels: { color: textColor } } } }
+        })
+      }
+    }
+
+    const generatePDF = async () => {
+      const el = document.getElementById('reportContent')
+      if (!el) return
+      try {
+        const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: isDarkMode.value ? '#151f1e' : '#ffffff' })
+        const imgData = canvas.toDataURL('image/jpeg', 0.85)
+        const { jsPDF } = window.jspdf
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const w = pdf.internal.pageSize.getWidth()
+        const h = (canvas.height * w) / canvas.width
+        pdf.addImage(imgData, 'JPEG', 0, 10, w, h)
+        pdf.save(`Relatorio_${reportType.value}.pdf`)
+        showSuccess('PDF gerado')
+      } catch (e) { showError('Erro ao gerar PDF') }
+    }
+
+    const takeScreenshot = async () => {
+      const el = document.getElementById('reportContent')
+      if (!el) return
+      try {
+        const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: isDarkMode.value ? '#151f1e' : '#ffffff' })
+        const link = document.createElement('a')
+        link.download = `Print_${reportType.value}.png`
+        link.href = canvas.toDataURL('image/png', 0.9)
+        link.click()
+        showSuccess('Print salvo')
+      } catch (e) { showError('Erro ao gerar print') }
+    }
+
+    const exportCSV = async () => {
+      try {
+        const rows = [['Data', 'Turno', 'Equipe auditora', 'Equipe auditada', 'Auditor', 'Score', 'Ponto', 'Status', 'Motivo']]
+        const source = adminAudits.value.length ? adminAudits.value : auditsList.value
+        source.forEach(a => (a.points || []).forEach(p => rows.push([
+          a.date, a.shift || '', a.auditorTeam || '', a.team || '', a.auditorName || '', a.score,
+          p.name, (p.status === 'ok' || p.checked) ? 'Conforme' : 'Não conforme', (p.reason || p.obs || '').replace(/\s+/g, ' ')
+        ])))
+        const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\r\n')
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `controlpoint_${new Date().toISOString().slice(0, 10)}.csv`
+        document.body.appendChild(a); a.click()
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove() }, 400)
+        showSuccess('CSV exportado')
+      } catch (e) { showError('Erro ao exportar') }
+    }
+
+    /* ==================== AUTENTICAÇÃO ==================== */
+    const handleLogin = async () => {
+      loading.value = true
+      authError.value = ''
+      try {
+        await signInWithEmailAndPassword(auth, authForm.value.email.trim(), authForm.value.password)
+      } catch (e) {
+        const map = {
+          'auth/invalid-credential': 'E-mail ou senha incorretos',
+          'auth/user-not-found': 'Usuário não encontrado',
+          'auth/wrong-password': 'Senha incorreta',
+          'auth/too-many-requests': 'Muitas tentativas. Tente novamente em instantes',
+          'auth/invalid-email': 'E-mail inválido'
+        }
+        authError.value = map[e.code] || ('Erro: ' + e.message)
+      } finally { loading.value = false }
+    }
+
+    const handleBootstrap = async () => {
+      // Cria o PRIMEIRO administrador. A conta é criada no Authentication e, já
+      // autenticado, verificamos se a coleção users está vazia antes de gravar o perfil.
+      loading.value = true
+      authError.value = ''
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, authForm.value.email.trim(), authForm.value.password)
+        const uid = cred.user.uid
+        const snap = await getDocs(query(collection(db, 'users'), limit(1)))
+        if (!snap.empty) {
+          authError.value = 'Já existem usuários cadastrados. Sua conta foi criada, mas precisa ser liberada pelo administrador.'
+          profileMissing.value = true
+          bootstrapMode.value = false
+          return
+        }
+        await setDoc(doc(db, 'users', uid), {
+          name: authForm.value.name.trim() || 'Administrador',
+          email: authForm.value.email.trim(),
+          team: teams.value[0] || 'Equipe 1',
+          role: 'admin',
+          createdAt: new Date().toISOString()
+        })
+        await loadProfile(uid)
+        await loadConfig()
+        await loadMasterPoints()
+        adminAuditorTeam.value = myTeam.value
+        await loadExistingAudit()
+        bootstrapMode.value = false
+        showSuccess('Administrador criado com sucesso!')
+      } catch (e) {
+        authError.value = e.code === 'auth/email-already-in-use'
+          ? 'Este e-mail já tem conta. Entre normalmente pela tela de login.'
+          : e.code === 'auth/weak-password'
+            ? 'A senha precisa de ao menos 6 caracteres.'
+            : ('Erro: ' + e.message)
+      } finally { loading.value = false }
+    }
+
+    const forgotPassword = async () => {
+      if (!authForm.value.email) { authError.value = 'Informe o e-mail para redefinir a senha'; return }
+      try { await sendPasswordResetEmail(auth, authForm.value.email.trim()); showSuccess('E-mail de redefinição enviado') }
+      catch (e) { authError.value = 'Erro: ' + e.message }
+    }
+
+    const logout = async () => { await signOut(auth); profile.value = null; profileMissing.value = false }
+
+    const toggleBootstrap = () => { bootstrapMode.value = !bootstrapMode.value; authError.value = '' }
+
+    const loadProfile = async (uid) => {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid))
+        if (snap.exists()) { profile.value = { uid, ...snap.data() }; profileMissing.value = false }
+        else { profile.value = null; profileMissing.value = true }
+      } catch (e) { profile.value = null; profileMissing.value = true }
+    }
+
+    /* ==================== WATCHERS / CICLO ==================== */
+    watch(isDarkMode, (v) => {
+      document.documentElement.classList.toggle('dark', v)
+      localStorage.setItem('darkMode', v)
+      if (currentView.value === 'reports' && reportType.value !== 'daily') {
+        setTimeout(() => renderChart(reportType.value === 'annual' ? 'line' : 'bar'), 250)
+      }
+    }, { immediate: true })
+
+    watch(currentView, (v) => {
+      if (v === 'audits') loadAudits()
+      if (v === 'reports') loadReports()
+      if (v === 'admin') { loadAdminAudits(); loadUsers() }
+      if (v === 'audit' && !points.value.length) buildChecklist()
+      window.scrollTo({ top: 0 })
+    })
+
+    watch([auditsTab, auditsMonth], () => { if (currentView.value === 'audits') loadAudits() })
+    watch(adminMonth, () => { if (currentView.value === 'admin' && adminTab.value === 'audits') loadAdminAudits() })
+    watch([reportType, reportMonth, reportYear, dailyDate], () => { if (currentView.value === 'reports') loadReports() })
+    watch([auditedTeam, auditDate, auditShift], () => { if (user.value && pointsConfig.value.length) loadExistingAudit() })
+
+    onMounted(() => {
+      loadVersionInfo()
+      if (!auth) { booting.value = false; return }
+      onAuthStateChanged(auth, async (u) => {
+        user.value = u
+        if (u) {
+          await loadProfile(u.uid)
+          if (profile.value) {
+            await loadConfig()
+            await loadMasterPoints()
+            adminAuditorTeam.value = myTeam.value
+            await loadExistingAudit()
+          }
+        } else {
+          profile.value = null
+        }
+        booting.value = false
+      })
+    })
+
+    /* ==================== HELPERS DE VIEW ==================== */
+    const fmtDate = (iso) => iso ? iso.split('-').reverse().join('/') : '-'
+    const initials = (n) => {
+      const w = String(n || '?').trim().split(/\s+/)
+      return ((w[0] || '?')[0] + (w[1] ? w[1][0] : '')).toUpperCase()
+    }
+    const toggleDarkMode = () => isDarkMode.value = !isDarkMode.value
+
+    return {
+      // geral
+      booting, user, profile, profileMissing, bootstrapMode, authForm, authError, loading,
+      isDarkMode, toggleDarkMode, isAdmin, myTeam, currentView, menuItems,
+      handleLogin, handleBootstrap, toggleBootstrap, forgotPassword, logout,
+      notifications, removeNotification,
+      appVersion, versionStatus, versionInfo,
+      // config
+      teams, rotation, meta, pointsConfig, newPointName, SHIFTS,
+      addPoint, deletePoint, renamePoint, addTeam, removeTeam, newTeamName,
+      saveGeneralConfig, savingConfig,
+      // auditoria
+      auditDate, auditShift, auditorTeam, auditedTeam, adminAuditorTeam,
+      points, loadingPoints, saving, showErrors, uploadingIndex,
+      okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
+      setStatus, triggerPhoto, onPhotoSelected, removePhoto, saveAudit, fileInput,
+      lightboxUrl, openImage, closeImage,
+      // auditorias
+      auditsTab, auditsList, loadingAudits, auditsMonth, openAudits, toggleAudit,
+      receivedAverage, nonConformities, loadAudits,
+      // admin
+      adminTab, adminAudits, loadingAdminAudits, adminMonth, loadAdminAudits,
+      editing, openEdit, closeEdit, setEditStatus, saveEdit, deleteAudit,
+      usersList, loadingUsers, userForm, savingUser, newUser, editUser, closeUserForm,
+      saveUser, deleteUser, resetPassword, loadUsers,
+      // relatórios
+      reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
+      generatePDF, takeScreenshot, exportCSV,
+      // helpers
+      fmtDate, initials, chartId
+    }
+  }
 }).mount('#app')
