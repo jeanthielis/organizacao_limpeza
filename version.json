@@ -1,23 +1,20 @@
 {
-  "version": "3.0.0",
-  "codeName": "Cross Audit",
-  "releaseDate": "2026-09-25",
+  "version": "3.1.0",
+  "codeName": "Shift Radar",
+  "releaseDate": "2026-09-26",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Login com usuários cadastrados pelo administrador",
-    "Auditoria cruzada com rodízio fixo entre equipes",
-    "Dois turnos: Dia e Noite",
-    "Foto de evidência obrigatória na não conformidade",
-    "Motivo descritivo obrigatório na não conformidade",
-    "Equipe auditada acompanha suas avaliações",
-    "Painel administrativo com edição de avaliações",
-    "Interface mobile-first com tema claro/escuro"
+    "Central de notificações com pendências e não conformidades",
+    "Identificação automática das equipes pela escala 12x36",
+    "Turno, equipe que chega e equipe auditada detectados sozinhos",
+    "Alerta de turnos encerrados sem auditoria",
+    "Ranking dos pontos com mais ocorrências",
+    "Auditor vê apenas a própria equipe; administrador vê todas"
   ],
   "improvements": [
-    "Botões compactos na tela de auditoria",
-    "Fotos armazenadas no Firebase Storage",
-    "Exportação CSV das auditorias",
-    "Relatórios mensal, anual e diário revisados"
+    "Prévia da escala dos próximos dias no painel admin",
+    "Rodízio derivado automaticamente da escala",
+    "Cache com versionamento para atualizações imediatas"
   ]
 }
