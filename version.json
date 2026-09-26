@@ -1,21 +1,21 @@
 {
-  "version": "3.2.0",
-  "codeName": "Share & Secure",
+  "version": "3.3.0",
+  "codeName": "Close the Loop",
   "releaseDate": "2026-09-26",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Relatório da auditoria pronto para WhatsApp e outros apps",
-    "Equipe ADM com auditoria livre de qualquer equipe",
-    "Redefinição de senha direto no app pelo link do e-mail",
-    "Troca obrigatória de senha no primeiro acesso",
-    "Bloqueio após 4 tentativas de login",
-    "Central de notificações com pendências e não conformidades",
-    "Identificação automática das equipes pela escala 12x36"
+    "Funciona offline: auditoria e fotos entram em fila e sincronizam sozinhas",
+    "Ciclo de tratativa da não conformidade com foto do depois",
+    "Ciência ou contestação pela equipe auditada",
+    "Pontos organizados por área com peso de criticidade",
+    "Percentual ponderado pela criticidade dos pontos",
+    "Relatório compartilhável no WhatsApp",
+    "Central de notificações com pendências e ciências"
   ],
   "improvements": [
-    "Compartilhamento também pelo histórico e pelo painel admin",
-    "Tela de login simplificada",
-    "Auditorias da equipe ADM não sobrescrevem as do rodízio"
+    "Indicador de conexão e de fotos na fila no topo da tela",
+    "Ranking de ocorrências por área",
+    "Filtros de tratativa: abertas, em andamento, resolvidas e atrasadas"
   ]
 }
