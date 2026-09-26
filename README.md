@@ -1,8 +1,28 @@
-# ControlPoint 3.2 — Auditoria de Virada de Turno
+# ControlPoint 3.3 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore + Storage · Chart.js · PWA.
+
+---
+
+## Novidades da 3.3
+
+### Funciona offline
+O Firestore usa cache persistente (IndexedDB), então a auditoria é salva mesmo sem rede e sobe sozinha quando a conexão volta. As fotos, que não podem ser enviadas offline, vão para uma **fila local** (`offline.js`) e são enviadas em segundo plano — ao terminar, o app atualiza o documento da auditoria com a URL da imagem.
+
+No topo da tela há um indicador: nuvem (tudo certo), número (fotos na fila) ou "Offline". Tocar nele força a sincronização.
+
+### Ciclo de tratativa da não conformidade
+Cada ponto reprovado ganha um ciclo: **aberta → em tratativa → resolvida**, com responsável, prazo, observação e **foto do depois** (obrigatória para marcar como resolvida). A central de notificações mostra o painel de situação, filtros por status e destaque para o que passou do prazo.
+
+### Ciência da equipe auditada
+A equipe avaliada confirma que viu o resultado (**De acordo**) ou registra uma **contestação** com justificativa. Enquanto não houver resposta, a auditoria aparece em "Aguardando ciência" e conta no sino.
+
+### Área e peso dos pontos
+Cada ponto de verificação tem uma **área** (L4, L5, L6, Geral…) e um **peso de criticidade** (1 a 3). A tela de auditoria agrupa os pontos por área, e o percentual passa a ser **ponderado**: um ponto peso 3 pesa o triplo de um peso 1 no resultado. As ocorrências também são ranqueadas por área.
+
+> Pontos antigos sem esses campos assumem `area: "Geral"` e `peso: 1`, então o cálculo continua idêntico ao anterior até você ajustar.
 
 ---
 
@@ -191,7 +211,7 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
 
 ### `config_pontos/{id}`
 ```json
-{ "name": "Sala de Tonalidade L4", "ordem": 1 }
+{ "name": "Sala de Tonalidade L4", "area": "L4", "peso": 2, "ordem": 1 }
 ```
 
 ### `inspections/{equipeAuditada}_{data}_{turno}`
@@ -206,12 +226,32 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
   "score": 94,
   "meta": 93,
   "points": [
-    { "name": "Sala de Tonalidade L4", "status": "ok",  "checked": true,  "reason": "", "photoUrl": "", "photoPath": "" },
-    { "name": "Área de Retido L5",     "status": "nok", "checked": false, "reason": "Resíduo de óleo junto à bancada", "photoUrl": "https://...", "photoPath": "inspecoes/..." }
+    { "name": "Sala de Tonalidade L4", "area": "L4", "peso": 1, "status": "ok", "checked": true, "reason": "", "photoUrl": "" },
+    {
+      "name": "Área de Retido L5", "area": "L5", "peso": 2,
+      "status": "nok", "checked": false,
+      "reason": "Resíduo de óleo junto à bancada",
+      "photoUrl": "https://...", "photoPath": "inspecoes/...",
+      "treatment": {
+        "status": "resolvida",
+        "responsavel": "João",
+        "prazo": "2026-09-28",
+        "nota": "Área higienizada e bandeja de contenção instalada",
+        "afterPhotoUrl": "https://...",
+        "resolvedAt": "...", "resolvedBy": "João"
+      }
+    }
   ],
+  "acknowledgement": {
+    "status": "ok",
+    "name": "Carlos Souza", "team": "Equipe 4",
+    "comment": "", "at": "..."
+  },
   "updatedAt": "..."
 }
 ```
+
+`score` é ponderado pelo `peso` dos pontos. `acknowledgement.status` é `ok` ou `contested`.
 
 `team` continua sendo a equipe **avaliada** e `checked` é mantido junto de `status`, então as auditorias antigas e os relatórios seguem funcionando.
 
@@ -234,7 +274,8 @@ O app funciona como PWA: pode ser instalado na tela inicial do celular e abre of
 ```
 index.html      # interface (Vue template + estilos)
 app.js          # lógica da aplicação
-firebase.js     # credenciais, SDK e criação de usuário pelo admin
+firebase.js     # credenciais, SDK (com cache persistente) e criação de usuário pelo admin
+offline.js      # fila de fotos em IndexedDB para envio posterior
 sw.js           # service worker (network-first)
 manifest.json   # PWA
 version.json    # versão exibida na aba Sobre
