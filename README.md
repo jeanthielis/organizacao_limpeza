@@ -1,8 +1,27 @@
-# ControlPoint 3.1 — Auditoria de Virada de Turno
+# ControlPoint 3.2 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore + Storage · Chart.js · PWA.
+
+---
+
+## Novidades da 3.2
+
+### Relatório compartilhável
+Ao concluir a auditoria, abre um modal com o relatório pronto: equipe auditada, auditora, data, turno, percentual e a lista de não conformidades com motivo e link da foto. Botões de **Compartilhar** (menu nativo do celular), **WhatsApp** e **Copiar**. O mesmo relatório pode ser reaberto depois pelo ícone de compartilhar em *Auditorias* e em *Admin → Avaliações*.
+
+### Equipe ADM
+A equipe `ADM` vem cadastrada por padrão e pode auditar qualquer equipe: na tela de auditoria aparece um seletor "Seguir a escala" ou a equipe escolhida manualmente. Auditorias feitas pela ADM recebem o sufixo `_ADM` no id do documento, então **não sobrescrevem** a auditoria do rodízio para o mesmo turno — ambas contam no histórico. A ADM não entra na escala 12x36 nem no ranking.
+
+### Senhas e acesso
+- **Primeiro acesso obrigatório:** todo usuário criado pelo admin nasce com `mustChangePassword: true` e é levado a uma tela de definição de senha antes de usar o app.
+- **Esqueci minha senha:** o auditor informa só o e-mail; o link recebido abre o próprio app na tela "Cadastre sua nova senha" e, ao salvar, já entra logado.
+- **Bloqueio:** após **4 tentativas** de senha errada o acesso àquele e-mail é bloqueado por 15 minutos, com aviso de quantas tentativas restam. O contador é por dispositivo (complementa a proteção do próprio Firebase) e zera com o reset de senha.
+- A opção de criar administrador foi retirada da tela de login (veja abaixo como criar o primeiro).
+
+> **Configuração obrigatória para o reset funcionar dentro do app:**
+> Console → **Authentication → Templates → Redefinição de senha → editar (lápis) → Personalizar URL de ação** e informe o endereço do app, por exemplo `https://SEU-USUARIO.github.io/SEU-REPO/index.html`. Sem isso, o link abre a página padrão do Firebase em vez da tela do ControlPoint.
 
 ---
 
@@ -120,8 +139,16 @@ Console → **Authentication → Settings → Authorized domains** → adicione 
 
 ## Primeiro acesso
 
-1. Abra o app e toque em **"Primeiro acesso — criar administrador"** na tela de login.
-2. Informe nome, e-mail e senha. Se a coleção `users` estiver vazia, essa conta é gravada com `role: admin`; se já houver usuários, a conta fica pendente de liberação.
+O primeiro administrador é criado **pelo console do Firebase** (a tela de login não cria contas):
+
+1. **Authentication → Users → Add user**: informe e-mail e senha.
+2. Copie o **UID** gerado.
+3. **Firestore → Iniciar coleção `users`** → ID do documento = o UID copiado → campos:
+   - `name` (string): nome do administrador
+   - `email` (string): o mesmo e-mail
+   - `team` (string): `ADM`
+   - `role` (string): `admin`
+4. Entre no app com esse e-mail e senha.
 3. Em **Admin → Config.**, cadastre as equipes, o rodízio, a meta e os pontos de verificação.
 4. Em **Admin → Usuários**, cadastre os auditores (nome, e-mail, senha provisória, equipe, perfil).
 
@@ -135,8 +162,16 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
 
 ### `users/{uid}`
 ```json
-{ "name": "Maria Silva", "email": "maria@empresa.com", "team": "Equipe 1", "role": "auditor", "createdAt": "..." }
+{
+  "name": "Maria Silva",
+  "email": "maria@empresa.com",
+  "team": "Equipe 1",
+  "role": "auditor",
+  "mustChangePassword": true,
+  "createdAt": "..."
+}
 ```
+`team` pode ser `ADM` para quem audita qualquer equipe. `mustChangePassword` vira `false` assim que o usuário define a senha definitiva.
 
 ### `config_geral/meta_padrao` · `config_geral/equipes` · `config_geral/rodizio` · `config_geral/escala`
 ```json
