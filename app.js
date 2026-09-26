@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   storageRef, uploadBytes, getDownloadURL,
   createUserAsAdmin
-} from './firebase.js?v=3.0.0'
+} from './firebase.js?v=3.1.0'
 
 createApp({
   setup() {
@@ -40,7 +40,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.0.0')
+    const appVersion = ref('3.1.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -83,11 +83,13 @@ createApp({
     const loadConfig = async () => {
       if (!db) return
       try {
-        const [mSnap, rSnap, tSnap] = await Promise.all([
+        const [mSnap, rSnap, tSnap, eSnap] = await Promise.all([
           getDoc(doc(db, 'config_geral', 'meta_padrao')),
           getDoc(doc(db, 'config_geral', 'rodizio')),
-          getDoc(doc(db, 'config_geral', 'equipes'))
+          getDoc(doc(db, 'config_geral', 'equipes')),
+          getDoc(doc(db, 'config_geral', 'escala'))
         ])
+        if (eSnap.exists()) scale.value = { ...DEFAULT_SCALE, ...eSnap.data() }
         if (mSnap.exists()) meta.value = mSnap.data().valor ?? 93
         if (tSnap.exists() && Array.isArray(tSnap.data().lista) && tSnap.data().lista.length) teams.value = tSnap.data().lista
         if (rSnap.exists() && rSnap.data().mapa) rotation.value = rSnap.data().mapa
@@ -119,8 +121,92 @@ createApp({
     const showErrors = ref(false)
     const uploadingIndex = ref(null)
 
-    const auditorTeam = computed(() => isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value)
-    const auditedTeam = computed(() => rotation.value[auditorTeam.value] || '')
+    /* ==================== ESCALA 12x36 ==================== */
+    const DEFAULT_SCALE = {
+      ativo: true,
+      dataRef: new Date().toISOString().slice(0, 10),
+      diaA: 'Equipe 1', noiteA: 'Equipe 2',
+      diaB: 'Equipe 3', noiteB: 'Equipe 4',
+      inicioDia: 6, inicioNoite: 18
+    }
+    const scale = ref({ ...DEFAULT_SCALE })
+
+    const DAY_MS = 86400000
+    const toUTC = (iso) => { const [y, m, d] = String(iso).split('-').map(Number); return Date.UTC(y, m - 1, d) }
+    const isoOf = (ms) => new Date(ms).toISOString().slice(0, 10)
+    const addDays = (iso, n) => isoOf(toUTC(iso) + n * DAY_MS)
+    const localToday = () => { const n = new Date(); return new Date(n.getTime() - n.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
+
+    const cycleIndex = (iso) => {
+      const diff = Math.round((toUTC(iso) - toUTC(scale.value.dataRef || localToday())) / DAY_MS)
+      return ((diff % 2) + 2) % 2
+    }
+    const teamFor = (iso, shift) => {
+      const isA = cycleIndex(iso) === 0
+      return shift === 'Dia'
+        ? (isA ? scale.value.diaA : scale.value.diaB)
+        : (isA ? scale.value.noiteA : scale.value.noiteB)
+    }
+    const prevShift = (iso, shift) => shift === 'Dia' ? { date: addDays(iso, -1), shift: 'Noite' } : { date: iso, shift: 'Dia' }
+    const nextShift = (iso, shift) => shift === 'Dia' ? { date: iso, shift: 'Noite' } : { date: addDays(iso, 1), shift: 'Dia' }
+
+    const currentShift = () => {
+      const now = new Date()
+      const h = now.getHours() + now.getMinutes() / 60
+      const t = localToday()
+      if (h < scale.value.inicioDia) return { date: addDays(t, -1), shift: 'Noite' }
+      if (h < scale.value.inicioNoite) return { date: t, shift: 'Dia' }
+      return { date: t, shift: 'Noite' }
+    }
+    const shiftEndMs = (iso, shift) => {
+      const [y, m, d] = String(iso).split('-').map(Number)
+      return shift === 'Dia'
+        ? new Date(y, m - 1, d, scale.value.inicioNoite, 0, 0).getTime()
+        : new Date(y, m - 1, d + 1, scale.value.inicioDia, 0, 0).getTime()
+    }
+    const hh = (n) => String(n).padStart(2, '0') + 'h'
+
+    const shiftNow = computed(() => {
+      const cs = currentShift()
+      const ns = nextShift(cs.date, cs.shift)
+      return {
+        date: cs.date, shift: cs.shift,
+        team: teamFor(cs.date, cs.shift),
+        from: cs.shift === 'Dia' ? hh(scale.value.inicioDia) : hh(scale.value.inicioNoite),
+        to: cs.shift === 'Dia' ? hh(scale.value.inicioNoite) : hh(scale.value.inicioDia),
+        nextTeam: teamFor(ns.date, ns.shift),
+        nextAt: cs.shift === 'Dia' ? hh(scale.value.inicioNoite) : hh(scale.value.inicioDia)
+      }
+    })
+
+    const scalePreview = computed(() => {
+      const base = localToday()
+      return [0, 1, 2, 3].map(i => {
+        const d = addDays(base, i)
+        return { date: d, dia: teamFor(d, 'Dia'), noite: teamFor(d, 'Noite'), hoje: i === 0 }
+      })
+    })
+
+    const applyCurrentShift = () => {
+      const cs = currentShift()
+      const ps = prevShift(cs.date, cs.shift)
+      auditDate.value = ps.date
+      auditShift.value = ps.shift
+    }
+
+    const auditorTeam = computed(() => {
+      if (scale.value.ativo) {
+        const nx = nextShift(auditDate.value, auditShift.value)
+        return teamFor(nx.date, nx.shift) || ''
+      }
+      return isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value
+    })
+    const auditedTeam = computed(() => {
+      if (scale.value.ativo) return teamFor(auditDate.value, auditShift.value) || ''
+      return rotation.value[isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value] || ''
+    })
+    // A escala indica outra equipe assumindo agora?
+    const scaleMismatch = computed(() => scale.value.ativo && !isAdmin.value && !!auditorTeam.value && auditorTeam.value !== myTeam.value)
 
     const okCount = computed(() => points.value.filter(p => p.status === 'ok').length)
     const nokCount = computed(() => points.value.filter(p => p.status === 'nok').length)
@@ -458,7 +544,8 @@ createApp({
         await Promise.all([
           setDoc(doc(db, 'config_geral', 'meta_padrao'), { valor: meta.value }),
           setDoc(doc(db, 'config_geral', 'equipes'), { lista: teams.value }),
-          setDoc(doc(db, 'config_geral', 'rodizio'), { mapa: rotation.value })
+          setDoc(doc(db, 'config_geral', 'rodizio'), { mapa: rotation.value }),
+          setDoc(doc(db, 'config_geral', 'escala'), { ...scale.value })
         ])
         showSuccess('Configurações salvas')
       } catch (e) { showError('Erro ao salvar: ' + e.message) }
@@ -700,6 +787,7 @@ createApp({
         await loadConfig()
         await loadMasterPoints()
         adminAuditorTeam.value = myTeam.value
+        if (scale.value.ativo) applyCurrentShift()
         await loadExistingAudit()
         bootstrapMode.value = false
         showSuccess('Administrador criado com sucesso!')
@@ -743,6 +831,7 @@ createApp({
       if (v === 'audits') loadAudits()
       if (v === 'reports') loadReports()
       if (v === 'admin') { loadAdminAudits(); loadUsers() }
+      if (v === 'alerts') loadAlerts()
       if (v === 'audit' && !points.value.length) buildChecklist()
       window.scrollTo({ top: 0 })
     })
@@ -763,7 +852,9 @@ createApp({
             await loadConfig()
             await loadMasterPoints()
             adminAuditorTeam.value = myTeam.value
+            if (scale.value.ativo) applyCurrentShift()
             await loadExistingAudit()
+            loadAlerts()
           }
         } else {
           profile.value = null
@@ -771,6 +862,104 @@ createApp({
         booting.value = false
       })
     })
+
+    /* ==================== CENTRAL DE NOTIFICAÇÕES ==================== */
+    const alertsAudits = ref([])
+    const loadingAlerts = ref(false)
+    const alertsTab = ref('pending')
+    const ncScope = ref('mine')          // mine = recebidas pela minha equipe | made = reportadas por nós
+    const alertsTeamFilter = ref('todas') // usado pelo admin
+
+    const loadAlerts = async () => {
+      if (!db || !profile.value) return
+      loadingAlerts.value = true
+      try {
+        const start = addDays(localToday(), -30)
+        const snap = await getDocs(query(collection(db, 'inspections'), where('date', '>=', start)))
+        const list = []
+        snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
+        list.sort((a, b) => b.date.localeCompare(a.date))
+        alertsAudits.value = list
+      } catch (e) {
+        console.error(e)
+        showError('Erro ao carregar notificações: ' + e.message)
+      } finally { loadingAlerts.value = false }
+    }
+
+    const registeredIds = computed(() => new Set(alertsAudits.value.map(a => a._id)))
+
+    // Turnos já encerrados nos últimos 7 dias que ainda não têm auditoria registrada
+    const pendingList = computed(() => {
+      if (!scale.value.ativo) return []
+      const now = Date.now()
+      const out = []
+      const cs = currentShift()
+      let it = prevShift(cs.date, cs.shift)
+      for (let i = 0; i < 14; i++) {
+        if (shiftEndMs(it.date, it.shift) <= now) {
+          const audited = teamFor(it.date, it.shift)
+          const nx = nextShift(it.date, it.shift)
+          const auditor = teamFor(nx.date, nx.shift)
+          const id = `${audited}_${it.date}_${it.shift}`
+          if (!registeredIds.value.has(id)) {
+            out.push({
+              id, date: it.date, shift: it.shift, audited, auditor,
+              atrasoH: Math.floor((now - shiftEndMs(it.date, it.shift)) / 3600000)
+            })
+          }
+        }
+        it = prevShift(it.date, it.shift)
+      }
+      return isAdmin.value
+        ? (alertsTeamFilter.value === 'todas' ? out : out.filter(p => p.auditor === alertsTeamFilter.value || p.audited === alertsTeamFilter.value))
+        : out.filter(p => p.auditor === myTeam.value)
+    })
+
+    const ncList = computed(() => {
+      const rows = []
+      alertsAudits.value.forEach(a => {
+        (a.points || []).forEach(p => {
+          if (p.status === 'nok' || (p.status == null && p.checked === false)) {
+            rows.push({
+              key: a._id + '|' + p.name,
+              name: p.name, reason: p.reason || p.obs || '', photoUrl: p.photoUrl || '',
+              date: a.date, shift: a.shift || '-', team: a.team,
+              auditorTeam: a.auditorTeam || '—', auditorName: a.auditorName || ''
+            })
+          }
+        })
+      })
+      let filtered = rows
+      if (isAdmin.value) {
+        if (alertsTeamFilter.value !== 'todas') filtered = rows.filter(r => r.team === alertsTeamFilter.value)
+      } else {
+        filtered = ncScope.value === 'mine'
+          ? rows.filter(r => r.team === myTeam.value)
+          : rows.filter(r => r.auditorTeam === myTeam.value)
+      }
+      return filtered.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name))
+    })
+
+    const ncRecent = computed(() => {
+      const cut = addDays(localToday(), -7)
+      return ncList.value.filter(r => r.date >= cut)
+    })
+
+    const ncByPoint = computed(() => {
+      const map = {}
+      ncList.value.forEach(r => { map[r.name] = (map[r.name] || 0) + 1 })
+      return Object.entries(map).map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count).slice(0, 5)
+    })
+
+    const alertsCount = computed(() => pendingList.value.length + ncRecent.value.length)
+
+    // Abre a tela de auditoria já posicionada na pendência escolhida
+    const auditPending = (p) => {
+      auditDate.value = p.date
+      auditShift.value = p.shift
+      currentView.value = 'audit'
+    }
 
     /* ==================== HELPERS DE VIEW ==================== */
     const fmtDate = (iso) => iso ? iso.split('-').reverse().join('/') : '-'
@@ -808,6 +997,11 @@ createApp({
       // relatórios
       reportType, reportMonth, reportYear, dailyDate, loadingReports, teamStats, dailyDataList,
       generatePDF, takeScreenshot, exportCSV,
+      // escala
+      scale, shiftNow, scalePreview, applyCurrentShift, scaleMismatch, teamFor,
+      // notificações
+      alertsAudits, loadingAlerts, alertsTab, ncScope, alertsTeamFilter, loadAlerts,
+      pendingList, ncList, ncRecent, ncByPoint, alertsCount, auditPending,
       // helpers
       fmtDate, initials, chartId
     }
