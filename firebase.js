@@ -6,7 +6,9 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  onAuthStateChanged, signOut, sendPasswordResetEmail
+  onAuthStateChanged, signOut, sendPasswordResetEmail,
+  verifyPasswordResetCode, confirmPasswordReset, updatePassword,
+  EmailAuthProvider, reauthenticateWithCredential
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
 import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
@@ -58,6 +60,8 @@ export {
   where, getDoc, orderBy, limit, serverTimestamp,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, sendPasswordResetEmail,
+  verifyPasswordResetCode, confirmPasswordReset, updatePassword,
+  EmailAuthProvider, reauthenticateWithCredential,
   storageRef, uploadBytes, getDownloadURL, deleteObject,
   createUserAsAdmin
 };
