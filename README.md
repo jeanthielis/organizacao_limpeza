@@ -1,8 +1,39 @@
-# ControlPoint 3.3 — Auditoria de Virada de Turno
+# ControlPoint 3.4 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore + Storage · Chart.js · PWA.
+
+---
+
+## Novidades da 3.4
+
+### Regras de segurança endurecidas
+As regras agora estão versionadas em **`firestore.rules`** e **`storage.rules`**. Copie o conteúdo para o console (Firestore → Regras / Storage → Rules) e publique. O que muda na prática:
+
+- a auditoria só pode ser criada em nome da **própria equipe** e assinada pelo próprio usuário;
+- a equipe auditada pode dar ciência e tratar as não conformidades, mas **não consegue alterar a própria nota**;
+- a equipe auditora pode corrigir o que registrou, sem trocar as equipes envolvidas;
+- só o administrador exclui auditorias e gerencia usuários e configurações;
+- o usuário comum só pode alterar, no próprio perfil, a marcação de senha trocada.
+
+Antes disso, qualquer pessoa logada conseguia, pelo console do navegador, editar a nota de qualquer auditoria. A interface não permitia — as regras agora também não.
+
+### Histórico de alterações
+Cada auditoria guarda um `historico[]` com quem fez o quê e quando: registro inicial, ciência, contestação, tratativa e edição pelo admin (com o score antes e depois e os pontos alterados). Aparece no modal de edição e no relatório.
+
+### Auditoria em poucos toques
+Botão **"Todos conformes"** marca de uma vez os pontos ainda não avaliados; o auditor só desmarca as exceções. Ao lado, um botão de limpar reinicia a lista.
+
+### Reincidência e tendência
+- O mesmo ponto reprovado **3 ou mais vezes em 30 dias** na mesma equipe vira um alerta próprio na central, com quantas ainda estão sem resolver.
+- O relatório mensal ganhou coluna de **tendência** comparando com o mês anterior (▲ / ▼ em pontos percentuais).
+
+### PDF e antes/depois
+Botão **PDF** no relatório da auditoria gera um documento com cabeçalho, resultado, não conformidades (com motivo, tratativa e link da evidência) e ciência. Na tratativa, as fotos de antes e depois aparecem lado a lado.
+
+### Desempenho
+A lista de auditorias carrega 20 por vez, com "Carregar mais", e as consultas da central têm limite de leitura.
 
 ---
 
@@ -90,67 +121,11 @@ Console → **Authentication → Sign-in method → E-mail/senha → Ativar**.
 
 ### 2. Firestore — regras
 
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    function signedIn()  { return request.auth != null; }
-    function profile()   { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
-    function isAdmin()   { return signedIn() && profile().role == 'admin'; }
-
-    // Perfis: cada um lê o próprio; admin lê e escreve todos.
-    match /users/{uid} {
-      allow get:    if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow list:   if signedIn();                       // usado no 1º acesso e pelo admin
-      allow create: if signedIn() && request.auth.uid == uid;  // bootstrap do 1º admin
-      allow write:  if isAdmin();                        // cadastro/edição pelo admin
-    }
-
-    // Auditorias: todos os autenticados leem; escrita por autenticados; exclusão só admin.
-    match /inspections/{id} {
-      allow read: if signedIn();
-      allow create, update: if signedIn();
-      allow delete: if isAdmin();
-    }
-
-    // Configuração: leitura geral, escrita só admin.
-    match /config_geral/{doc} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
-    }
-    match /config_pontos/{doc} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
-    }
-  }
-}
-```
-
-> **Depois de criar o primeiro administrador**, troque as duas linhas de bootstrap por regras mais restritas:
-> ```
-> allow list:   if isAdmin();
-> allow create: if isAdmin();
-> ```
-> Assim ninguém consegue se autopromover criando o próprio documento em `users`.
+Copie o conteúdo de **`firestore.rules`** (na raiz do repositório) em Console → **Firestore → Regras** e publique.
 
 ### 3. Storage — regras
 
-Console → **Storage → Começar** (se ainda não iniciado) → aba **Rules**:
-
-```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /inspecoes/{auditId}/{file} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 3 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-    }
-  }
-}
-```
+Console → **Storage → Começar** (se ainda não iniciado) → aba **Rules** → copie o conteúdo de **`storage.rules`** e publique.
 
 ### 4. Domínios autorizados
 Console → **Authentication → Settings → Authorized domains** → adicione `SEU-USUARIO.github.io`.
@@ -276,6 +251,8 @@ index.html      # interface (Vue template + estilos)
 app.js          # lógica da aplicação
 firebase.js     # credenciais, SDK (com cache persistente) e criação de usuário pelo admin
 offline.js      # fila de fotos em IndexedDB para envio posterior
+firestore.rules # regras de segurança do banco (copiar para o console)
+storage.rules   # regras de segurança das fotos (copiar para o console)
 sw.js           # service worker (network-first)
 manifest.json   # PWA
 version.json    # versão exibida na aba Sobre
