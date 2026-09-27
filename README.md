@@ -1,15 +1,35 @@
-# ControlPoint 3.4 — Auditoria de Virada de Turno
+# ControlPoint 3.5 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
-Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore + Storage · Chart.js · PWA.
+Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Novidades da 3.5 — sem Cloud Storage
+
+O Cloud Storage passou a exigir o plano Blaze em projetos novos. Para manter a aplicação **inteiramente no plano gratuito (Spark)**, as fotos deixaram de ir para o Storage e passaram a ser gravadas no próprio Firestore.
+
+Como funciona:
+
+- a imagem é comprimida em degraus (1024px/0.6 → 520px/0.35) até ficar abaixo de **150 KB**;
+- cada foto vira um documento na coleção **`inspection_photos`** — `{ data, pointName, field, auditId, by, team, createdAt }`;
+- a auditoria guarda apenas o **id** da foto (`photoDocId`), então listar auditorias não baixa imagem nenhuma;
+- a imagem só é lida do banco quando alguém toca em "Visualizar imagem", e fica em cache na sessão;
+- com o cache persistente do Firestore, a foto é gravada mesmo offline e sobe sozinha depois — o contador no topo mostra quantos envios estão pendentes.
+
+**Não é preciso ativar o Storage.** O arquivo `storage.rules` foi removido; as regras da nova coleção já estão no `firestore.rules`.
+
+Limites na prática: o plano gratuito oferece 1 GB de armazenamento no Firestore, o que comporta cerca de **7.000 fotos** nesse tamanho, e 50 mil leituras por dia. Se um dia o volume apertar, dá para apagar fotos antigas mantendo o texto das auditorias, ou migrar para o Storage trocando só as funções `savePhotoDoc` e `loadPhotoData`.
+
+Como o PDF agora tem a imagem em base64 na mão, as evidências passaram a ser **embutidas no PDF** da auditoria.
 
 ---
 
 ## Novidades da 3.4
 
 ### Regras de segurança endurecidas
-As regras agora estão versionadas em **`firestore.rules`** e **`storage.rules`**. Copie o conteúdo para o console (Firestore → Regras / Storage → Rules) e publique. O que muda na prática:
+As regras agora estão versionadas em **`firestore.rules`**. Copie o conteúdo para o console (Firestore → Regras) e publique. O que muda na prática:
 
 - a auditoria só pode ser criada em nome da **própria equipe** e assinada pelo próprio usuário;
 - a equipe auditada pode dar ciência e tratar as não conformidades, mas **não consegue alterar a própria nota**;
@@ -123,9 +143,9 @@ Console → **Authentication → Sign-in method → E-mail/senha → Ativar**.
 
 Copie o conteúdo de **`firestore.rules`** (na raiz do repositório) em Console → **Firestore → Regras** e publique.
 
-### 3. Storage — regras
+### 3. Cloud Storage — não é necessário
 
-Console → **Storage → Começar** (se ainda não iniciado) → aba **Rules** → copie o conteúdo de **`storage.rules`** e publique.
+As fotos ficam no Firestore (veja "Novidades da 3.5"). Não ative o Storage nem o plano Blaze.
 
 ### 4. Domínios autorizados
 Console → **Authentication → Settings → Authorized domains** → adicione `SEU-USUARIO.github.io`.
@@ -189,6 +209,19 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
 { "name": "Sala de Tonalidade L4", "area": "L4", "peso": 2, "ordem": 1 }
 ```
 
+### `inspection_photos/{id}`
+```json
+{
+  "data": "data:image/jpeg;base64,...",
+  "pointName": "Área de Retido L5",
+  "field": "photo",
+  "auditId": "Equipe 4_2026-09-25_Noite",
+  "by": "<uid>", "team": "Equipe 1",
+  "createdAt": "..."
+}
+```
+`field` é `photo` (evidência da não conformidade) ou `after` (foto da correção).
+
 ### `inspections/{equipeAuditada}_{data}_{turno}`
 ```json
 {
@@ -201,18 +234,18 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
   "score": 94,
   "meta": 93,
   "points": [
-    { "name": "Sala de Tonalidade L4", "area": "L4", "peso": 1, "status": "ok", "checked": true, "reason": "", "photoUrl": "" },
+    { "name": "Sala de Tonalidade L4", "area": "L4", "peso": 1, "status": "ok", "checked": true, "reason": "", "photoDocId": "" },
     {
       "name": "Área de Retido L5", "area": "L5", "peso": 2,
       "status": "nok", "checked": false,
       "reason": "Resíduo de óleo junto à bancada",
-      "photoUrl": "https://...", "photoPath": "inspecoes/...",
+      "photoDocId": "ph_abc123",
       "treatment": {
         "status": "resolvida",
         "responsavel": "João",
         "prazo": "2026-09-28",
         "nota": "Área higienizada e bandeja de contenção instalada",
-        "afterPhotoUrl": "https://...",
+        "afterPhotoDocId": "ph_def456",
         "resolvedAt": "...", "resolvedBy": "João"
       }
     }
@@ -230,7 +263,7 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
 
 `team` continua sendo a equipe **avaliada** e `checked` é mantido junto de `status`, então as auditorias antigas e os relatórios seguem funcionando.
 
-As fotos ficam em `inspecoes/{auditId}/{timestamp}_{índice}.jpg` no Storage, redimensionadas para no máximo 1280 px e comprimidas em JPEG antes do upload.
+As fotos ficam na coleção `inspection_photos`, comprimidas para até 150 KB, e são carregadas só quando abertas.
 
 ---
 
@@ -250,9 +283,7 @@ O app funciona como PWA: pode ser instalado na tela inicial do celular e abre of
 index.html      # interface (Vue template + estilos)
 app.js          # lógica da aplicação
 firebase.js     # credenciais, SDK (com cache persistente) e criação de usuário pelo admin
-offline.js      # fila de fotos em IndexedDB para envio posterior
 firestore.rules # regras de segurança do banco (copiar para o console)
-storage.rules   # regras de segurança das fotos (copiar para o console)
 sw.js           # service worker (network-first)
 manifest.json   # PWA
 version.json    # versão exibida na aba Sobre
