@@ -1081,8 +1081,29 @@ createApp({
       } finally { loading.value = false }
     }
 
-    const logout = async () => { await signOut(auth); profile.value = null; profileMissing.value = false }
+    const logout = async () => {
+      clearSessionHint()
+      await signOut(auth)
+      profile.value = null
+      profileMissing.value = false
+    }
 
+
+    /* Sinalizador leve para a landing saber que existe sessão ativa.
+       A sessão de verdade continua sendo a do Firebase Auth (IndexedDB);
+       isto aqui é só uma dica para decidir o redirecionamento. */
+    const SESSION_HINT = 'cp_last_session'
+    const writeSessionHint = (u, prof) => {
+      try {
+        localStorage.setItem(SESSION_HINT, JSON.stringify({
+          uid: u.uid,
+          name: (prof && prof.name) || u.email || '',
+          team: (prof && prof.team) || '',
+          at: Date.now()
+        }))
+      } catch (e) {}
+    }
+    const clearSessionHint = () => { try { localStorage.removeItem(SESSION_HINT) } catch (e) {} }
 
     const loadProfile = async (uid) => {
       try {
@@ -1125,6 +1146,7 @@ createApp({
         user.value = u
         if (u) {
           await loadProfile(u.uid)
+          writeSessionHint(u, profile.value)
           if (profile.value) {
             await loadConfig()
             await loadMasterPoints()
@@ -1135,6 +1157,7 @@ createApp({
           }
         } else {
           profile.value = null
+          clearSessionHint()
         }
         booting.value = false
       })
