@@ -1,21 +1,21 @@
 {
-  "version": "3.3.0",
-  "codeName": "Close the Loop",
+  "version": "3.4.0",
+  "codeName": "Hardened",
   "releaseDate": "2026-09-26",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Funciona offline: auditoria e fotos entram em fila e sincronizam sozinhas",
-    "Ciclo de tratativa da não conformidade com foto do depois",
-    "Ciência ou contestação pela equipe auditada",
-    "Pontos organizados por área com peso de criticidade",
-    "Percentual ponderado pela criticidade dos pontos",
-    "Relatório compartilhável no WhatsApp",
-    "Central de notificações com pendências e ciências"
+    "Regras do Firestore endurecidas: ninguém edita a própria nota",
+    "Histórico de alterações em cada auditoria",
+    "Botão 'Todos conformes' para auditar em poucos toques",
+    "Alerta de reincidência: 3 ou mais ocorrências no mesmo ponto",
+    "Tendência mês a mês no relatório mensal",
+    "PDF individual da auditoria",
+    "Antes e depois lado a lado na tratativa"
   ],
   "improvements": [
-    "Indicador de conexão e de fotos na fila no topo da tela",
-    "Ranking de ocorrências por área",
-    "Filtros de tratativa: abertas, em andamento, resolvidas e atrasadas"
+    "Paginação na lista de auditorias",
+    "Limite de leitura nas consultas da central de notificações",
+    "Arquivos firestore.rules e storage.rules versionados no repositório"
   ]
 }
