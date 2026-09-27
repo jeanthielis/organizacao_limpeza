@@ -3,7 +3,7 @@ import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, addDoc, getDocs, doc, deleteDoc, query,
-  setDoc, updateDoc, where, getDoc, orderBy, limit, serverTimestamp
+  setDoc, updateDoc, where, getDoc, orderBy, limit, serverTimestamp, arrayUnion
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
@@ -66,7 +66,7 @@ async function createUserAsAdmin(email, password) {
 export {
   db, auth, storage, firebaseConfig,
   collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
-  where, getDoc, orderBy, limit, serverTimestamp,
+  where, getDoc, orderBy, limit, serverTimestamp, arrayUnion,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
