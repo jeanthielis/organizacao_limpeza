@@ -1,16 +1,12 @@
 import { createApp, ref, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
 import {
-  db, auth, storage,
+  db, auth,
   collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
   where, getDoc, orderBy, limit, arrayUnion,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
-  storageRef, uploadBytes, getDownloadURL,
   createUserAsAdmin
-} from './firebase.js?v=3.4.0'
-import {
-  newQueueId, addPhoto, updatePhoto, listPhotos, removePhoto, countReady, purgeOrphans
-} from './offline.js?v=3.4.0'
+} from './firebase.js?v=3.5.0'
 
 createApp({
   setup() {
@@ -43,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.4.0')
+    const appVersion = ref('3.5.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -233,9 +229,7 @@ createApp({
       })
       return groups
     })
-    const hasPhoto = (p) => !!(p.photoUrl || p.photoLocalId)
-    const photoPreview = (p) => p.photoUrl || (p.photoLocalId ? localPhotoUrls.value[p.photoLocalId] : '')
-    const pendingPhotos = computed(() => points.value.filter(p => p.status === 'nok' && !hasPhoto(p)).length)
+    const pendingPhotos = computed(() => points.value.filter(p => p.status === 'nok' && !(p.photoDocId || p.photoUrl)).length)
     const pendingReasons = computed(() => points.value.filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length)
     const canSubmit = computed(() =>
       points.value.length > 0 && answeredCount.value === points.value.length &&
@@ -248,7 +242,7 @@ createApp({
     const buildChecklist = () => {
       points.value = pointsConfig.value.map(p => ({
         id: p.id, name: p.name, area: p.area || 'Geral', peso: p.peso || 1,
-        status: null, reason: '', photoUrl: '', photoPath: '', photoLocalId: ''
+        status: null, reason: '', photoUrl: '', photoDocId: ''
       }))
       showErrors.value = false
     }
@@ -267,7 +261,7 @@ createApp({
             p.status = found.status || (found.checked ? 'ok' : null)
             p.reason = found.reason || found.obs || ''
             p.photoUrl = found.photoUrl || ''
-            p.photoPath = found.photoPath || ''
+            p.photoDocId = found.photoDocId || ''
           }
         })
         showInfo('Auditoria existente carregada para edição')
@@ -288,87 +282,111 @@ createApp({
       if (point.status !== 'nok') point.reason = ''
     }
 
-    /* ==================== OFFLINE / FILA DE SINCRONIZAÇÃO ==================== */
+    /* ==================== FOTOS NO FIRESTORE (sem Storage) ==================== */
+    /* As imagens são comprimidas e gravadas em documentos próprios da coleção
+       `inspection_photos`, uma por documento. A auditoria guarda apenas o id.
+       Com o cache persistente do Firestore, a gravação funciona offline e
+       sincroniza sozinha quando a rede volta. */
+    const MAX_FOTO_BYTES = 150 * 1024        // ~200 KB em base64, bem abaixo do limite de 1 MB do documento
     const isOnline = ref(navigator.onLine)
-    const pendingUploads = ref(0)
-    const syncing = ref(false)
-    const localPhotoUrls = ref({})   // queueId -> objectURL (só nesta sessão)
+    const pendingUploads = ref(0)            // gravações ainda não confirmadas pelo servidor
+    const syncing = computed(() => pendingUploads.value > 0)
+    const localPhotoUrls = ref({})           // photoDocId -> data URL (cache da sessão)
+    const loadingPhoto = ref('')
 
-    const refreshQueue = async () => { try { pendingUploads.value = await countReady() } catch (e) {} }
+    const blobToDataUrl = (blob) => new Promise((res, rej) => {
+      const r = new FileReader()
+      r.onload = () => res(r.result)
+      r.onerror = rej
+      r.readAsDataURL(blob)
+    })
 
-    const processQueue = async () => {
-      if (!storage || !db || syncing.value || !navigator.onLine) return
-      syncing.value = true
-      try {
-        const items = await listPhotos()
-        for (const it of items) {
-          if (!it.docId || !it.blob) continue
-          try {
-            const path = `inspecoes/${it.docId}/${it.id}.jpg`
-            const r = storageRef(storage, path)
-            await uploadBytes(r, it.blob, { contentType: 'image/jpeg' })
-            const url = await getDownloadURL(r)
-            const ref0 = doc(db, 'inspections', it.docId)
-            const snap = await getDoc(ref0)
-            if (snap.exists()) {
-              const data = snap.data()
-              const pts = (data.points || []).map(p => {
-                if (p.name !== it.pointName) return p
-                if (it.field === 'after') {
-                  return { ...p, treatment: { ...(p.treatment || {}), afterPhotoUrl: url, afterPhotoPending: false } }
-                }
-                return { ...p, photoUrl: url, photoPath: path, photoPending: false, photoLocalId: '' }
-              })
-              await updateDoc(ref0, { points: pts })
-            }
-            await removePhoto(it.id)
-            if (localPhotoUrls.value[it.id]) {
-              URL.revokeObjectURL(localPhotoUrls.value[it.id])
-              delete localPhotoUrls.value[it.id]
-            }
-          } catch (e) { console.warn('Envio pendente adiado:', e.message); break }
-        }
-      } finally {
-        syncing.value = false
-        await refreshQueue()
+    const drawToBlob = (img, maxDim, quality) => new Promise((resolve, reject) => {
+      let w = img.width, h = img.height
+      if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim }
+      else if (h >= w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim }
+      const c = document.createElement('canvas')
+      c.width = w; c.height = h
+      c.getContext('2d').drawImage(img, 0, 0, w, h)
+      c.toBlob(b => b ? resolve(b) : reject(new Error('Falha ao processar imagem')), 'image/jpeg', quality)
+    })
+
+    // Reduz progressivamente até caber no limite do documento
+    const compressToTarget = async (file) => {
+      const img = await new Promise((res, rej) => {
+        const i = new Image(); const u = URL.createObjectURL(file)
+        i.onload = () => { URL.revokeObjectURL(u); res(i) }
+        i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Imagem inválida')) }
+        i.src = u
+      })
+      const tentativas = [[1024, 0.6], [900, 0.5], [800, 0.45], [640, 0.4], [520, 0.35]]
+      let blob = null
+      for (const [dim, q] of tentativas) {
+        blob = await drawToBlob(img, dim, q)
+        if (blob.size <= MAX_FOTO_BYTES) return blob
       }
+      return blob
     }
 
-    const syncNow = async () => {
-      if (!navigator.onLine) { showWarning('Sem conexão. Tentaremos assim que a rede voltar.'); return }
-      await processQueue()
+    // Grava a foto. Offline, o Firestore enfileira e envia depois.
+    const savePhotoDoc = async (blob, pointName, field) => {
+      const dataUrl = await blobToDataUrl(blob)
+      const id = 'ph_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+      localPhotoUrls.value = { ...localPhotoUrls.value, [id]: dataUrl }
+      pendingUploads.value++
+      setDoc(doc(db, 'inspection_photos', id), {
+        data: dataUrl,
+        pointName, field: field || 'photo',
+        auditId: '',
+        by: user.value.uid,
+        team: myTeam.value || '',
+        createdAt: new Date().toISOString()
+      }).then(() => { pendingUploads.value = Math.max(0, pendingUploads.value - 1) })
+        .catch(e => { pendingUploads.value = Math.max(0, pendingUploads.value - 1); console.error('Foto não gravada:', e) })
+      return id
+    }
+
+    const linkPhotoToAudit = (photoId, auditId) => {
+      if (!photoId || !auditId) return
+      pendingUploads.value++
+      updateDoc(doc(db, 'inspection_photos', photoId), { auditId })
+        .then(() => { pendingUploads.value = Math.max(0, pendingUploads.value - 1) })
+        .catch(() => { pendingUploads.value = Math.max(0, pendingUploads.value - 1) })
+    }
+
+    const loadPhotoData = async (photoId) => {
+      if (!photoId) return ''
+      if (localPhotoUrls.value[photoId]) return localPhotoUrls.value[photoId]
+      loadingPhoto.value = photoId
+      try {
+        const snap = await getDoc(doc(db, 'inspection_photos', photoId))
+        if (!snap.exists()) { showWarning('Foto não encontrada'); return '' }
+        const url = snap.data().data
+        localPhotoUrls.value = { ...localPhotoUrls.value, [photoId]: url }
+        return url
+      } catch (e) {
+        showError('Não foi possível carregar a foto' + (navigator.onLine ? '' : ' offline'))
+        return ''
+      } finally { loadingPhoto.value = '' }
+    }
+
+    const syncNow = () => {
+      if (!navigator.onLine) { showWarning('Sem conexão. Tudo já está salvo no aparelho e sobe quando a rede voltar.'); return }
       if (pendingUploads.value === 0) showSuccess('Tudo sincronizado')
-      else showWarning(`${pendingUploads.value} foto(s) ainda na fila`)
+      else showInfo(`${pendingUploads.value} envio(s) em andamento`)
     }
 
-    window.addEventListener('online', () => { isOnline.value = true; showInfo('Conexão restabelecida. Sincronizando...'); processQueue() })
+    window.addEventListener('online', () => { isOnline.value = true; showInfo('Conexão restabelecida. Enviando o que ficou pendente...') })
     window.addEventListener('offline', () => { isOnline.value = false; showWarning('Você está offline. O trabalho continua e sincroniza depois.') })
 
-    /* --- Fotos --- */
+    /* --- Fotos dos pontos --- */
     const fileInput = ref(null)
     let pendingPhotoPoint = null
-    const triggerPhoto = (point, index) => {
+    const triggerPhoto = (point) => {
       pendingPhotoPoint = point
       uploadingIndex.value = null
       if (fileInput.value) { fileInput.value.value = ''; fileInput.value.click() }
     }
-
-    const resizeImage = (file, maxDim = 1280, quality = 0.72) => new Promise((resolve, reject) => {
-      const img = new Image()
-      const url = URL.createObjectURL(file)
-      img.onload = () => {
-        let w = img.width, h = img.height
-        if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim }
-        else if (h >= w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim }
-        const c = document.createElement('canvas')
-        c.width = w; c.height = h
-        c.getContext('2d').drawImage(img, 0, 0, w, h)
-        URL.revokeObjectURL(url)
-        c.toBlob(b => b ? resolve(b) : reject(new Error('Falha ao processar imagem')), 'image/jpeg', quality)
-      }
-      img.onerror = () => reject(new Error('Imagem inválida'))
-      img.src = url
-    })
 
     const onPhotoSelected = async (ev) => {
       const file = ev.target.files && ev.target.files[0]
@@ -379,50 +397,40 @@ createApp({
       const idx = points.value.indexOf(point)
       uploadingIndex.value = idx
       try {
-        const blob = await resizeImage(file)
-        if (navigator.onLine && storage) {
-          try {
-            const path = `inspecoes/${auditDocId()}/${Date.now()}_${idx}.jpg`
-            const r = storageRef(storage, path)
-            await uploadBytes(r, blob, { contentType: 'image/jpeg' })
-            point.photoUrl = await getDownloadURL(r)
-            point.photoPath = path
-            point.photoLocalId = ''
-            showSuccess('Foto anexada')
-            return
-          } catch (err) { console.warn('Upload direto falhou, indo para a fila:', err.message) }
-        }
-        const id = newQueueId()
-        await addPhoto({ id, blob, pointName: point.name, field: 'photo', docId: null, createdAt: Date.now() })
-        const url = URL.createObjectURL(blob)
-        localPhotoUrls.value = { ...localPhotoUrls.value, [id]: url }
-        point.photoLocalId = id
+        const blob = await compressToTarget(file)
+        if (blob.size > MAX_FOTO_BYTES * 1.6) { showError('Imagem muito grande mesmo após compressão'); return }
+        const id = await savePhotoDoc(blob, point.name, 'photo')
+        point.photoDocId = id
         point.photoUrl = ''
-        point.photoPath = ''
-        await refreshQueue()
-        showInfo('Foto guardada no aparelho. Será enviada quando houver conexão.')
+        showSuccess(navigator.onLine ? 'Foto anexada' : 'Foto salva no aparelho. Envio automático depois.')
       } catch (e) {
         console.error(e)
         showError('Não foi possível processar a foto: ' + e.message)
       } finally { uploadingIndex.value = null }
     }
 
+    const hasPhoto = (p) => !!(p.photoDocId || p.photoUrl)
+    const photoPreview = (p) => p.photoUrl || (p.photoDocId ? localPhotoUrls.value[p.photoDocId] : '')
+
     const removePhotoFromPoint = async (point) => {
-      if (point.photoLocalId) {
-        try { await removePhoto(point.photoLocalId) } catch (e) {}
-        const url = localPhotoUrls.value[point.photoLocalId]
-        if (url) URL.revokeObjectURL(url)
-        const copy = { ...localPhotoUrls.value }; delete copy[point.photoLocalId]
+      if (point.photoDocId) {
+        try { await deleteDoc(doc(db, 'inspection_photos', point.photoDocId)) } catch (e) {}
+        const copy = { ...localPhotoUrls.value }; delete copy[point.photoDocId]
         localPhotoUrls.value = copy
-        await refreshQueue()
       }
-      point.photoUrl = ''; point.photoPath = ''; point.photoLocalId = ''
+      point.photoDocId = ''; point.photoUrl = ''; point.photoPath = ''
     }
 
     /* --- Lightbox --- */
     const lightboxUrl = ref('')
     const openImage = (url) => { if (url) lightboxUrl.value = url }
     const closeImage = () => { lightboxUrl.value = '' }
+    // abre uma foto guardada no Firestore, carregando sob demanda
+    const openPhotoDoc = async (photoId, fallbackUrl) => {
+      if (fallbackUrl) { lightboxUrl.value = fallbackUrl; return }
+      const url = await loadPhotoData(photoId)
+      if (url) lightboxUrl.value = url
+    }
 
     /* --- Salvar --- */
     const saveAudit = async () => {
@@ -455,9 +463,7 @@ createApp({
             reason: p.status === 'nok' ? (p.reason || '').trim() : '',
             obs: p.status === 'nok' ? (p.reason || '').trim() : '',
             photoUrl: p.photoUrl || '',
-            photoPath: p.photoPath || '',
-            photoLocalId: p.photoLocalId || '',
-            photoPending: !!p.photoLocalId,
+            photoDocId: p.photoDocId || '',
             treatment: p.status === 'nok' ? { status: 'aberta' } : null
           })),
           acknowledgement: null,
@@ -473,11 +479,7 @@ createApp({
         }
         const docId = auditDocId()
         await setDoc(doc(db, 'inspections', docId), payload)
-        for (const p of points.value) {
-          if (p.photoLocalId) await updatePhoto(p.photoLocalId, { docId, pointName: p.name, field: 'photo' })
-        }
-        await refreshQueue()
-        processQueue()
+        points.value.forEach(p => { if (p.photoDocId) linkPhotoToAudit(p.photoDocId, docId) })
         showSuccess(navigator.onLine ? 'Auditoria registrada com sucesso!' : 'Auditoria salva no aparelho. Será enviada quando a rede voltar.')
         shareFromSave.value = true
         shareData.value = { _id: docId, ...payload }
@@ -1130,8 +1132,6 @@ createApp({
             if (scale.value.ativo) applyCurrentShift()
             await loadExistingAudit()
             loadAlerts()
-            purgeOrphans().catch(() => {})
-            refreshQueue().then(() => processQueue())
           }
         } else {
           profile.value = null
@@ -1323,7 +1323,7 @@ createApp({
     ).slice(0, 30))
 
     /* ==================== TRATATIVA DAS NÃO CONFORMIDADES ==================== */
-    const treatModal = ref(null)   // { row, status, responsavel, prazo, nota, afterUrl, afterLocalId }
+    const treatModal = ref(null)   // { row, status, responsavel, prazo, nota, afterUrl, afterDocId }
     const savingTreat = ref(false)
     const ncFilter = ref('todas')  // todas | aberta | andamento | resolvida | atrasada
 
@@ -1339,7 +1339,7 @@ createApp({
         prazo: t.prazo || '',
         nota: t.nota || '',
         afterUrl: t.afterPhotoUrl || '',
-        afterLocalId: ''
+        afterDocId: t.afterPhotoDocId || ''
       }
     }
     const closeTreat = () => { treatModal.value = null }
@@ -1347,7 +1347,7 @@ createApp({
     const saveTreat = async () => {
       const m = treatModal.value
       if (!m) return
-      if (m.status === 'resolvida' && !m.afterUrl && !m.afterLocalId) {
+      if (m.status === 'resolvida' && !m.afterUrl && !m.afterDocId) {
         showWarning('Anexe a foto que comprova a correção'); return
       }
       savingTreat.value = true
@@ -1362,7 +1362,7 @@ createApp({
           prazo: m.prazo || '',
           nota: m.nota.trim(),
           afterPhotoUrl: m.afterUrl || '',
-          afterPhotoPending: !!m.afterLocalId,
+          afterPhotoDocId: m.afterDocId || '',
           updatedAt: new Date().toISOString(),
           updatedBy: profile.value?.name || user.value.email
         }
@@ -1376,11 +1376,7 @@ createApp({
           historico: arrayUnion(logEntry('Tratativa: ' + m.status, m.row.name + (m.nota ? ' — ' + m.nota.trim() : ''))),
           updatedAt: new Date().toISOString()
         })
-        if (m.afterLocalId) {
-          await updatePhoto(m.afterLocalId, { docId: m.row.docId, pointName: m.row.name, field: 'after' })
-          await refreshQueue()
-          processQueue()
-        }
+        if (m.afterDocId) linkPhotoToAudit(m.afterDocId, m.row.docId)
         const local = alertsAudits.value.find(a => a._id === m.row.docId)
         if (local) local.points = pts
         showSuccess('Tratativa atualizada')
@@ -1409,24 +1405,11 @@ createApp({
       if (!file || !treatModal.value) return
       uploadingAfter.value = true
       try {
-        const blob = await resizeImage(file)
-        if (navigator.onLine && storage) {
-          try {
-            const path = `inspecoes/${treatModal.value.row.docId}/after_${Date.now()}.jpg`
-            const r = storageRef(storage, path)
-            await uploadBytes(r, blob, { contentType: 'image/jpeg' })
-            treatModal.value.afterUrl = await getDownloadURL(r)
-            treatModal.value.afterLocalId = ''
-            uploadingAfter.value = false
-            return
-          } catch (err) { console.warn('Upload direto falhou:', err.message) }
-        }
-        const id = newQueueId()
-        await addPhoto({ id, blob, pointName: treatModal.value.row.name, field: 'after', docId: null, createdAt: Date.now() })
-        localPhotoUrls.value = { ...localPhotoUrls.value, [id]: URL.createObjectURL(blob) }
-        treatModal.value.afterLocalId = id
+        const blob = await compressToTarget(file)
+        const id = await savePhotoDoc(blob, treatModal.value.row.name, 'after')
+        treatModal.value.afterDocId = id
         treatModal.value.afterUrl = ''
-        showInfo('Foto guardada. Envio automático quando houver conexão.')
+        showSuccess(navigator.onLine ? 'Foto da correção anexada' : 'Foto salva. Envio automático depois.')
       } catch (e) { showError('Erro na foto: ' + e.message) }
       finally { uploadingAfter.value = false }
     }
@@ -1454,7 +1437,7 @@ createApp({
         nc.forEach((p, i) => {
           L.push(`${i + 1}. ${p.name}`)
           if (p.reason || p.obs) L.push(`   _${p.reason || p.obs}_`)
-          if (p.photoUrl) L.push(`   📷 ${p.photoUrl}`)
+          if (p.photoUrl || p.photoDocId) L.push('   📷 evidência fotográfica registrada no app')
         })
       }
       L.push('')
@@ -1463,9 +1446,13 @@ createApp({
     }
 
     const shareFromSave = ref(false)
-    const auditPDF = () => {
+    const auditPDF = async () => {
       const a = shareData.value
       if (!a || !window.jspdf) { showError('Gerador de PDF indisponível'); return }
+      // garante que as evidências estejam carregadas para entrar no PDF
+      for (const p of (a.points || [])) {
+        if (p.photoDocId && !localPhotoUrls.value[p.photoDocId]) { try { await loadPhotoData(p.photoDocId) } catch (e) {} }
+      }
       try {
         const { jsPDF } = window.jspdf
         const pdf = new jsPDF('p', 'mm', 'a4')
@@ -1503,7 +1490,13 @@ createApp({
             if (p.reason || p.obs) line(`    Motivo: ${p.reason || p.obs}`, 9)
             const t = p.treatment
             if (t && t.status) line(`    Tratativa: ${t.status}${t.responsavel ? ' · ' + t.responsavel : ''}${t.prazo ? ' · prazo ' + fmtDate(t.prazo) : ''}`, 9, 'normal', [120, 120, 120])
-            if (p.photoUrl) line(`    Evidência: ${p.photoUrl}`, 7, 'normal', [13, 148, 136])
+            const img = p.photoDocId ? localPhotoUrls.value[p.photoDocId] : (p.photoUrl || '')
+            if (img && img.indexOf('data:') === 0) {
+              if (y > H - 50) { pdf.addPage(); y = 16 }
+              try { pdf.addImage(img, 'JPEG', 18, y, 46, 34); y += 37 } catch (er) { /* ignora */ }
+            } else if (p.photoDocId || p.photoUrl) {
+              line('    (evidência fotográfica registrada no app)', 8, 'italic', [120, 120, 120])
+            }
             y += 1.5
           })
         } else {
@@ -1587,7 +1580,7 @@ createApp({
       okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
       setStatus, markAllOk, clearAll, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
       hasPhoto, photoPreview, pointsGrouped, pesoTotal,
-      isOnline, pendingUploads, syncing, syncNow, localPhotoUrls,
+      isOnline, pendingUploads, syncing, syncNow, localPhotoUrls, loadingPhoto, openPhotoDoc, loadPhotoData,
       lightboxUrl, openImage, closeImage,
       // auditorias
       auditsTab, auditsList, auditsPage, auditsVisible, showMoreAudits, loadingAudits, auditsMonth, openAudits, toggleAudit,
