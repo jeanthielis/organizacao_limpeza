@@ -1152,7 +1152,10 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div class="warn" style="margin-top:12px" v-if="rotation[myTeam]">
             <i class="fas fa-arrow-right-long"></i><span>Sua equipe audita a <b>{{ rotation[myTeam] }}</b>.</span>
           </div>
-          <button class="btn btn-ghost btn-block" style="margin-top:12px" @click="logout">
+          <a class="btn btn-ghost btn-block" style="margin-top:12px" href="./landing.html?stay=1">
+            <i class="fas fa-circle-info"></i> Sobre o ControlPoint
+          </a>
+          <button class="btn btn-ghost btn-block" style="margin-top:8px" @click="logout">
             <i class="fas fa-right-from-bracket"></i> Sair da conta
           </button>
         </div>
