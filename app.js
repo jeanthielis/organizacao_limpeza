@@ -2,15 +2,15 @@ import { createApp, ref, computed, onMounted, watch, nextTick } from 'https://un
 import {
   db, auth, storage,
   collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
-  where, getDoc, orderBy, limit,
+  where, getDoc, orderBy, limit, arrayUnion,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   storageRef, uploadBytes, getDownloadURL,
   createUserAsAdmin
-} from './firebase.js?v=3.3.0'
+} from './firebase.js?v=3.4.0'
 import {
   newQueueId, addPhoto, updatePhoto, listPhotos, removePhoto, countReady, purgeOrphans
-} from './offline.js?v=3.3.0'
+} from './offline.js?v=3.4.0'
 
 createApp({
   setup() {
@@ -43,7 +43,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.3.0')
+    const appVersion = ref('3.4.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -274,6 +274,15 @@ createApp({
       } catch (e) { /* nova auditoria */ }
     }
 
+    const markAllOk = () => {
+      points.value.forEach(p => { if (!p.status) { p.status = 'ok'; p.reason = '' } })
+      showInfo('Pontos restantes marcados como conforme. Ajuste as exceções.')
+    }
+    const clearAll = () => {
+      points.value.forEach(p => { p.status = null; p.reason = '' })
+      showErrors.value = false
+    }
+
     const setStatus = (point, status) => {
       point.status = point.status === status ? null : status
       if (point.status !== 'nok') point.reason = ''
@@ -452,6 +461,14 @@ createApp({
             treatment: p.status === 'nok' ? { status: 'aberta' } : null
           })),
           acknowledgement: null,
+          historico: [{
+            at: new Date().toISOString(),
+            by: user.value.uid,
+            name: profile.value?.name || user.value.email,
+            team: auditorTeam.value,
+            action: 'Auditoria registrada',
+            detail: `${progress.value}% · ${nokCount.value} não conformidade(s)`
+          }],
           updatedAt: new Date().toISOString()
         }
         const docId = auditDocId()
@@ -473,6 +490,8 @@ createApp({
 
     /* ==================== AUDITORIAS (recebidas / feitas) ==================== */
     const auditsTab = ref('received')
+    const auditsVisible = ref(20)
+    const showMoreAudits = () => { auditsVisible.value += 20 }
     const auditsList = ref([])
     const loadingAudits = ref(false)
     const auditsMonth = ref(new Date().toISOString().slice(0, 7))
@@ -501,11 +520,14 @@ createApp({
         }
         list.sort((a, b) => b.date.localeCompare(a.date) || String(a.team).localeCompare(String(b.team)))
         auditsList.value = list
+        auditsVisible.value = 20
       } catch (e) {
         console.error(e)
         showError('Erro ao carregar auditorias: ' + e.message)
       } finally { loadingAudits.value = false }
     }
+
+    const auditsPage = computed(() => auditsList.value.slice(0, auditsVisible.value))
 
     const receivedAverage = computed(() => {
       if (!auditsList.value.length) return 0
@@ -549,14 +571,28 @@ createApp({
       const bad = (e0.points || []).filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length
       if (bad) { showWarning('Descreva o motivo de todas as não conformidades'); return }
       try {
-        const total = e0.points.length
-        const ok = e0.points.filter(p => p.status === 'ok').length
+        const original = adminAudits.value.find(a => a._id === e0._id) || {}
+        const mudou = []
+        ;(e0.points || []).forEach(p => {
+          const antes = (original.points || []).find(o => o.name === p.name)
+          if (antes && (antes.status || (antes.checked ? 'ok' : null)) !== p.status) {
+            mudou.push(`${p.name}: ${antes.status === 'ok' ? 'conforme' : 'não conforme'} → ${p.status === 'ok' ? 'conforme' : 'não conforme'}`)
+          }
+        })
+        const pesoT = e0.points.reduce((t, p) => t + (p.peso || 1), 0)
+        const pesoO = e0.points.filter(p => p.status === 'ok').reduce((t, p) => t + (p.peso || 1), 0)
+        const novoScore = pesoT ? Math.round(pesoO / pesoT * 100) : 0
         const payload = {
           points: e0.points.map(p => ({ ...p, checked: p.status === 'ok', obs: p.reason || '' })),
-          score: total ? Math.round(ok / total * 100) : 0,
+          score: novoScore,
           shift: e0.shift || 'Dia',
+          date: e0.date,
           updatedAt: new Date().toISOString(),
-          editedBy: profile.value?.name || user.value.email
+          editedBy: profile.value?.name || user.value.email,
+          historico: arrayUnion(logEntry(
+            `Editada pelo admin (${Math.round(original.score ?? novoScore)}% → ${novoScore}%)`,
+            mudou.slice(0, 6).join(' · ')
+          ))
         }
         await updateDoc(doc(db, 'inspections', e0._id), payload)
         showSuccess('Avaliação atualizada')
@@ -723,9 +759,31 @@ createApp({
             stats[x.team].total += score
             stats[x.team].count++
           })
-          let sorted = Object.values(stats).map(s => ({
-            name: s.name, average: parseFloat((s.total / s.count).toFixed(1)), count: s.count
-          })).sort((a, b) => b.average - a.average)
+          // mês anterior, para calcular a tendência
+          const [ry, rm] = reportMonth.value.split('-').map(Number)
+          const prevD = new Date(ry, rm - 2, 1)
+          const prevMonth = prevD.getFullYear() + '-' + String(prevD.getMonth() + 1).padStart(2, '0')
+          const prevStats = {}
+          try {
+            const psnap = await getDocs(query(collection(db, 'inspections'),
+              where('date', '>=', prevMonth + '-01'), where('date', '<=', prevMonth + '-31')))
+            psnap.forEach(d => {
+              const x = d.data()
+              if (!prevStats[x.team]) prevStats[x.team] = { total: 0, count: 0 }
+              prevStats[x.team].total += parseFloat(x.score) || 0
+              prevStats[x.team].count++
+            })
+          } catch (e) { /* sem dados anteriores */ }
+
+          let sorted = Object.values(stats).map(s => {
+            const avg = parseFloat((s.total / s.count).toFixed(1))
+            const pv = prevStats[s.name]
+            const prev = pv && pv.count ? parseFloat((pv.total / pv.count).toFixed(1)) : null
+            return {
+              name: s.name, average: avg, count: s.count, prev,
+              delta: prev == null ? null : parseFloat((avg - prev).toFixed(1))
+            }
+          }).sort((a, b) => b.average - a.average)
           let rank = 1
           for (let i = 0; i < sorted.length; i++) {
             if (i > 0 && sorted[i].average < sorted[i - 1].average) rank++
@@ -1094,7 +1152,7 @@ createApp({
       loadingAlerts.value = true
       try {
         const start = addDays(localToday(), -30)
-        const snap = await getDocs(query(collection(db, 'inspections'), where('date', '>=', start)))
+        const snap = await getDocs(query(collection(db, 'inspections'), where('date', '>=', start), limit(500)))
         const list = []
         snap.forEach(d => list.push({ _id: d.id, ...d.data() }))
         list.sort((a, b) => b.date.localeCompare(a.date))
@@ -1187,7 +1245,21 @@ createApp({
         .sort((a, b) => b.count - a.count).slice(0, 5)
     })
 
-    const alertsCount = computed(() => pendingList.value.length + ncRecent.value.length + pendingAcks.value.length)
+    // Mesmo ponto reprovado 3x ou mais na mesma equipe nos últimos 30 dias
+    const recurrences = computed(() => {
+      const map = {}
+      ncAll.value.forEach(r => {
+        const k = r.team + '|' + r.name
+        if (!map[k]) map[k] = { team: r.team, name: r.name, area: r.area, count: 0, last: r.date, open: 0 }
+        map[k].count++
+        if (r.date > map[k].last) map[k].last = r.date
+        if ((r.treatment?.status || 'aberta') !== 'resolvida') map[k].open++
+      })
+      return Object.values(map).filter(x => x.count >= 3).sort((a, b) => b.count - a.count)
+    })
+
+    const alertsCount = computed(() =>
+      pendingList.value.length + ncRecent.value.length + pendingAcks.value.length + recurrences.value.length)
 
     // Abre a tela de auditoria já posicionada na pendência escolhida
     const auditPending = (p) => {
@@ -1195,6 +1267,15 @@ createApp({
       auditShift.value = p.shift
       currentView.value = 'audit'
     }
+
+    /* ==================== HISTÓRICO DE ALTERAÇÕES ==================== */
+    const logEntry = (action, detail) => ({
+      at: new Date().toISOString(),
+      by: user.value?.uid || '',
+      name: profile.value?.name || user.value?.email || '',
+      team: myTeam.value || '',
+      action, detail: detail || ''
+    })
 
     /* ==================== CIÊNCIA DA EQUIPE AUDITADA ==================== */
     const ackModal = ref(null)   // { item, decision, comment }
@@ -1219,7 +1300,12 @@ createApp({
             team: myTeam.value,
             comment: m.comment.trim(),
             at: new Date().toISOString()
-          }
+          },
+          historico: arrayUnion(logEntry(
+            m.decision === 'ok' ? 'Ciência registrada' : 'Auditoria contestada',
+            m.comment.trim()
+          )),
+          updatedAt: new Date().toISOString()
         })
         const patch = (list) => list.forEach(a => {
           if (a._id === m.item._id) a.acknowledgement = { status: m.decision, name: profile.value?.name, comment: m.comment.trim(), at: new Date().toISOString() }
@@ -1285,7 +1371,11 @@ createApp({
           treatment.resolvedBy = profile.value?.name || user.value.email
         }
         const pts = (data.points || []).map(p => p.name === m.row.name ? { ...p, treatment } : p)
-        await updateDoc(ref0, { points: pts })
+        await updateDoc(ref0, {
+          points: pts,
+          historico: arrayUnion(logEntry('Tratativa: ' + m.status, m.row.name + (m.nota ? ' — ' + m.nota.trim() : ''))),
+          updatedAt: new Date().toISOString()
+        })
         if (m.afterLocalId) {
           await updatePhoto(m.afterLocalId, { docId: m.row.docId, pointName: m.row.name, field: 'after' })
           await refreshQueue()
@@ -1373,6 +1463,67 @@ createApp({
     }
 
     const shareFromSave = ref(false)
+    const auditPDF = () => {
+      const a = shareData.value
+      if (!a || !window.jspdf) { showError('Gerador de PDF indisponível'); return }
+      try {
+        const { jsPDF } = window.jspdf
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const W = pdf.internal.pageSize.getWidth()
+        const H = pdf.internal.pageSize.getHeight()
+        let y = 16
+        const line = (txt, size, style, color) => {
+          pdf.setFontSize(size || 10)
+          pdf.setFont('helvetica', style || 'normal')
+          pdf.setTextColor(...(color || [30, 30, 30]))
+          const parts = pdf.splitTextToSize(txt, W - 28)
+          parts.forEach(t => {
+            if (y > H - 16) { pdf.addPage(); y = 16 }
+            pdf.text(t, 14, y); y += (size || 10) * 0.52 + 1.6
+          })
+        }
+        pdf.setFillColor(13, 148, 136); pdf.rect(0, 0, W, 22, 'F')
+        pdf.setTextColor(255, 255, 255); pdf.setFontSize(14); pdf.setFont('helvetica', 'bold')
+        pdf.text('ControlPoint — Relatório de Auditoria', 14, 14)
+        y = 32
+        line(`Equipe auditada: ${a.team}`, 11, 'bold')
+        line(`Auditada por: ${a.auditorTeam || '—'}${a.auditorName ? ' (' + a.auditorName + ')' : ''}`)
+        line(`Data: ${fmtDate(a.date)}   ·   Turno: ${a.shift || '-'}`)
+        const atingiu = a.score >= (a.meta || meta.value)
+        line(`Conformidade: ${Math.round(a.score)}%  (meta ${a.meta || meta.value}%) — ${atingiu ? 'META ATINGIDA' : 'ABAIXO DA META'}`,
+             11, 'bold', atingiu ? [22, 163, 74] : [220, 38, 38])
+        y += 3
+        const nc = (a.points || []).filter(p => p.status === 'nok' || (p.status == null && p.checked === false))
+        line(`Pontos verificados: ${(a.points || []).length}   ·   Não conformidades: ${nc.length}`, 10)
+        y += 4
+        if (nc.length) {
+          line('NÃO CONFORMIDADES', 11, 'bold', [220, 38, 38]); y += 1
+          nc.forEach((p, i) => {
+            line(`${i + 1}. ${p.name}${p.area ? '  [' + p.area + ']' : ''}`, 10, 'bold')
+            if (p.reason || p.obs) line(`    Motivo: ${p.reason || p.obs}`, 9)
+            const t = p.treatment
+            if (t && t.status) line(`    Tratativa: ${t.status}${t.responsavel ? ' · ' + t.responsavel : ''}${t.prazo ? ' · prazo ' + fmtDate(t.prazo) : ''}`, 9, 'normal', [120, 120, 120])
+            if (p.photoUrl) line(`    Evidência: ${p.photoUrl}`, 7, 'normal', [13, 148, 136])
+            y += 1.5
+          })
+        } else {
+          line('Nenhuma não conformidade registrada.', 10, 'bold', [22, 163, 74])
+        }
+        y += 4
+        line('PONTOS CONFORMES', 11, 'bold', [22, 163, 74])
+        ;(a.points || []).filter(p => p.status === 'ok' || p.checked).forEach(p => line('• ' + p.name, 9))
+        if (a.acknowledgement && a.acknowledgement.status) {
+          y += 4
+          line(`Ciência: ${a.acknowledgement.status === 'ok' ? 'de acordo' : 'contestada'} por ${a.acknowledgement.name || ''}`, 9, 'italic')
+          if (a.acknowledgement.comment) line(`    ${a.acknowledgement.comment}`, 9, 'italic')
+        }
+        pdf.setFontSize(7); pdf.setTextColor(150, 150, 150)
+        pdf.text('Gerado pelo ControlPoint em ' + new Date().toLocaleString('pt-BR'), 14, H - 8)
+        pdf.save(`Auditoria_${a.team}_${a.date}_${a.shift || ''}.pdf`.replace(/\s+/g, ''))
+        showSuccess('PDF gerado')
+      } catch (e) { showError('Erro ao gerar PDF: ' + e.message) }
+    }
+
     const openShare = (a) => { shareFromSave.value = false; shareData.value = a }
     const closeShare = () => {
       shareData.value = null
@@ -1434,12 +1585,12 @@ createApp({
       auditDate, auditShift, auditorTeam, auditedTeam, adminAuditorTeam,
       points, loadingPoints, saving, showErrors, uploadingIndex,
       okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
-      setStatus, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
+      setStatus, markAllOk, clearAll, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
       hasPhoto, photoPreview, pointsGrouped, pesoTotal,
       isOnline, pendingUploads, syncing, syncNow, localPhotoUrls,
       lightboxUrl, openImage, closeImage,
       // auditorias
-      auditsTab, auditsList, loadingAudits, auditsMonth, openAudits, toggleAudit,
+      auditsTab, auditsList, auditsPage, auditsVisible, showMoreAudits, loadingAudits, auditsMonth, openAudits, toggleAudit,
       receivedAverage, nonConformities, loadAudits,
       // admin
       adminTab, adminAudits, loadingAdminAudits, adminMonth, loadAdminAudits,
@@ -1455,14 +1606,14 @@ createApp({
       openTreat, closeTreat, saveTreat,
       afterInput, uploadingAfter, triggerAfterPhoto, onAfterPhotoSelected,
       // compartilhamento
-      shareData, openShare, closeShare, shareNative, shareWhatsApp, copyReport, buildReportText,
+      shareData, openShare, closeShare, shareNative, shareWhatsApp, copyReport, buildReportText, auditPDF,
       // equipes
       ADM_TEAM, opTeams, canAuditAny, manualAudited,
       // escala
       scale, shiftNow, scalePreview, applyCurrentShift, scaleMismatch, teamFor,
       // notificações
       alertsAudits, loadingAlerts, alertsTab, ncScope, alertsTeamFilter, loadAlerts,
-      pendingList, ncList, ncRecent, ncByPoint, ncByArea, alertsCount, auditPending,
+      pendingList, ncList, ncRecent, ncByPoint, ncByArea, recurrences, alertsCount, auditPending,
       // helpers
       fmtDate, initials, chartId
     }
