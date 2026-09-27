@@ -589,7 +589,13 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
         </div>
 
         <div class="card">
-          <div class="section-label">Pontos de verificação ({{ points.length }})</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div class="section-label" style="margin:0;flex:1">Pontos de verificação ({{ points.length }})</div>
+            <button class="btn btn-ghost btn-sm" v-if="points.length && answeredCount < points.length" @click="markAllOk">
+              <i class="fas fa-check-double"></i> Todos conformes
+            </button>
+            <button class="icon-btn" v-if="answeredCount" @click="clearAll" title="Limpar"><i class="fas fa-eraser"></i></button>
+          </div>
           <div v-if="loadingPoints" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando pontos...</div>
           <div v-else-if="!points.length" class="empty">
             <i class="fas fa-clipboard-list"></i>
@@ -676,7 +682,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <p>{{ auditsTab === 'received' ? 'Sua equipe ainda não foi auditada neste mês.' : 'Nenhuma auditoria neste mês.' }}</p>
         </div>
 
-        <div v-else v-for="item in auditsList" :key="item._id" class="audit-card">
+        <div v-else v-for="item in auditsPage" :key="item._id" class="audit-card">
           <div class="audit-head" @click="toggleAudit(item._id)">
             <div class="avatar">{{ (item.team || '?').replace('Equipe ','E') }}</div>
             <div class="audit-info">
@@ -745,10 +751,23 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <i class="fas fa-circle-info"></i>
             <span>A detecção de pendências usa a escala 12x36. Ative-a em Admin › Config. para acompanhar os turnos sem auditoria.</span>
           </div>
-          <div v-else-if="!pendingList.length && !pendingAcks.length" class="card empty">
+          <div v-else-if="!pendingList.length && !pendingAcks.length && !recurrences.length" class="card empty">
             <i class="fas fa-circle-check" style="color:var(--green-500);opacity:.8"></i>
             <p>Nada pendente. Todos os turnos foram auditados e as ciências estão em dia.</p>
           </div>
+          <div class="card" v-if="recurrences.length">
+            <div class="section-label">Reincidências — 3 ou mais ocorrências em 30 dias</div>
+            <div v-for="r in recurrences" :key="r.team + r.name" class="alert-item">
+              <div class="alert-ic nc" style="background:var(--red-500);color:#fff"><i class="fas fa-repeat"></i></div>
+              <div class="alert-body">
+                <div class="alert-t">{{ r.name }} <span class="st-tag st-atrasada">{{ r.count }}x</span></div>
+                <div class="alert-s">{{ r.team }} · {{ r.area }} · última em {{ fmtDate(r.last) }}
+                  <template v-if="r.open"> · {{ r.open }} sem resolver</template>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="card" v-if="pendingAcks.length">
             <div class="section-label">Aguardando ciência ({{ pendingAcks.length }})</div>
             <div v-for="a in pendingAcks" :key="'ack'+a._id" class="alert-item">
@@ -849,6 +868,10 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
         </template>
       </template>
 
+        <button class="btn btn-ghost btn-block" v-if="currentView === 'audits' && auditsList.length > auditsVisible" @click="showMoreAudits">
+          <i class="fas fa-chevron-down"></i> Carregar mais ({{ auditsList.length - auditsVisible }} restantes)
+        </button>
+
       <!-- ====== RELATÓRIOS ====== -->
       <template v-if="currentView === 'reports'">
         <div class="subtab no-print">
@@ -884,12 +907,18 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <div v-if="reportType !== 'daily'" class="chart-box"><canvas id="mainChart"></canvas></div>
 
             <table class="report" v-if="reportType==='monthly' && teamStats.length">
-              <thead><tr><th>#</th><th>Equipe</th><th>Média</th><th>Aud.</th></tr></thead>
+              <thead><tr><th>#</th><th>Equipe</th><th>Média</th><th>Tend.</th><th>Aud.</th></tr></thead>
               <tbody>
                 <tr v-for="s in teamStats" :key="s.name">
                   <td>{{ s.rank === 1 ? '🥇' : s.rank === 2 ? '🥈' : s.rank === 3 ? '🥉' : s.rank + 'º' }}</td>
                   <td>{{ s.name }}</td>
                   <td :style="{color: s.average >= meta ? 'var(--green-600)' : 'var(--red-600)', fontWeight:800}">{{ s.average }}%</td>
+                  <td>
+                    <span v-if="s.delta == null" style="color:var(--text-3)">—</span>
+                    <span v-else-if="s.delta > 0" style="color:var(--green-600);font-weight:800">▲ {{ s.delta }}</span>
+                    <span v-else-if="s.delta < 0" style="color:var(--red-600);font-weight:800">▼ {{ Math.abs(s.delta) }}</span>
+                    <span v-else style="color:var(--text-3)">=</span>
+                  </td>
                   <td>{{ s.count }}</td>
                 </tr>
               </tbody>
@@ -1191,11 +1220,20 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
       <div class="field">
         <label>Foto do depois {{ treatModal.status === 'resolvida' ? '*' : '(opcional)' }}</label>
-        <div class="cp-links" style="margin-bottom:8px" v-if="treatModal.afterUrl || treatModal.afterLocalId">
-          <button class="cp-link" @click="openImage(treatModal.afterUrl || localPhotoUrls[treatModal.afterLocalId])">
-            <i class="fas fa-image"></i> Visualizar imagem
-          </button>
-          <span v-if="treatModal.afterLocalId" class="st-tag st-andamento">na fila</span>
+        <div style="display:flex;gap:8px;margin-bottom:8px" v-if="treatModal.row.photoUrl || treatModal.afterUrl || treatModal.afterLocalId">
+          <div style="flex:1;text-align:center" v-if="treatModal.row.photoUrl">
+            <div class="section-label" style="margin-bottom:5px">Antes</div>
+            <img :src="treatModal.row.photoUrl" @click="openImage(treatModal.row.photoUrl)"
+                 style="width:100%;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--border);cursor:pointer">
+          </div>
+          <div style="flex:1;text-align:center" v-if="treatModal.afterUrl || treatModal.afterLocalId">
+            <div class="section-label" style="margin-bottom:5px">
+              Depois <span v-if="treatModal.afterLocalId" class="st-tag st-andamento">fila</span>
+            </div>
+            <img :src="treatModal.afterUrl || localPhotoUrls[treatModal.afterLocalId]"
+                 @click="openImage(treatModal.afterUrl || localPhotoUrls[treatModal.afterLocalId])"
+                 style="width:100%;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--green-500);cursor:pointer">
+          </div>
         </div>
         <button class="btn btn-ghost btn-sm btn-block" @click="triggerAfterPhoto">
           <i v-if="uploadingAfter" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-camera"></i>
@@ -1243,6 +1281,15 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-ghost btn-sm" style="flex:1" @click="shareWhatsApp"><i class="fab fa-whatsapp"></i> WhatsApp</button>
         <button class="btn btn-ghost btn-sm" style="flex:1" @click="copyReport"><i class="fas fa-copy"></i> Copiar</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" @click="auditPDF"><i class="fas fa-file-pdf"></i> PDF</button>
+      </div>
+
+      <div v-if="shareData.historico && shareData.historico.length" style="margin-top:14px">
+        <div class="section-label">Histórico</div>
+        <div v-for="(l, i) in shareData.historico.slice().reverse()" :key="i" class="alert-s" style="padding:5px 0;border-bottom:1px solid var(--border)">
+          <b style="color:var(--text-2)">{{ l.action }}</b> — {{ l.name }}<template v-if="l.team"> ({{ l.team }})</template>
+          <div style="opacity:.8">{{ new Date(l.at).toLocaleString('pt-BR') }}<template v-if="l.detail"> · {{ l.detail }}</template></div>
+        </div>
       </div>
       <button class="btn btn-ghost btn-block" style="margin-top:10px" @click="closeShare">Fechar</button>
     </div>
@@ -1283,6 +1330,14 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <label>Motivo *</label>
             <textarea v-model="p.reason" rows="2"></textarea>
           </div>
+        </div>
+      </div>
+
+      <div v-if="editing.historico && editing.historico.length" style="margin-top:14px">
+        <div class="section-label">Histórico de alterações</div>
+        <div v-for="(l, i) in editing.historico.slice().reverse()" :key="i" class="alert-s" style="padding:6px 0;border-bottom:1px solid var(--border)">
+          <b style="color:var(--text-2)">{{ l.action }}</b> — {{ l.name }}
+          <div style="opacity:.8">{{ new Date(l.at).toLocaleString('pt-BR') }}<template v-if="l.detail"> · {{ l.detail }}</template></div>
         </div>
       </div>
 
@@ -1345,11 +1400,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.3.0"></script>
+<script type="module" src="./app.js?v=3.4.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v33';
+    var CURRENT = 'controlpoint-v34';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1357,7 +1412,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.3.0')
+        navigator.serviceWorker.register('./sw.js?v=3.4.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
