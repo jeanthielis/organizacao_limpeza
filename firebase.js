@@ -1,4 +1,4 @@
-// firebase.js — ControlPoint 3.0
+// firebase.js — ControlPoint 3.5
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js'
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -11,9 +11,6 @@ import {
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   EmailAuthProvider, reauthenticateWithCredential
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
-import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js'
 
 // --- Credenciais do projeto ---
 const firebaseConfig = {
@@ -26,7 +23,7 @@ const firebaseConfig = {
   measurementId: "G-WG867BJGKL"
 };
 
-let app, db, auth, storage;
+let app, db, auth;
 
 try {
   app = initializeApp(firebaseConfig);
@@ -40,7 +37,6 @@ try {
     db = getFirestore(app);
   }
   auth = getAuth(app);
-  storage = getStorage(app);
   console.log("%c✅ Firebase conectado", "color:#0d9488;font-weight:bold");
 } catch (e) {
   console.error("❌ Erro na conexão Firebase:", e);
@@ -64,13 +60,12 @@ async function createUserAsAdmin(email, password) {
 }
 
 export {
-  db, auth, storage, firebaseConfig,
+  db, auth, firebaseConfig,
   collection, addDoc, getDocs, doc, deleteDoc, query, setDoc, updateDoc,
   where, getDoc, orderBy, limit, serverTimestamp, arrayUnion,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   EmailAuthProvider, reauthenticateWithCredential,
-  storageRef, uploadBytes, getDownloadURL, deleteObject,
   createUserAsAdmin
 };
