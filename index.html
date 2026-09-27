@@ -469,7 +469,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
         <i v-else-if="pendingUploads" class="fas fa-cloud-arrow-up"></i>
         <i v-else class="fas fa-cloud"></i>
         <span v-if="!isOnline">Offline</span>
-        <span v-else-if="pendingUploads">{{ pendingUploads }}</span>
+        <span v-else-if="pendingUploads">{{ pendingUploads }} enviando</span>
       </div>
       <div class="bell-wrap">
         <button class="top-btn" @click="currentView = 'alerts'" title="Notificações"><i class="fas fa-bell"></i></button>
@@ -617,7 +617,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                       <button class="cp-btn" :class="{'sel-nok': e.p.status==='nok'}" @click="setStatus(e.p,'nok')" title="Não conforme">
                         <i class="fas fa-xmark"></i>
                       </button>
-                      <button class="cp-btn" :class="{'has-photo': hasPhoto(e.p)}" @click="triggerPhoto(e.p, e.i)" title="Foto">
+                      <button class="cp-btn" :class="{'has-photo': hasPhoto(e.p)}" @click="triggerPhoto(e.p)" title="Foto">
                         <i v-if="uploadingIndex === e.i" class="fas fa-circle-notch spinner"></i>
                         <i v-else class="fas fa-camera"></i>
                       </button>
@@ -626,9 +626,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
                   <div class="cp-extra" v-if="hasPhoto(e.p)">
                     <div class="cp-links">
-                      <button class="cp-link" @click="openImage(photoPreview(e.p))"><i class="fas fa-image"></i> Visualizar imagem</button>
+                      <button class="cp-link" @click="openPhotoDoc(e.p.photoDocId, e.p.photoUrl)">
+                        <i v-if="loadingPhoto === e.p.photoDocId" class="fas fa-circle-notch spinner"></i>
+                        <i v-else class="fas fa-image"></i> Visualizar imagem
+                      </button>
                       <button class="cp-link muted" @click="removePhotoFromPoint(e.p)">Remover</button>
-                      <span v-if="e.p.photoLocalId" class="st-tag st-andamento">na fila</span>
                     </div>
                   </div>
 
@@ -710,7 +712,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                 <div style="font-weight:700">{{ p.name }}</div>
                 <div class="d-reason" v-if="(p.reason || p.obs) && !(p.status==='ok' || p.checked)">{{ p.reason || p.obs }}</div>
               </div>
-              <img v-if="p.photoUrl" class="d-thumb" :src="p.photoUrl" @click="openImage(p.photoUrl)">
+              <button v-if="p.photoDocId || p.photoUrl" class="cp-link" style="flex-shrink:0"
+                      @click.stop="openPhotoDoc(p.photoDocId, p.photoUrl)">
+                <i v-if="loadingPhoto === p.photoDocId" class="fas fa-circle-notch spinner"></i>
+                <i v-else class="fas fa-image"></i> Foto
+              </button>
             </div>
           </div>
         </div>
@@ -859,8 +865,9 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                 </div>
                 <div style="display:flex;gap:10px;margin-top:8px;align-items:center">
                   <button class="cp-link" @click="openTreat(r)"><i class="fas fa-screwdriver-wrench"></i> Tratativa</button>
-                  <button class="cp-link muted" v-if="r.photoUrl" @click="openImage(r.photoUrl)">Foto antes</button>
-                  <button class="cp-link muted" v-if="treatOf(r).afterPhotoUrl" @click="openImage(treatOf(r).afterPhotoUrl)">Foto depois</button>
+                  <button class="cp-link muted" v-if="r.photoDocId || r.photoUrl" @click="openPhotoDoc(r.photoDocId, r.photoUrl)">Foto antes</button>
+                  <button class="cp-link muted" v-if="treatOf(r).afterPhotoDocId || treatOf(r).afterPhotoUrl"
+                          @click="openPhotoDoc(treatOf(r).afterPhotoDocId, treatOf(r).afterPhotoUrl)">Foto depois</button>
                 </div>
               </div>
             </div>
@@ -1220,24 +1227,26 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
       <div class="field">
         <label>Foto do depois {{ treatModal.status === 'resolvida' ? '*' : '(opcional)' }}</label>
-        <div style="display:flex;gap:8px;margin-bottom:8px" v-if="treatModal.row.photoUrl || treatModal.afterUrl || treatModal.afterLocalId">
-          <div style="flex:1;text-align:center" v-if="treatModal.row.photoUrl">
+        <div style="display:flex;gap:8px;margin-bottom:8px" v-if="treatModal.row.photoDocId || treatModal.row.photoUrl || treatModal.afterDocId || treatModal.afterUrl">
+          <div style="flex:1;text-align:center" v-if="treatModal.row.photoDocId || treatModal.row.photoUrl">
             <div class="section-label" style="margin-bottom:5px">Antes</div>
-            <img :src="treatModal.row.photoUrl" @click="openImage(treatModal.row.photoUrl)"
+            <img v-if="photoPreview(treatModal.row)" :src="photoPreview(treatModal.row)"
+                 @click="openPhotoDoc(treatModal.row.photoDocId, treatModal.row.photoUrl)"
                  style="width:100%;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--border);cursor:pointer">
+            <button v-else class="btn btn-ghost btn-sm btn-block" @click="loadPhotoData(treatModal.row.photoDocId)">
+              <i class="fas fa-image"></i> Carregar
+            </button>
           </div>
-          <div style="flex:1;text-align:center" v-if="treatModal.afterUrl || treatModal.afterLocalId">
-            <div class="section-label" style="margin-bottom:5px">
-              Depois <span v-if="treatModal.afterLocalId" class="st-tag st-andamento">fila</span>
-            </div>
-            <img :src="treatModal.afterUrl || localPhotoUrls[treatModal.afterLocalId]"
-                 @click="openImage(treatModal.afterUrl || localPhotoUrls[treatModal.afterLocalId])"
+          <div style="flex:1;text-align:center" v-if="treatModal.afterDocId || treatModal.afterUrl">
+            <div class="section-label" style="margin-bottom:5px">Depois</div>
+            <img :src="treatModal.afterUrl || localPhotoUrls[treatModal.afterDocId]"
+                 @click="openPhotoDoc(treatModal.afterDocId, treatModal.afterUrl)"
                  style="width:100%;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--green-500);cursor:pointer">
           </div>
         </div>
         <button class="btn btn-ghost btn-sm btn-block" @click="triggerAfterPhoto">
           <i v-if="uploadingAfter" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-camera"></i>
-          {{ (treatModal.afterUrl || treatModal.afterLocalId) ? 'Trocar foto' : 'Anexar foto da correção' }}
+          {{ (treatModal.afterUrl || treatModal.afterDocId) ? 'Trocar foto' : 'Anexar foto da correção' }}
         </button>
       </div>
 
@@ -1323,8 +1332,8 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
               <button class="cp-btn" :class="{'sel-nok': p.status==='nok'}" @click="setEditStatus(p,'nok')"><i class="fas fa-xmark"></i></button>
             </div>
           </div>
-          <div class="cp-extra" v-if="p.photoUrl">
-            <div class="cp-links"><button class="cp-link" @click="openImage(p.photoUrl)"><i class="fas fa-image"></i> Visualizar imagem</button></div>
+          <div class="cp-extra" v-if="p.photoDocId || p.photoUrl">
+            <div class="cp-links"><button class="cp-link" @click="openPhotoDoc(p.photoDocId, p.photoUrl)"><i class="fas fa-image"></i> Visualizar imagem</button></div>
           </div>
           <div class="cp-extra" v-if="p.status === 'nok'">
             <label>Motivo *</label>
@@ -1400,11 +1409,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.4.0"></script>
+<script type="module" src="./app.js?v=3.5.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v34';
+    var CURRENT = 'controlpoint-v35';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1412,7 +1421,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.4.0')
+        navigator.serviceWorker.register('./sw.js?v=3.5.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
