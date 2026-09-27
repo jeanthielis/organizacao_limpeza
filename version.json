@@ -1,21 +1,19 @@
 {
-  "version": "3.4.0",
-  "codeName": "Hardened",
+  "version": "3.5.0",
+  "codeName": "No Blaze Needed",
   "releaseDate": "2026-09-26",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Regras do Firestore endurecidas: ninguém edita a própria nota",
-    "Histórico de alterações em cada auditoria",
-    "Botão 'Todos conformes' para auditar em poucos toques",
-    "Alerta de reincidência: 3 ou mais ocorrências no mesmo ponto",
-    "Tendência mês a mês no relatório mensal",
-    "PDF individual da auditoria",
-    "Antes e depois lado a lado na tratativa"
+    "Fotos guardadas no Firestore, sem precisar do Cloud Storage",
+    "Compressão automática até caber no limite do documento",
+    "Carregamento da imagem só quando você abre a foto",
+    "Gravação offline com sincronização automática",
+    "Regras de segurança para a coleção de fotos"
   ],
   "improvements": [
-    "Paginação na lista de auditorias",
-    "Limite de leitura nas consultas da central de notificações",
-    "Arquivos firestore.rules e storage.rules versionados no repositório"
+    "PDF da auditoria agora embute as fotos das não conformidades",
+    "Indicador de envios pendentes no topo da tela",
+    "Plano gratuito do Firebase (Spark) atende a aplicação inteira"
   ]
 }
