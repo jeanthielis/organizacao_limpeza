@@ -1,6 +1,6 @@
-const CACHE_NAME = 'controlpoint-v35';
+const CACHE_NAME = 'controlpoint-v352';
 const urlsToCache = [
-  './', './index.html', './app.js?v=3.5.0', './firebase.js?v=3.5.0',
+  './', './index.html', './app.html', './app.js?v=3.5.2', './firebase.js?v=3.5.2',
   './manifest.json', './version.json', './icon-192.png', './icon-512.png'
 ];
 
@@ -23,7 +23,7 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((c) => c.put(event.request, copy)).catch(() => {});
         return response;
       })
-      .catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
+      .catch(() => caches.match(event.request).then((r) => r || caches.match('./app.html')))
   );
 });
 
