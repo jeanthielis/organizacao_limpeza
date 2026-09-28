@@ -1152,7 +1152,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div class="warn" style="margin-top:12px" v-if="rotation[myTeam]">
             <i class="fas fa-arrow-right-long"></i><span>Sua equipe audita a <b>{{ rotation[myTeam] }}</b>.</span>
           </div>
-          <a class="btn btn-ghost btn-block" style="margin-top:12px" href="./landing.html?stay=1">
+          <a class="btn btn-ghost btn-block" style="margin-top:12px" href="./index.html?stay=1">
             <i class="fas fa-circle-info"></i> Sobre o ControlPoint
           </a>
           <button class="btn btn-ghost btn-block" style="margin-top:8px" @click="logout">
@@ -1412,11 +1412,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.5.0"></script>
+<script type="module" src="./app.js?v=3.5.2"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v35';
+    var CURRENT = 'controlpoint-v352';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1424,7 +1424,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.5.0')
+        navigator.serviceWorker.register('./sw.js?v=3.5.2')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
