@@ -20,7 +20,7 @@
     if (sessionStorage.getItem('cp_stay') === '1') return;
 
     // Voltou do app pelo botão "voltar": não devolve para lá (evita laço)
-    if (document.referrer && document.referrer.indexOf('index.html') > -1) {
+    if (document.referrer && document.referrer.indexOf('app.html') > -1) {
       sessionStorage.setItem('cp_stay', '1');
       return;
     }
@@ -37,7 +37,7 @@
     document.documentElement.classList.add('cp-indo');
     // se algo falhar, a página reaparece em vez de ficar em branco
     setTimeout(function () { document.documentElement.classList.remove('cp-indo'); }, 2500);
-    location.replace('./index.html');
+    location.replace('./app.html');
   } catch (e) { /* segue para a apresentação */ }
 })();
 </script>
@@ -367,7 +367,7 @@ footer{padding:36px 0 44px;border-top:1px solid var(--border);color:var(--text-3
       <a href="#recursos">Recursos</a>
       <a href="#faq">Dúvidas</a>
     </div>
-    <a class="btn btn-primary btn-sm nav-cta" id="navCta" href="./index.html">
+    <a class="btn btn-primary btn-sm nav-cta" id="navCta" href="./app.html">
       <i class="fas fa-right-to-bracket"></i> <span>Entrar no app</span>
     </a>
   </div>
@@ -389,11 +389,11 @@ footer{padding:36px 0 44px;border-top:1px solid var(--border);color:var(--text-3
           <b id="resumeName">Sessão ativa</b>
           <small>Você já está conectado neste aparelho</small>
         </div>
-        <a class="btn btn-primary btn-sm" href="./index.html">Continuar</a>
+        <a class="btn btn-primary btn-sm" href="./app.html">Continuar</a>
       </div>
 
       <div class="hero-actions">
-        <a class="btn btn-primary btn-lg" id="heroCta" href="./index.html"><i class="fas fa-play"></i> Acessar o app</a>
+        <a class="btn btn-primary btn-lg" id="heroCta" href="./app.html"><i class="fas fa-play"></i> Acessar o app</a>
         <a class="btn btn-ghost btn-lg" href="#escala"><i class="fas fa-circle-info"></i> Ver como funciona</a>
       </div>
       <div class="hero-facts">
@@ -646,7 +646,7 @@ footer{padding:36px 0 44px;border-top:1px solid var(--border);color:var(--text-3
       <h2>Pronto para a próxima virada de turno</h2>
       <p>Entre com seu e-mail e senha e comece a auditar. Se ainda não tem acesso, fale com o administrador do sistema.</p>
       <div class="cta-actions">
-        <a class="btn btn-white btn-lg" href="./index.html"><i class="fas fa-right-to-bracket"></i> Acessar o app</a>
+        <a class="btn btn-white btn-lg" href="./app.html"><i class="fas fa-right-to-bracket"></i> Acessar o app</a>
         <a class="btn btn-outline-white btn-lg" href="#recursos"><i class="fas fa-list-check"></i> Rever os recursos</a>
       </div>
     </div>
@@ -663,7 +663,7 @@ footer{padding:36px 0 44px;border-top:1px solid var(--border);color:var(--text-3
     <div class="foot-links">
       <a href="#problema">O problema</a>
       <a href="#escala">Como funciona</a>
-      <a href="./index.html">Entrar</a>
+      <a href="./app.html">Entrar</a>
     </div>
   </div>
 </footer>
