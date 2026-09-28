@@ -1,7 +1,7 @@
 {
   "name": "ControlPoint - Auditoria de Turno",
   "short_name": "ControlPoint",
-  "start_url": "./index.html",
+  "start_url": "./app.html",
   "display": "standalone",
   "background_color": "#f3f6f6",
   "theme_color": "#0d9488",
