@@ -269,16 +269,16 @@ As fotos ficam na coleção `inspection_photos`, comprimidas para até 150 KB, e
 
 ## Página de apresentação
 
-O arquivo **`landing.html`** é uma página institucional independente: explica o problema, a lógica do rodízio 12x36, o ciclo da não conformidade, os recursos e as dúvidas frequentes. Não usa Vue nem Firebase — é HTML e CSS puros, com um único trecho de JavaScript para a animação de entrada.
+O arquivo **`index.html`** é uma página institucional independente: explica o problema, a lógica do rodízio 12x36, o ciclo da não conformidade, os recursos e as dúvidas frequentes. Não usa Vue nem Firebase — é HTML e CSS puros, com um único trecho de JavaScript para a animação de entrada.
 
 ### Entrada automática de quem já tem sessão
 
-Quem já está logado não precisa ver a apresentação de novo. O app grava em `localStorage` uma dica leve da sessão (`cp_last_session`, com uid, nome, equipe e data) ao autenticar, e apaga ao sair. A landing lê essa chave num script no `<head>`, antes de renderizar, e usa `location.replace('./index.html')` — sem piscar o conteúdo e sem criar entrada no histórico.
+Quem já está logado não precisa ver a apresentação de novo. O app grava em `localStorage` uma dica leve da sessão (`cp_last_session`, com uid, nome, equipe e data) ao autenticar, e apaga ao sair. A landing lê essa chave num script no `<head>`, antes de renderizar, e usa `location.replace('./app.html')` — sem piscar o conteúdo e sem criar entrada no histórico.
 
 Proteções contra os problemas clássicos desse tipo de redirecionamento:
 
-- **Laço com o botão voltar**: se o visitante chega vindo do app (`document.referrer`), a landing marca `cp_stay` na `sessionStorage` e não devolve para lá.
-- **Ver a apresentação de propósito**: `landing.html?stay=1` (ou `#ficar`) desliga o redirecionamento pelo resto da sessão. É o link usado na aba *Sobre* dentro do app.
+- **Laço com o botão voltar**: se o visitante chega vindo do app (`document.referrer` contém `app.html`), a landing marca `cp_stay` na `sessionStorage` e não devolve para lá.
+- **Ver a apresentação de propósito**: `index.html?stay=1` (ou `#ficar`) desliga o redirecionamento pelo resto da sessão. É o link usado na aba *Sobre* dentro do app.
 - **Dica velha**: depois de 30 dias a chave é ignorada e apagada.
 - **Falha no meio do caminho**: se o redirecionamento não acontecer em 2,5 s, a página reaparece em vez de ficar em branco.
 
@@ -286,12 +286,12 @@ Quando existe sessão mas o redirecionamento foi dispensado, a landing se adapta
 
 A dica **não é autenticação** — quem manda continua sendo o Firebase Auth. Se a sessão tiver expirado ou sido revogada, o app simplesmente mostra a tela de login. Por isso ela guarda só nome e equipe, nada sensível.
 
-Todos os botões apontam para `./index.html`, então basta manter os dois arquivos na mesma pasta. Endereços:
+Endereços:
 
-- app: `https://SEU-USUARIO.github.io/SEU-REPO/`
-- apresentação: `https://SEU-USUARIO.github.io/SEU-REPO/landing.html`
+- apresentação: `https://SEU-USUARIO.github.io/SEU-REPO/` (raiz)
+- app: `https://SEU-USUARIO.github.io/SEU-REPO/app.html`
 
-Se preferir que o visitante caia primeiro na apresentação, renomeie os arquivos: `index.html` → `app.html` e `landing.html` → `index.html`. Nesse caso, troque os links `./index.html` da landing por `./app.html` e ajuste `start_url` no `manifest.json` para `./app.html`, para que o atalho instalado abra o app e não a apresentação.
+O `start_url` do `manifest.json` aponta para `./app.html`, então o atalho instalado no celular abre o app direto, sem passar pela apresentação.
 
 ## Publicar no GitHub Pages
 
@@ -306,8 +306,8 @@ O app funciona como PWA: pode ser instalado na tela inicial do celular e abre of
 ## Arquivos
 
 ```
-landing.html    # página de apresentação (institucional), independente do app
-index.html      # interface (Vue template + estilos)
+index.html      # página de apresentação (institucional) — é o que abre na raiz
+app.html        # interface do app (Vue template + estilos)
 app.js          # lógica da aplicação
 firebase.js     # credenciais, SDK (com cache persistente) e criação de usuário pelo admin
 firestore.rules # regras de segurança do banco (copiar para o console)
