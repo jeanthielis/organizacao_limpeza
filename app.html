@@ -149,6 +149,22 @@ textarea.invalid{border-color:var(--red-500)}
   display:flex;align-items:center;gap:5px;text-decoration:underline;text-underline-offset:2px}
 .cp-link.muted{color:var(--text-3)}
 .cp-hint{font-size:10.5px;font-weight:700;color:var(--red-600);display:flex;align-items:center;gap:5px}
+.gal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:560px){.gal-grid{grid-template-columns:repeat(3,1fr)}}
+.gal-cell{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface-2);position:relative}
+.gal-img{width:100%;height:112px;object-fit:cover;display:block;cursor:pointer;background:var(--bg-sunken)}
+.gal-ph{width:100%;height:112px;display:grid;place-items:center;color:var(--text-3);font-size:16px}
+.gal-meta{padding:7px 8px}
+.gal-t{font-size:10.5px;font-weight:800;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gal-s{font-size:9px;color:var(--text-3);font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gal-tag{position:absolute;top:6px;left:6px;font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:6px;text-transform:uppercase;letter-spacing:.03em}
+.gal-ok{background:var(--green-500);color:#fff}
+.gal-nok{background:var(--red-500);color:#fff}
+.gal-after{background:var(--teal-600);color:#fff}
+.cp-btn.travado{opacity:.38}
+.cp-btn.cam.pedindo{border-color:var(--amber-600);color:var(--amber-600);animation:pede 1.9s ease-in-out infinite}
+@keyframes pede{0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,.32)}50%{box-shadow:0 0 0 5px rgba(217,119,6,0)}}
+@media(prefers-reduced-motion:reduce){.cp-btn.cam.pedindo{animation:none}}
 
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;max-width:620px;margin:0 auto;background:var(--bg-elevated);
   border-top:1px solid var(--border);display:flex;padding:5px 5px calc(5px + env(safe-area-inset-bottom,0));box-shadow:0 -4px 20px rgba(0,0,0,.07)}
@@ -579,13 +595,14 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           </div>
         </div>
 
-        <div class="warn" v-if="showErrors && (pendingPhotos || pendingReasons)">
+        <div class="warn" v-if="pendingPhotos">
+          <i class="fas fa-camera"></i>
+          <span><b>{{ pendingPhotos }}</b> ponto(s) ainda sem foto do local. A foto é obrigatória para avaliar — conforme ou não.</span>
+        </div>
+
+        <div class="warn" v-if="showErrors && pendingReasons">
           <i class="fas fa-triangle-exclamation"></i>
-          <span>Não conformidades pendentes:
-            <template v-if="pendingPhotos">{{ pendingPhotos }} sem foto</template>
-            <template v-if="pendingPhotos && pendingReasons"> e </template>
-            <template v-if="pendingReasons">{{ pendingReasons }} sem descrição do motivo</template>.
-          </span>
+          <span>{{ pendingReasons }} não conformidade(s) sem descrição do motivo.</span>
         </div>
 
         <div class="card">
@@ -611,15 +628,18 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                     <div class="cp-label">{{ e.p.name }}</div>
                     <span class="peso-tag" v-if="(e.p.peso || 1) > 1">peso {{ e.p.peso }}</span>
                     <div class="cp-ctrl">
-                      <button class="cp-btn" :class="{'sel-ok': e.p.status==='ok'}" @click="setStatus(e.p,'ok')" title="Conforme">
-                        <i class="fas fa-check"></i>
-                      </button>
-                      <button class="cp-btn" :class="{'sel-nok': e.p.status==='nok'}" @click="setStatus(e.p,'nok')" title="Não conforme">
-                        <i class="fas fa-xmark"></i>
-                      </button>
-                      <button class="cp-btn" :class="{'has-photo': hasPhoto(e.p)}" @click="triggerPhoto(e.p)" title="Foto">
+                      <button class="cp-btn cam" :class="{'has-photo': hasPhoto(e.p), 'pedindo': !hasPhoto(e.p)}"
+                              @click="triggerPhoto(e.p)" title="Foto do local">
                         <i v-if="uploadingIndex === e.i" class="fas fa-circle-notch spinner"></i>
                         <i v-else class="fas fa-camera"></i>
+                      </button>
+                      <button class="cp-btn" :class="{'sel-ok': e.p.status==='ok', travado: !hasPhoto(e.p)}"
+                              @click="setStatus(e.p,'ok')" title="Conforme">
+                        <i class="fas fa-check"></i>
+                      </button>
+                      <button class="cp-btn" :class="{'sel-nok': e.p.status==='nok', travado: !hasPhoto(e.p)}"
+                              @click="setStatus(e.p,'nok')" title="Não conforme">
+                        <i class="fas fa-xmark"></i>
                       </button>
                     </div>
                   </div>
@@ -633,13 +653,16 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                       <button class="cp-link muted" @click="removePhotoFromPoint(e.p)">Remover</button>
                     </div>
                   </div>
+                  <div class="cp-extra" v-else>
+                    <div class="cp-hint"><i class="fas fa-camera"></i> Fotografe o local para liberar a avaliação</div>
+                  </div>
 
                   <div class="cp-extra" v-if="e.p.status === 'nok'">
                     <label>Motivo da não conformidade *</label>
                     <textarea v-model="e.p.reason" rows="2"
                       :class="{invalid: showErrors && (e.p.reason || '').trim().length < 5}"
                       placeholder="Descreva o que foi encontrado (ex.: piso com resíduo de óleo próximo à bancada)"></textarea>
-                    <div class="cp-hint" v-if="!hasPhoto(e.p)"><i class="fas fa-triangle-exclamation"></i> Foto de evidência obrigatória</div>
+
                   </div>
                 </div>
               </div>
@@ -963,6 +986,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
       <template v-if="currentView === 'admin' && isAdmin">
         <div class="subtab">
           <button :class="{active: adminTab==='audits'}" @click="adminTab='audits'">Avaliações</button>
+          <button :class="{active: adminTab==='fotos'}" @click="adminTab='fotos'">Fotos</button>
           <button :class="{active: adminTab==='users'}" @click="adminTab='users'; loadUsers()">Usuários</button>
           <button :class="{active: adminTab==='config'}" @click="adminTab='config'">Config.</button>
         </div>
@@ -990,6 +1014,70 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             </div>
             <button class="btn btn-ghost btn-sm" style="margin-top:10px" @click="exportCSV"><i class="fas fa-file-csv"></i> Exportar CSV do mês</button>
           </div>
+        </template>
+
+        <!-- Fotos -->
+        <template v-if="adminTab === 'fotos'">
+          <div class="card">
+            <div class="card-title"><i class="fas fa-images"></i> Fotos registradas pelos auditores</div>
+            <div class="card-sub">Confira se o local certo está sendo fotografado e se a evidência corresponde ao apontamento.</div>
+            <div class="field" style="margin:0">
+              <label>Mês de referência</label>
+              <input type="month" class="input" v-model="adminMonth">
+            </div>
+            <div class="section-label" style="margin-top:14px">Tipo</div>
+            <div class="filter-row chip-row">
+              <button class="chip" :class="{active: galleryFilter==='todas'}" @click="galleryFilter='todas'">Todas</button>
+              <button class="chip" :class="{active: galleryFilter==='ok'}" @click="galleryFilter='ok'">Conformes</button>
+              <button class="chip" :class="{active: galleryFilter==='nok'}" @click="galleryFilter='nok'">Não conformes</button>
+              <button class="chip" :class="{active: galleryFilter==='after'}" @click="galleryFilter='after'">Correções</button>
+            </div>
+            <div class="section-label" style="margin-top:12px">Equipe auditada</div>
+            <div class="filter-row chip-row">
+              <button class="chip" :class="{active: galleryTeamFilter==='todas'}" @click="galleryTeamFilter='todas'">Todas</button>
+              <button v-for="t in opTeams" :key="'gt'+t" class="chip" :class="{active: galleryTeamFilter===t}" @click="galleryTeamFilter=t">{{ t }}</button>
+            </div>
+          </div>
+
+          <div class="card" v-if="galleryByAuditor.length">
+            <div class="section-label">Fotos por auditor no mês</div>
+            <div v-for="r in galleryByAuditor" :key="r.nome" class="list-row">
+              <div class="li">{{ r.nome || '—' }}<div class="ls">{{ r.equipe }}</div></div>
+              <div class="score-badge pass">{{ r.total }}</div>
+            </div>
+          </div>
+
+          <div v-if="loadingAdminAudits" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando auditorias...</div>
+          <div v-else-if="!galleryItems.length" class="card empty">
+            <i class="fas fa-image"></i>
+            <p>Nenhuma foto neste mês com os filtros escolhidos.</p>
+          </div>
+          <template v-else>
+            <div class="card">
+              <div class="section-label">{{ galleryItems.length }} foto(s) · exibindo {{ galleryPage.length }}</div>
+              <div class="gal-grid">
+                <div v-for="it in galleryPage" :key="it.key" class="gal-cell">
+                  <span class="gal-tag" :class="it.kind==='ok' ? 'gal-ok' : it.kind==='nok' ? 'gal-nok' : 'gal-after'">
+                    {{ it.kind==='ok' ? 'conforme' : it.kind==='nok' ? 'não conf.' : 'correção' }}
+                  </span>
+                  <img v-if="galleryThumb(it)" class="gal-img" :src="galleryThumb(it)" @click="openPhotoDoc(it.photoDocId, it.photoUrl)">
+                  <div v-else class="gal-ph" @click="openPhotoDoc(it.photoDocId, it.photoUrl)">
+                    <i :class="loadingPhoto === it.photoDocId ? 'fas fa-circle-notch spinner' : 'fas fa-image'"></i>
+                  </div>
+                  <div class="gal-meta">
+                    <div class="gal-t">{{ it.name }}</div>
+                    <div class="gal-s">{{ it.team }} · {{ fmtDate(it.date) }} · {{ it.shift }}</div>
+                    <div class="gal-s" v-if="it.auditorName">por {{ it.auditorName }}</div>
+                  </div>
+                </div>
+              </div>
+              <div v-if="loadingGallery" class="center-load" style="padding:14px"><i class="fas fa-circle-notch spinner"></i> Carregando imagens...</div>
+              <button class="btn btn-ghost btn-block" style="margin-top:12px"
+                      v-if="galleryItems.length > galleryVisible" @click="showMoreGallery">
+                <i class="fas fa-chevron-down"></i> Carregar mais ({{ galleryItems.length - galleryVisible }} restantes)
+              </button>
+            </div>
+          </template>
         </template>
 
         <!-- Usuários -->
@@ -1097,6 +1185,28 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <i v-if="savingConfig" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-floppy-disk"></i>
             Salvar meta, equipes, escala e rodízio
           </button>
+
+          <div class="card">
+            <div class="card-title"><i class="fas fa-broom"></i> Espaço: limpar fotos antigas</div>
+            <div class="card-sub">
+              Com foto obrigatória em todos os pontos, são cerca de 16 imagens por auditoria.
+              A limpeza apaga apenas as imagens antigas — pontos, motivos, notas e tratativas permanecem no histórico.
+            </div>
+            <div class="field">
+              <label>Apagar fotos de auditorias com mais de</label>
+              <select v-model.number="cleanupMonths">
+                <option :value="3">3 meses</option>
+                <option :value="6">6 meses</option>
+                <option :value="12">12 meses</option>
+                <option :value="24">24 meses</option>
+              </select>
+            </div>
+            <button class="btn btn-danger btn-block" :disabled="cleaning" @click="cleanupOldPhotos">
+              <i v-if="cleaning" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-broom"></i>
+              {{ cleaning ? 'Limpando...' : 'Liberar espaço' }}
+            </button>
+            <div v-if="cleanupProgress" class="alert-s" style="margin-top:9px;text-align:center">{{ cleanupProgress }}</div>
+          </div>
 
           <div class="card">
             <div class="card-title"><i class="fas fa-clipboard-list"></i> Pontos de verificação</div>
@@ -1412,11 +1522,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.5.2"></script>
+<script type="module" src="./app.js?v=3.6.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v352';
+    var CURRENT = 'controlpoint-v360';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1424,7 +1534,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.5.2')
+        navigator.serviceWorker.register('./sw.js?v=3.6.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
