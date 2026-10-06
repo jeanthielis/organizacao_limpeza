@@ -1,8 +1,30 @@
-# ControlPoint 3.5 — Auditoria de Virada de Turno
+# ControlPoint 3.6 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Novidades da 3.6 — foto do local obrigatória
+
+### Toda avaliação precisa de imagem
+A foto deixou de ser exigência só da não conformidade: **todo ponto exige a foto do local**, conforme ou não. Os botões de conforme e não conforme ficam travados até a imagem existir, e tocar neles abre a câmera. O botão da câmera pulsa enquanto falta foto, e remover a imagem apaga a avaliação daquele ponto, para não sobrar nota sem lastro.
+
+O botão "Todos conformes" passou a alcançar apenas os pontos já fotografados, avisando quantos ainda faltam.
+
+### Galeria para o administrador
+Nova aba **Admin → Fotos**: todas as imagens do mês em grade, com etiqueta de conforme, não conforme ou correção, e filtros por tipo e por equipe auditada. Cada miniatura mostra o ponto, a equipe, a data, o turno e quem fotografou. Há também a contagem de fotos por auditor no mês, útil para perceber quem está pulando etapa.
+
+As imagens carregam sob demanda, 12 por vez, para não pesar o carregamento.
+
+### Compressão proporcional ao uso
+A foto de rotina (ponto conforme) é guardada em até **70 KB**; a evidência de não conformidade continua em até **150 KB**, porque precisa de detalhe para servir de prova.
+
+### Limpeza de fotos antigas
+Em **Admin → Config.**, o botão "Liberar espaço" apaga as imagens de auditorias anteriores a 3, 6, 12 ou 24 meses. Pontos, motivos, notas e tratativas permanecem — só as imagens saem, e a remoção fica registrada no histórico da auditoria.
+
+> **Por que isso importa:** com 16 fotos por auditoria e duas auditorias por dia, o consumo fica em torno de **1 MB por auditoria**, ou cerca de 2 MB por dia. O 1 GB gratuito do Firestore cobre algo perto de **16 meses** nesse ritmo. A limpeza semestral mantém o uso estável e dentro do plano gratuito indefinidamente.
 
 ---
 
