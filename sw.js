@@ -1,6 +1,6 @@
-const CACHE_NAME = 'controlpoint-v352';
+const CACHE_NAME = 'controlpoint-v360';
 const urlsToCache = [
-  './', './index.html', './app.html', './app.js?v=3.5.2', './firebase.js?v=3.5.2',
+  './', './index.html', './app.html', './app.js?v=3.6.0', './firebase.js?v=3.6.0',
   './manifest.json', './version.json', './icon-192.png', './icon-512.png'
 ];
 
