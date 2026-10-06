@@ -1,19 +1,20 @@
 {
-  "version": "3.5.2",
-  "codeName": "No Blaze Needed",
-  "releaseDate": "2026-09-26",
+  "version": "3.6.0",
+  "codeName": "Eyes On Site",
+  "releaseDate": "2026-10-05",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Fotos guardadas no Firestore, sem precisar do Cloud Storage",
-    "Compressão automática até caber no limite do documento",
-    "Carregamento da imagem só quando você abre a foto",
-    "Gravação offline com sincronização automática",
-    "Regras de segurança para a coleção de fotos"
+    "Foto do local obrigatória em todos os pontos, conformes ou não",
+    "Avaliação bloqueada enquanto o ponto não tiver foto",
+    "Galeria de fotos no painel do administrador",
+    "Filtros por tipo de registro e por equipe auditada",
+    "Contagem de fotos por auditor no mês",
+    "Limpeza de fotos antigas para liberar espaço"
   ],
   "improvements": [
-    "PDF da auditoria agora embute as fotos das não conformidades",
-    "Indicador de envios pendentes no topo da tela",
-    "Plano gratuito do Firebase (Spark) atende a aplicação inteira"
+    "Foto de rotina comprimida mais leve que a evidência de não conformidade",
+    "Remover a foto limpa a avaliação do ponto",
+    "Botão da câmera em destaque enquanto falta a imagem"
   ]
 }
