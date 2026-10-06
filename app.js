@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.5.0'
+} from './firebase.js?v=3.6.0'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.5.0')
+    const appVersion = ref('3.6.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -229,7 +229,8 @@ createApp({
       })
       return groups
     })
-    const pendingPhotos = computed(() => points.value.filter(p => p.status === 'nok' && !(p.photoDocId || p.photoUrl)).length)
+    // Agora a foto do local é obrigatória em TODOS os pontos, conformes ou não
+    const pendingPhotos = computed(() => points.value.filter(p => !(p.photoDocId || p.photoUrl)).length)
     const pendingReasons = computed(() => points.value.filter(p => p.status === 'nok' && (p.reason || '').trim().length < 5).length)
     const canSubmit = computed(() =>
       points.value.length > 0 && answeredCount.value === points.value.length &&
@@ -269,8 +270,14 @@ createApp({
     }
 
     const markAllOk = () => {
-      points.value.forEach(p => { if (!p.status) { p.status = 'ok'; p.reason = '' } })
-      showInfo('Pontos restantes marcados como conforme. Ajuste as exceções.')
+      let marcados = 0, semFoto = 0
+      points.value.forEach(p => {
+        if (p.status) return
+        if (p.photoDocId || p.photoUrl) { p.status = 'ok'; p.reason = ''; marcados++ }
+        else semFoto++
+      })
+      if (marcados) showInfo(`${marcados} ponto(s) marcados como conforme. Ajuste as exceções.`)
+      if (semFoto) showWarning(`${semFoto} ponto(s) ainda sem foto do local`)
     }
     const clearAll = () => {
       points.value.forEach(p => { p.status = null; p.reason = '' })
@@ -278,6 +285,12 @@ createApp({
     }
 
     const setStatus = (point, status) => {
+      // sem foto do local, não se avalia nada
+      if (!(point.photoDocId || point.photoUrl)) {
+        showWarning('Anexe a foto do local antes de avaliar este ponto')
+        triggerPhoto(point)
+        return
+      }
       point.status = point.status === status ? null : status
       if (point.status !== 'nok') point.reason = ''
     }
@@ -287,7 +300,11 @@ createApp({
        `inspection_photos`, uma por documento. A auditoria guarda apenas o id.
        Com o cache persistente do Firestore, a gravação funciona offline e
        sincroniza sozinha quando a rede volta. */
-    const MAX_FOTO_BYTES = 150 * 1024        // ~200 KB em base64, bem abaixo do limite de 1 MB do documento
+    /* Com foto obrigatória em todos os pontos, o volume salta de ~2 para 16 imagens
+       por auditoria. A foto de registro (ponto conforme) é guardada mais leve que a
+       evidência de uma não conformidade, que precisa de detalhe para servir de prova. */
+    const MAX_FOTO_BYTES = 150 * 1024        // evidência de não conformidade
+    const MAX_FOTO_REGISTRO = 70 * 1024      // registro de rotina do local
     const isOnline = ref(navigator.onLine)
     const pendingUploads = ref(0)            // gravações ainda não confirmadas pelo servidor
     const syncing = computed(() => pendingUploads.value > 0)
@@ -312,18 +329,19 @@ createApp({
     })
 
     // Reduz progressivamente até caber no limite do documento
-    const compressToTarget = async (file) => {
+    const compressToTarget = async (file, alvo) => {
+      const limite = alvo || MAX_FOTO_BYTES
       const img = await new Promise((res, rej) => {
         const i = new Image(); const u = URL.createObjectURL(file)
         i.onload = () => { URL.revokeObjectURL(u); res(i) }
         i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Imagem inválida')) }
         i.src = u
       })
-      const tentativas = [[1024, 0.6], [900, 0.5], [800, 0.45], [640, 0.4], [520, 0.35]]
+      const tentativas = [[1024, 0.6], [900, 0.5], [800, 0.45], [720, 0.4], [640, 0.38], [520, 0.33]]
       let blob = null
       for (const [dim, q] of tentativas) {
         blob = await drawToBlob(img, dim, q)
-        if (blob.size <= MAX_FOTO_BYTES) return blob
+        if (blob.size <= limite) return blob
       }
       return blob
     }
@@ -339,7 +357,9 @@ createApp({
         pointName, field: field || 'photo',
         auditId: '',
         by: user.value.uid,
+        byName: profile.value?.name || '',
         team: myTeam.value || '',
+        bytes: dataUrl.length,
         createdAt: new Date().toISOString()
       }).then(() => { pendingUploads.value = Math.max(0, pendingUploads.value - 1) })
         .catch(e => { pendingUploads.value = Math.max(0, pendingUploads.value - 1); console.error('Foto não gravada:', e) })
@@ -397,7 +417,8 @@ createApp({
       const idx = points.value.indexOf(point)
       uploadingIndex.value = idx
       try {
-        const blob = await compressToTarget(file)
+        const alvo = point.status === 'nok' ? MAX_FOTO_BYTES : MAX_FOTO_REGISTRO
+        const blob = await compressToTarget(file, alvo)
         if (blob.size > MAX_FOTO_BYTES * 1.6) { showError('Imagem muito grande mesmo após compressão'); return }
         const id = await savePhotoDoc(blob, point.name, 'photo')
         point.photoDocId = id
@@ -413,6 +434,8 @@ createApp({
     const photoPreview = (p) => p.photoUrl || (p.photoDocId ? localPhotoUrls.value[p.photoDocId] : '')
 
     const removePhotoFromPoint = async (point) => {
+      point.status = null
+      point.reason = ''
       if (point.photoDocId) {
         try { await deleteDoc(doc(db, 'inspection_photos', point.photoDocId)) } catch (e) {}
         const copy = { ...localPhotoUrls.value }; delete copy[point.photoDocId]
@@ -606,11 +629,144 @@ createApp({
     const deleteAudit = async (item) => {
       if (!confirm(`Excluir a auditoria da ${item.team} de ${item.date.split('-').reverse().join('/')} (${item.shift || '-'})?`)) return
       try {
+        // apaga as fotos vinculadas para não deixar documento órfão consumindo cota
+        const fotos = []
+        ;(item.points || []).forEach(p => {
+          if (p.photoDocId) fotos.push(p.photoDocId)
+          if (p.treatment && p.treatment.afterPhotoDocId) fotos.push(p.treatment.afterPhotoDocId)
+        })
+        for (const id of fotos) { try { await deleteDoc(doc(db, 'inspection_photos', id)) } catch (e) {} }
         await deleteDoc(doc(db, 'inspections', item._id))
         adminAudits.value = adminAudits.value.filter(a => a._id !== item._id)
         auditsList.value = auditsList.value.filter(a => a._id !== item._id)
         showSuccess('Auditoria excluída')
       } catch (e) { showError('Erro ao excluir: ' + e.message) }
+    }
+
+    /* ==================== GALERIA DE FOTOS (ADMIN) ==================== */
+    /* Permite ao administrador conferir se o auditor está de fato fotografando
+       o local certo, e não repetindo a mesma imagem ou fotografando o chão. */
+    const galleryFilter = ref('todas')     // todas | ok | nok | after
+    const galleryTeamFilter = ref('todas')
+    const galleryVisible = ref(12)
+    const loadingGallery = ref(false)
+
+    const galleryAll = computed(() => {
+      const rows = []
+      adminAudits.value.forEach(a => {
+        (a.points || []).forEach(p => {
+          const st = p.status || (p.checked ? 'ok' : 'nok')
+          if (p.photoDocId || p.photoUrl) {
+            rows.push({
+              key: a._id + '|' + p.name + '|p',
+              photoDocId: p.photoDocId || '', photoUrl: p.photoUrl || '',
+              kind: st, name: p.name, area: p.area || 'Geral',
+              reason: p.reason || p.obs || '',
+              team: a.team, auditorTeam: a.auditorTeam || '—', auditorName: a.auditorName || '',
+              date: a.date, shift: a.shift || '-'
+            })
+          }
+          const t = p.treatment
+          if (t && (t.afterPhotoDocId || t.afterPhotoUrl)) {
+            rows.push({
+              key: a._id + '|' + p.name + '|a',
+              photoDocId: t.afterPhotoDocId || '', photoUrl: t.afterPhotoUrl || '',
+              kind: 'after', name: p.name, area: p.area || 'Geral',
+              reason: t.nota || '',
+              team: a.team, auditorTeam: a.auditorTeam || '—', auditorName: t.resolvedBy || t.updatedBy || '',
+              date: a.date, shift: a.shift || '-'
+            })
+          }
+        })
+      })
+      return rows.sort((x, y) => y.date.localeCompare(x.date) || x.name.localeCompare(y.name))
+    })
+
+    const galleryItems = computed(() => {
+      let r = galleryAll.value
+      if (galleryFilter.value !== 'todas') r = r.filter(x => x.kind === galleryFilter.value)
+      if (galleryTeamFilter.value !== 'todas') r = r.filter(x => x.team === galleryTeamFilter.value)
+      return r
+    })
+    const galleryPage = computed(() => galleryItems.value.slice(0, galleryVisible.value))
+
+    // Carrega as imagens da página atual, uma a uma, para não travar a tela
+    const loadGalleryPhotos = async () => {
+      loadingGallery.value = true
+      try {
+        for (const it of galleryPage.value) {
+          if (it.photoDocId && !localPhotoUrls.value[it.photoDocId]) {
+            await loadPhotoData(it.photoDocId)
+          }
+        }
+      } finally { loadingGallery.value = false }
+    }
+    const showMoreGallery = async () => {
+      galleryVisible.value += 12
+      await loadGalleryPhotos()
+    }
+    const galleryThumb = (it) => it.photoUrl || localPhotoUrls.value[it.photoDocId] || ''
+
+    // Quantas fotos cada auditor registrou no mês — ajuda a ver quem está pulando etapa
+    const galleryByAuditor = computed(() => {
+      const map = {}
+      galleryAll.value.forEach(r => {
+        const k = r.auditorName || r.auditorTeam
+        if (!map[k]) map[k] = { nome: k, equipe: r.auditorTeam, total: 0 }
+        map[k].total++
+      })
+      return Object.values(map).sort((a, b) => b.total - a.total)
+    })
+
+    /* ==================== LIMPEZA DE FOTOS ANTIGAS ==================== */
+    /* Com 16 fotos por auditoria o espaço gratuito tem prazo de validade.
+       A limpeza apaga as imagens antigas e mantém todo o texto das auditorias. */
+    const cleaning = ref(false)
+    const cleanupMonths = ref(6)
+    const cleanupProgress = ref('')
+
+    const cleanupOldPhotos = async () => {
+      const meses = Number(cleanupMonths.value) || 6
+      const d = new Date()
+      d.setMonth(d.getMonth() - meses)
+      const corte = d.toISOString().slice(0, 10)
+      if (!confirm(`Apagar as FOTOS das auditorias anteriores a ${corte.split('-').reverse().join('/')}?\n\nOs pontos, motivos, notas e tratativas continuam no histórico. Só as imagens são removidas, e isso não pode ser desfeito.`)) return
+      cleaning.value = true
+      cleanupProgress.value = 'Procurando auditorias antigas...'
+      let apagadas = 0, docs = 0
+      try {
+        const snap = await getDocs(query(collection(db, 'inspections'), where('date', '<', corte), limit(400)))
+        const lista = []
+        snap.forEach(x => lista.push({ _id: x.id, ...x.data() }))
+        for (const a of lista) {
+          const ids = []
+          const pts = (a.points || []).map(p => {
+            const np = { ...p }
+            if (p.photoDocId) { ids.push(p.photoDocId); np.photoDocId = ''; np.photoPurged = true }
+            if (p.treatment && p.treatment.afterPhotoDocId) {
+              ids.push(p.treatment.afterPhotoDocId)
+              np.treatment = { ...p.treatment, afterPhotoDocId: '', afterPhotoPurged: true }
+            }
+            return np
+          })
+          if (!ids.length) continue
+          for (const id of ids) {
+            try { await deleteDoc(doc(db, 'inspection_photos', id)); apagadas++ } catch (e) {}
+          }
+          await updateDoc(doc(db, 'inspections', a._id), {
+            points: pts,
+            historico: arrayUnion(logEntry('Fotos removidas na limpeza', `${ids.length} imagem(ns) · corte ${corte}`))
+          })
+          docs++
+          cleanupProgress.value = `${apagadas} foto(s) apagadas em ${docs} auditoria(s)...`
+        }
+        showSuccess(apagadas ? `${apagadas} foto(s) removidas de ${docs} auditoria(s)` : 'Nenhuma foto antiga encontrada')
+      } catch (e) {
+        showError('Erro na limpeza: ' + e.message)
+      } finally {
+        cleaning.value = false
+        cleanupProgress.value = ''
+      }
     }
 
     /* ==================== ADMIN: USUÁRIOS ==================== */
@@ -1132,7 +1288,22 @@ createApp({
     })
 
     watch([auditsTab, auditsMonth], () => { if (currentView.value === 'audits') loadAudits() })
-    watch(adminMonth, () => { if (currentView.value === 'admin' && adminTab.value === 'audits') loadAdminAudits() })
+    watch(adminMonth, () => {
+      if (currentView.value !== 'admin') return
+      if (adminTab.value === 'audits') loadAdminAudits()
+      if (adminTab.value === 'fotos') { galleryVisible.value = 12; loadAdminAudits().then(() => loadGalleryPhotos()) }
+    })
+    watch(adminTab, (t) => {
+      if (t === 'fotos') {
+        galleryVisible.value = 12
+        if (!adminAudits.value.length) loadAdminAudits().then(() => loadGalleryPhotos())
+        else loadGalleryPhotos()
+      }
+    })
+    watch([galleryFilter, galleryTeamFilter], () => {
+      galleryVisible.value = 12
+      if (adminTab.value === 'fotos') loadGalleryPhotos()
+    })
     watch([reportType, reportMonth, reportYear, dailyDate], () => { if (currentView.value === 'reports') loadReports() })
     watch([auditedTeam, auditDate, auditShift], () => { if (user.value && pointsConfig.value.length) loadExistingAudit() })
 
@@ -1610,6 +1781,9 @@ createApp({
       receivedAverage, nonConformities, loadAudits,
       // admin
       adminTab, adminAudits, loadingAdminAudits, adminMonth, loadAdminAudits,
+      galleryFilter, galleryTeamFilter, galleryItems, galleryPage, galleryVisible,
+      loadingGallery, loadGalleryPhotos, showMoreGallery, galleryThumb, galleryByAuditor,
+      cleaning, cleanupMonths, cleanupProgress, cleanupOldPhotos,
       editing, openEdit, closeEdit, setEditStatus, saveEdit, deleteAudit,
       usersList, loadingUsers, userForm, savingUser, newUser, editUser, closeUserForm,
       saveUser, deleteUser, resetPassword, loadUsers,
