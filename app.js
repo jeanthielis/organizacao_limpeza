@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.6.0'
+} from './firebase.js?v=3.7.0'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.6.0')
+    const appVersion = ref('3.7.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -248,6 +248,158 @@ createApp({
       showErrors.value = false
     }
 
+    /* ==================== RASCUNHO: CONTINUAR DE ONDE PAROU ==================== */
+    /* A auditoria em andamento é gravada no aparelho a cada alteração. Se o app
+       fechar no meio — chamado urgente, bateria, troca de aba — o auditor retoma
+       exatamente onde estava. As fotos já vivem no Firestore desde a captura,
+       então o rascunho guarda apenas o id de cada uma. */
+    const draft = ref(null)          // rascunho encontrado ao abrir
+    const draftBanner = ref(false)   // mostra a faixa de retomada
+    const draftLoading = ref(false)  // bloqueia o watcher da escala durante a restauração
+    const draftSavedAt = ref('')
+    const DRAFT_MAX_DIAS = 7
+    let draftTimer = null
+
+    const draftKey = () => 'cp_draft_' + (user.value?.uid || 'anon')
+
+    const draftTemConteudo = () =>
+      points.value.some(p => p.status || p.photoDocId || p.photoUrl || (p.reason || '').trim())
+
+    const writeDraft = () => {
+      if (!user.value || !points.value.length) return
+      // Há um rascunho de outro turno esperando decisão: não sobrescrever nem apagar
+      if (draftBanner.value) return
+      if (!draftTemConteudo()) { clearDraft(false); return }
+      try {
+        const agora = new Date().toISOString()
+        localStorage.setItem(draftKey(), JSON.stringify({
+          v: 1,
+          auditDate: auditDate.value,
+          auditShift: auditShift.value,
+          auditedTeam: auditedTeam.value,
+          auditorTeam: auditorTeam.value,
+          manualAudited: manualAudited.value || '',
+          adminAuditorTeam: adminAuditorTeam.value || '',
+          points: points.value.map(p => ({
+            name: p.name,
+            status: p.status,
+            reason: p.reason || '',
+            photoDocId: p.photoDocId || '',
+            photoUrl: p.photoUrl || ''
+          })),
+          savedAt: agora
+        }))
+        draftSavedAt.value = agora
+      } catch (e) { /* armazenamento cheio ou bloqueado */ }
+    }
+
+    // Grava com folga, para não escrever a cada tecla digitada no motivo
+    const scheduleDraft = () => {
+      clearTimeout(draftTimer)
+      draftTimer = setTimeout(writeDraft, 700)
+    }
+    const flushDraft = () => { clearTimeout(draftTimer); writeDraft() }
+
+    const clearDraft = (limparBanner) => {
+      try { localStorage.removeItem(draftKey()) } catch (e) {}
+      draftSavedAt.value = ''
+      if (limparBanner !== false) { draft.value = null; draftBanner.value = false }
+    }
+
+    const readDraft = () => {
+      try {
+        const bruto = localStorage.getItem(draftKey())
+        if (!bruto) return null
+        const d = JSON.parse(bruto)
+        if (!d || !Array.isArray(d.points)) return null
+        const dias = (Date.now() - new Date(d.savedAt || 0).getTime()) / 86400000
+        if (dias > DRAFT_MAX_DIAS) { localStorage.removeItem(draftKey()); return null }
+        return d
+      } catch (e) { return null }
+    }
+
+    const draftResumo = computed(() => {
+      const d = draft.value
+      if (!d) return null
+      const total = d.points.length
+      const avaliados = d.points.filter(p => p.status).length
+      const fotos = d.points.filter(p => p.photoDocId || p.photoUrl).length
+      const mesmoTurno = d.auditDate === auditDate.value && d.auditShift === auditShift.value
+      return {
+        total, avaliados, fotos, mesmoTurno,
+        equipe: d.auditedTeam || '—',
+        quando: d.auditDate ? fmtDate(d.auditDate) : '',
+        turno: d.auditShift || '',
+        salvoEm: d.savedAt ? new Date(d.savedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+      }
+    })
+
+    const applyDraftPoints = (d) => {
+      let aplicados = 0
+      points.value.forEach(p => {
+        const achado = d.points.find(x => x.name === p.name)
+        if (!achado) return
+        p.status = achado.status || null
+        p.reason = achado.reason || ''
+        p.photoDocId = achado.photoDocId || ''
+        p.photoUrl = achado.photoUrl || ''
+        if (p.status || p.photoDocId) aplicados++
+      })
+      return aplicados
+    }
+
+    const resumeDraft = async (silencioso) => {
+      const d = draft.value
+      if (!d) return
+      draftLoading.value = true
+      try {
+        if (d.auditDate) auditDate.value = d.auditDate
+        if (d.auditShift) auditShift.value = d.auditShift
+        if (canAuditAny.value) manualAudited.value = d.manualAudited || ''
+        if (isAdmin.value && d.adminAuditorTeam) adminAuditorTeam.value = d.adminAuditorTeam
+        await nextTick()
+        await loadExistingAudit()
+        applyDraftPoints(d)
+        draftSavedAt.value = d.savedAt || ''
+        draftBanner.value = false
+        const r = draftResumo.value
+        if (!silencioso) showSuccess('Auditoria retomada de onde você parou')
+        else if (r) showInfo(`Auditoria em andamento retomada · ${r.avaliados}/${r.total} pontos`)
+      } finally {
+        draftLoading.value = false
+      }
+    }
+
+    // Descartar também apaga as fotos que ficariam órfãs no banco
+    const discardDraft = async () => {
+      const d = draft.value
+      if (!d) { clearDraft(); return }
+      if (!confirm('Descartar a auditoria em andamento? As fotos já tiradas serão apagadas e o progresso será perdido.')) return
+      const ids = d.points.map(p => p.photoDocId).filter(Boolean)
+      for (const id of ids) {
+        try {
+          const snap = await getDoc(doc(db, 'inspection_photos', id))
+          // só apaga o que nunca foi vinculado a uma auditoria salva
+          if (snap.exists() && !snap.data().auditId) await deleteDoc(doc(db, 'inspection_photos', id))
+        } catch (e) { /* segue */ }
+      }
+      clearDraft()
+      buildChecklist()
+      showInfo('Rascunho descartado')
+    }
+
+    // Decide, ao abrir, se retoma sozinho ou apenas oferece a retomada
+    const checkDraft = async () => {
+      const d = readDraft()
+      if (!d) return
+      draft.value = d
+      const mesmoContexto = d.auditDate === auditDate.value &&
+                            d.auditShift === auditShift.value &&
+                            d.auditedTeam === auditedTeam.value
+      if (mesmoContexto) await resumeDraft(true)
+      else draftBanner.value = true   // é de outro turno: o auditor escolhe
+    }
+
     const loadExistingAudit = async () => {
       if (!pointsConfig.value.length) return
       buildChecklist()
@@ -282,6 +434,7 @@ createApp({
     const clearAll = () => {
       points.value.forEach(p => { p.status = null; p.reason = '' })
       showErrors.value = false
+      clearDraft(false)
     }
 
     const setStatus = (point, status) => {
@@ -503,6 +656,8 @@ createApp({
         const docId = auditDocId()
         await setDoc(doc(db, 'inspections', docId), payload)
         points.value.forEach(p => { if (p.photoDocId) linkPhotoToAudit(p.photoDocId, docId) })
+        clearTimeout(draftTimer)
+        clearDraft()
         showSuccess(navigator.onLine ? 'Auditoria registrada com sucesso!' : 'Auditoria salva no aparelho. Será enviada quando a rede voltar.')
         shareFromSave.value = true
         shareData.value = { _id: docId, ...payload }
@@ -1305,7 +1460,19 @@ createApp({
       if (adminTab.value === 'fotos') loadGalleryPhotos()
     })
     watch([reportType, reportMonth, reportYear, dailyDate], () => { if (currentView.value === 'reports') loadReports() })
-    watch([auditedTeam, auditDate, auditShift], () => { if (user.value && pointsConfig.value.length) loadExistingAudit() })
+    watch([auditedTeam, auditDate, auditShift], () => {
+      if (draftLoading.value) return
+      if (user.value && pointsConfig.value.length) loadExistingAudit()
+    })
+
+    // Toda alteração na auditoria agenda a gravação do rascunho
+    watch(points, () => { if (!draftLoading.value) scheduleDraft() }, { deep: true })
+    watch([auditDate, auditShift], () => { if (!draftLoading.value) scheduleDraft() })
+
+    // App indo para o fundo ou sendo fechado: grava na hora
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushDraft() })
+    window.addEventListener('pagehide', flushDraft)
+    window.addEventListener('beforeunload', flushDraft)
 
     onMounted(async () => {
       loadVersionInfo()
@@ -1324,6 +1491,7 @@ createApp({
             adminAuditorTeam.value = myTeam.value
             if (scale.value.ativo) applyCurrentShift()
             await loadExistingAudit()
+            await checkDraft()
             loadAlerts()
           }
         } else {
@@ -1774,6 +1942,7 @@ createApp({
       okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
       setStatus, markAllOk, clearAll, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
       hasPhoto, photoPreview, pointsGrouped, pesoTotal,
+      draft, draftBanner, draftResumo, draftSavedAt, resumeDraft, discardDraft,
       isOnline, pendingUploads, syncing, syncNow, localPhotoUrls, loadingPhoto, openPhotoDoc, loadPhotoData,
       lightboxUrl, openImage, closeImage,
       // auditorias
