@@ -1,8 +1,30 @@
-# ControlPoint 3.6 — Auditoria de Virada de Turno
+# ControlPoint 3.7 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Novidades da 3.7 — continuar de onde parou
+
+O auditor é interrompido no meio do trabalho: chamado urgente, bateria, uma troca de aba que o navegador decide descartar. Antes, tudo se perdia. Agora a auditoria em andamento é gravada **no aparelho** a cada alteração.
+
+### Como funciona
+- Cada mudança — status, motivo, foto — agenda a gravação do rascunho (com 0,7 s de folga, para não escrever a cada tecla).
+- Quando o app vai para o segundo plano ou é fechado, a gravação acontece **na hora** (`visibilitychange` e `pagehide`), que é o que o celular realmente dispara ao trocar de app.
+- Ao reabrir: se o rascunho é do **mesmo turno** que a escala indica, a auditoria é retomada sozinha, com um aviso de quantos pontos já estavam feitos.
+- Se o rascunho é de **outro turno**, aparece uma faixa no topo com o resumo (equipe, data, turno, pontos avaliados, fotos) e dois botões: **Continuar** ou **Descartar**.
+- Descartar apaga também as **fotos órfãs** daquele rascunho — só as que nunca foram vinculadas a uma auditoria salva, verificadas uma a uma antes da remoção.
+- Concluir a auditoria limpa o rascunho automaticamente.
+
+### Detalhes que importam
+- O rascunho é **por usuário** (`cp_draft_<uid>`): dois auditores no mesmo aparelho não veem o trabalho um do outro.
+- **Expira em 7 dias**, para não ressuscitar uma auditoria esquecida de semanas atrás.
+- As fotos **não ficam no rascunho** — elas já vão para o Firestore no momento da captura, então o rascunho guarda apenas o id de cada uma. Isso mantém o rascunho em poucos KB e as imagens intactas mesmo que o navegador limpe outras coisas.
+- Um selo discreto ("Progresso salvo neste aparelho") confirma ao auditor que ele pode sair sem medo.
+
+> **Limite conhecido:** o rascunho vive no aparelho onde a auditoria foi começada. Trocar de celular no meio do trabalho não traz o progresso — mas as fotos já tiradas continuam no banco e são reaproveitadas quando o mesmo turno é auditado de novo.
 
 ---
 
