@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.7.0'
+} from './firebase.js?v=3.7.1'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.7.0')
+    const appVersion = ref('3.7.1')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -195,8 +195,10 @@ createApp({
       auditShift.value = ps.shift
     }
 
+    const forceOwnTeam = ref(false)   // a escala está errada: auditar em nome da própria equipe
     const auditorTeam = computed(() => {
       if (myTeam.value === ADM_TEAM) return ADM_TEAM
+      if (forceOwnTeam.value && myTeam.value) return myTeam.value
       if (scale.value.ativo) {
         const nx = nextShift(auditDate.value, auditShift.value)
         return teamFor(nx.date, nx.shift) || ''
@@ -210,8 +212,11 @@ createApp({
       if (scale.value.ativo) return teamFor(auditDate.value, auditShift.value) || ''
       return rotation.value[isAdmin.value && adminAuditorTeam.value ? adminAuditorTeam.value : myTeam.value] || ''
     })
-    // A escala indica outra equipe assumindo agora?
-    const scaleMismatch = computed(() => scale.value.ativo && !isAdmin.value && myTeam.value !== ADM_TEAM && !!auditorTeam.value && auditorTeam.value !== myTeam.value)
+    /* A escala indica outra equipe assumindo agora. Em regime de turno isso costuma
+       significar que o auditor está cobrindo um colega — situação legítima, que o app
+       registra como cobertura em vez de bloquear. */
+    const isCovering = computed(() => !!auditorTeam.value && !!myTeam.value && auditorTeam.value !== myTeam.value)
+    const scaleMismatch = computed(() => scale.value.ativo && !isAdmin.value && myTeam.value !== ADM_TEAM && isCovering.value)
 
     const okCount = computed(() => points.value.filter(p => p.status === 'ok').length)
     const nokCount = computed(() => points.value.filter(p => p.status === 'nok').length)
@@ -280,6 +285,7 @@ createApp({
           auditorTeam: auditorTeam.value,
           manualAudited: manualAudited.value || '',
           adminAuditorTeam: adminAuditorTeam.value || '',
+          forceOwnTeam: !!forceOwnTeam.value,
           points: points.value.map(p => ({
             name: p.name,
             status: p.status,
@@ -356,6 +362,7 @@ createApp({
         if (d.auditDate) auditDate.value = d.auditDate
         if (d.auditShift) auditShift.value = d.auditShift
         if (canAuditAny.value) manualAudited.value = d.manualAudited || ''
+        forceOwnTeam.value = !!d.forceOwnTeam
         if (isAdmin.value && d.adminAuditorTeam) adminAuditorTeam.value = d.adminAuditorTeam
         await nextTick()
         await loadExistingAudit()
@@ -626,6 +633,9 @@ createApp({
           auditorTeam: auditorTeam.value,       // equipe que auditou
           auditorName: profile.value?.name || user.value.email,
           auditorUid: user.value.uid,
+          auditorUserTeam: myTeam.value || '',          // equipe real de quem registrou (conferida pelas regras)
+          cobertura: isCovering.value,                  // registrou em nome de outra equipe
+          coberturaDe: isCovering.value ? myTeam.value : '',
           date: auditDate.value,
           shift: auditShift.value,
           score: progress.value,
@@ -649,7 +659,8 @@ createApp({
             name: profile.value?.name || user.value.email,
             team: auditorTeam.value,
             action: 'Auditoria registrada',
-            detail: `${progress.value}% · ${nokCount.value} não conformidade(s)`
+            detail: `${progress.value}% · ${nokCount.value} não conformidade(s)` +
+              (isCovering.value ? ` · ${profile.value?.name || ''} (${myTeam.value}) cobrindo a ${auditorTeam.value}` : '')
           }],
           updatedAt: new Date().toISOString()
         }
@@ -658,13 +669,19 @@ createApp({
         points.value.forEach(p => { if (p.photoDocId) linkPhotoToAudit(p.photoDocId, docId) })
         clearTimeout(draftTimer)
         clearDraft()
+        forceOwnTeam.value = false
         showSuccess(navigator.onLine ? 'Auditoria registrada com sucesso!' : 'Auditoria salva no aparelho. Será enviada quando a rede voltar.')
         shareFromSave.value = true
         shareData.value = { _id: docId, ...payload }
         loadAlerts()
       } catch (e) {
         console.error(e)
-        showError('Erro ao salvar: ' + e.message)
+        const cod = e && (e.code || '')
+        if (cod === 'permission-denied' || /insufficient permissions/i.test(e.message || '')) {
+          showError('Sem permissão para registrar esta auditoria. Seu progresso foi mantido — avise o administrador.', 7000)
+        } else {
+          showError('Erro ao salvar: ' + e.message + ' — seu progresso foi mantido.', 7000)
+        }
       } finally { saving.value = false }
     }
 
@@ -1789,6 +1806,7 @@ createApp({
       L.push('')
       L.push(`*Equipe auditada:* ${a.team}`)
       L.push(`*Auditada por:* ${a.auditorTeam || '—'}${a.auditorName ? ' (' + a.auditorName + ')' : ''}`)
+      if (a.cobertura && a.coberturaDe) L.push(`_Registrada em cobertura por integrante da ${a.coberturaDe}_`)
       L.push(`*Data:* ${fmtDate(a.date)} · Turno ${a.shift || '-'}`)
       L.push(`*Conformidade:* ${Math.round(a.score)}% (${ok}/${total}) · Meta ${a.meta || meta.value}% ${atingiu ? '✅' : '⚠️'}`)
       L.push('')
@@ -1941,7 +1959,7 @@ createApp({
       points, loadingPoints, saving, showErrors, uploadingIndex,
       okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
       setStatus, markAllOk, clearAll, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
-      hasPhoto, photoPreview, pointsGrouped, pesoTotal,
+      hasPhoto, photoPreview, pointsGrouped, pesoTotal, isCovering, forceOwnTeam,
       draft, draftBanner, draftResumo, draftSavedAt, resumeDraft, discardDraft,
       isOnline, pendingUploads, syncing, syncNow, localPhotoUrls, loadingPhoto, openPhotoDoc, loadPhotoData,
       lightboxUrl, openImage, closeImage,
