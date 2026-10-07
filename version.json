@@ -1,20 +1,20 @@
 {
-  "version": "3.6.0",
-  "codeName": "Eyes On Site",
-  "releaseDate": "2026-10-05",
+  "version": "3.7.0",
+  "codeName": "Pick Up Where You Left",
+  "releaseDate": "2026-10-06",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Foto do local obrigatória em todos os pontos, conformes ou não",
-    "Avaliação bloqueada enquanto o ponto não tiver foto",
-    "Galeria de fotos no painel do administrador",
-    "Filtros por tipo de registro e por equipe auditada",
-    "Contagem de fotos por auditor no mês",
-    "Limpeza de fotos antigas para liberar espaço"
+    "Auditoria em andamento salva automaticamente no aparelho",
+    "Retomada de onde parou ao reabrir a aplicação",
+    "Faixa de retomada quando o rascunho é de outro turno",
+    "Descarte do rascunho apaga também as fotos órfãs",
+    "Foto do local obrigatória em todos os pontos",
+    "Galeria de fotos no painel do administrador"
   ],
   "improvements": [
-    "Foto de rotina comprimida mais leve que a evidência de não conformidade",
-    "Remover a foto limpa a avaliação do ponto",
-    "Botão da câmera em destaque enquanto falta a imagem"
+    "Gravação imediata quando o app vai para o segundo plano",
+    "Selo de progresso salvo na tela de auditoria",
+    "Rascunho é por usuário e expira em 7 dias"
   ]
 }
