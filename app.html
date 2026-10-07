@@ -149,6 +149,14 @@ textarea.invalid{border-color:var(--red-500)}
   display:flex;align-items:center;gap:5px;text-decoration:underline;text-underline-offset:2px}
 .cp-link.muted{color:var(--text-3)}
 .cp-hint{font-size:10.5px;font-weight:700;color:var(--red-600);display:flex;align-items:center;gap:5px}
+.cover-card{background:var(--teal-100);border:1.5px solid var(--teal-500);border-radius:18px;padding:15px}
+.cover-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.cover-head i{font-size:18px;color:var(--teal-600);flex-shrink:0}
+.cover-head b{font-size:14px;font-weight:800;color:var(--teal-700);display:block;line-height:1.25}
+.cover-head small{font-size:11px;color:var(--teal-700);opacity:.85;font-weight:600}
+.cover-info{font-size:12px;font-weight:600;color:var(--teal-700);background:rgba(255,255,255,.45);border-radius:11px;padding:9px 11px;margin-bottom:11px;line-height:1.45}
+html.dark .cover-head b, html.dark .cover-head small, html.dark .cover-info{color:var(--teal-300)}
+html.dark .cover-info{background:rgba(0,0,0,.18)}
 .draft-card{background:var(--warn-bg);border:1.5px solid var(--amber-600);border-radius:18px;padding:15px}
 .draft-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .draft-head i{font-size:18px;color:var(--amber-600);flex-shrink:0}
@@ -573,9 +581,28 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           </select>
         </div>
 
-        <div class="warn" v-if="scaleMismatch">
+        <div class="cover-card" v-if="scaleMismatch">
+          <div class="cover-head">
+            <i class="fas fa-user-clock"></i>
+            <div>
+              <b>Auditoria em cobertura</b>
+              <small>Você é da {{ myTeam }} e a escala indica a {{ auditorTeam }} assumindo agora</small>
+            </div>
+          </div>
+          <div class="cover-info">
+            A auditoria será registrada em nome da <b>{{ auditorTeam }}</b>, com seu nome e sua equipe
+            anotados como cobertura. Se a escala estiver errada, registre em nome da sua equipe.
+          </div>
+          <button class="btn btn-ghost btn-sm btn-block" @click="forceOwnTeam = true">
+            <i class="fas fa-rotate"></i> Registrar como {{ myTeam }}
+          </button>
+        </div>
+
+        <div class="warn" v-if="forceOwnTeam && !isCovering">
           <i class="fas fa-circle-info"></i>
-          <span>Pela escala, quem assume este turno é a <b>{{ auditorTeam }}</b> e você é da {{ myTeam }}. Confira a data e o turno antes de registrar.</span>
+          <span>Registrando em nome da <b>{{ myTeam }}</b>, fora do que a escala indica.
+            <button class="cp-link" style="display:inline-flex" @click="forceOwnTeam = false">Voltar para a escala</button>
+          </span>
         </div>
 
         <div class="card" v-if="isAdmin && !scale.ativo">
@@ -748,7 +775,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <div class="avatar">{{ (item.team || '?').replace('Equipe ','E') }}</div>
             <div class="audit-info">
               <div class="l1">{{ item.team }} <span style="font-weight:600;color:var(--text-3)">auditada por</span> {{ item.auditorTeam || '—' }}</div>
-              <div class="l2">{{ fmtDate(item.date) }} · {{ item.shift || '-' }} · {{ nonConformities(item).length }} não conf.<span v-if="item.auditorName"> · {{ item.auditorName }}</span></div>
+              <div class="l2">{{ fmtDate(item.date) }} · {{ item.shift || '-' }} · {{ nonConformities(item).length }} não conf.<span v-if="item.auditorName"> · {{ item.auditorName }}</span><span v-if="item.cobertura"> · cobertura {{ item.coberturaDe }}</span></div>
             </div>
             <div class="score-badge" :class="(item.score >= (item.meta || meta)) ? 'pass' : 'fail'">{{ Math.round(item.score) }}%</div>
             <button class="icon-btn" @click.stop="openShare(item)" title="Compartilhar"><i class="fas fa-share-nodes"></i></button>
@@ -1558,11 +1585,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.7.0"></script>
+<script type="module" src="./app.js?v=3.7.1"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v370';
+    var CURRENT = 'controlpoint-v371';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1570,7 +1597,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.7.0')
+        navigator.serviceWorker.register('./sw.js?v=3.7.1')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
