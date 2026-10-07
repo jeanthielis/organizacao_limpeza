@@ -149,6 +149,17 @@ textarea.invalid{border-color:var(--red-500)}
   display:flex;align-items:center;gap:5px;text-decoration:underline;text-underline-offset:2px}
 .cp-link.muted{color:var(--text-3)}
 .cp-hint{font-size:10.5px;font-weight:700;color:var(--red-600);display:flex;align-items:center;gap:5px}
+.draft-card{background:var(--warn-bg);border:1.5px solid var(--amber-600);border-radius:18px;padding:15px}
+.draft-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.draft-head i{font-size:18px;color:var(--amber-600);flex-shrink:0}
+.draft-head b{font-size:14px;font-weight:800;color:var(--warn-fg);display:block;line-height:1.25}
+.draft-head small{font-size:11px;color:var(--warn-fg);opacity:.85;font-weight:600}
+.draft-info{font-size:12px;font-weight:600;color:var(--warn-fg);background:rgba(255,255,255,.4);border-radius:11px;padding:9px 11px;margin-bottom:11px;line-height:1.45}
+:root.dark .draft-info, html.dark .draft-info{background:rgba(0,0,0,.18)}
+.draft-acts{display:flex;gap:8px}
+.draft-acts .btn{flex:1}
+.saved-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--text-3);margin-left:auto}
+.saved-pill i{font-size:9px;color:var(--green-600)}
 .gal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 @media(min-width:560px){.gal-grid{grid-template-columns:repeat(3,1fr)}}
 .gal-cell{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface-2);position:relative}
@@ -501,6 +512,28 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
       <!-- ====== AUDITAR ====== -->
       <template v-if="currentView === 'audit'">
+        <div class="draft-card" v-if="draftBanner && draftResumo">
+          <div class="draft-head">
+            <i class="fas fa-rotate-left"></i>
+            <div>
+              <b>Auditoria em andamento</b>
+              <small>Salva automaticamente em {{ draftResumo.salvoEm }}</small>
+            </div>
+          </div>
+          <div class="draft-info">
+            <b>{{ draftResumo.equipe }}</b> · {{ draftResumo.quando }} · turno {{ draftResumo.turno }}<br>
+            {{ draftResumo.avaliados }} de {{ draftResumo.total }} pontos avaliados · {{ draftResumo.fotos }} foto(s)
+          </div>
+          <div class="draft-acts">
+            <button class="btn btn-primary btn-sm" @click="resumeDraft(false)">
+              <i class="fas fa-play"></i> Continuar
+            </button>
+            <button class="btn btn-ghost btn-sm" @click="discardDraft">
+              <i class="fas fa-trash"></i> Descartar
+            </button>
+          </div>
+        </div>
+
         <div class="pair">
           <div class="pair-q">Quem está auditando quem?</div>
           <div class="pair-flow">
@@ -612,6 +645,9 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
               <i class="fas fa-check-double"></i> Todos conformes
             </button>
             <button class="icon-btn" v-if="answeredCount" @click="clearAll" title="Limpar"><i class="fas fa-eraser"></i></button>
+          </div>
+          <div v-if="draftSavedAt && !draftBanner" class="cp-links" style="margin:-4px 0 10px">
+            <span class="saved-pill"><i class="fas fa-circle-check"></i> Progresso salvo neste aparelho</span>
           </div>
           <div v-if="loadingPoints" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando pontos...</div>
           <div v-else-if="!points.length" class="empty">
@@ -1522,11 +1558,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.6.0"></script>
+<script type="module" src="./app.js?v=3.7.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v360';
+    var CURRENT = 'controlpoint-v370';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1534,7 +1570,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.6.0')
+        navigator.serviceWorker.register('./sw.js?v=3.7.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
