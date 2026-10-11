@@ -1,8 +1,31 @@
-# ControlPoint 3.7.1 — Auditoria de Virada de Turno
+# ControlPoint 3.8 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Novidades da 3.8 — ver as fotos sem gastar dados à toa
+
+### A equipe auditada vê o que foi apontado
+Em **Auditorias → Recebidas**, cada auditoria com não conformidade ganhou o botão **"Ver fotos das não conformidades"**, com a contagem ao lado. Ele abre o visualizador com apenas as fotos que interessam àquela equipe: a evidência de cada ponto reprovado e, quando existe, a foto da correção. Cada imagem aparece com o nome do ponto, o contexto (equipe, data, turno) e o motivo escrito pelo auditor.
+
+Antes as fotos até estavam acessíveis, uma a uma, dentro do detalhe da auditoria — mas sem o motivo ao lado e sem forma de passar de uma para a outra.
+
+### Visualizador com navegação
+O visualizador deixou de mostrar uma imagem solta. Agora recebe um conjunto e permite andar entre as fotos com as setas, mostrando embaixo o ponto, o contexto, o motivo e a posição ("3 de 7"). A navegação é circular. **Cada imagem é buscada no banco só quando entra na tela** — nunca em lote — e o que já foi visto fica em cache na sessão.
+
+### Galeria do admin: nada é baixado sem você pedir
+Antes, abrir a aba Fotos baixava 12 imagens de uma vez. Num celular com dados móveis, isso era mais de 1 MB sem aviso. O que mudou:
+
+- **Nenhum download automático.** As células mostram o ponto, a equipe, a data e o auditor, com um "tocar para ver" no lugar da miniatura.
+- **Aviso de consumo** antes de carregar: *"12 imagens não baixadas · cerca de 1,8 MB"*, com o botão Carregar ao lado. A estimativa distingue evidência de não conformidade (maior) de foto de rotina.
+- **Tocar numa célula** baixa só aquela imagem e abre o visualizador, de onde dá para navegar pelas demais, uma por vez.
+- **"Carregar sozinho"** é uma opção, desligada por padrão, para quando o admin está no computador ou no Wi-Fi.
+- **Filtros novos**: por ponto de verificação e por auditor, além dos que já existiam (tipo e equipe). O filtro de tipo passou a começar em **Não conformes**, que é o que se procura na prática.
+
+> Com os filtros, conferir o trabalho de um auditor específico num ponto específico passou a custar duas ou três imagens, em vez de dezenas.
 
 ---
 
