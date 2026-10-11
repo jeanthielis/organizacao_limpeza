@@ -149,6 +149,32 @@ textarea.invalid{border-color:var(--red-500)}
   display:flex;align-items:center;gap:5px;text-decoration:underline;text-underline-offset:2px}
 .cp-link.muted{color:var(--text-3)}
 .cp-hint{font-size:10.5px;font-weight:700;color:var(--red-600);display:flex;align-items:center;gap:5px}
+.lb-stage{position:relative;display:flex;align-items:center;justify-content:center;max-width:94vw}
+.lb-load{display:flex;flex-direction:column;align-items:center;gap:10px;color:rgba(255,255,255,.75);font-size:13px;font-weight:600;padding:60px 30px}
+.lb-load i{font-size:30px}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;
+  background:rgba(255,255,255,.18);color:#fff;border:none;font-size:15px;display:grid;place-items:center}
+.lb-prev{left:-6px}
+.lb-next{right:-6px}
+.lb-info{position:absolute;left:0;right:0;bottom:0;padding:16px 18px calc(18px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(180deg,transparent,rgba(0,0,0,.82));color:#fff;text-align:center}
+.lb-info b{display:block;font-size:14px;font-weight:800}
+.lb-info small{display:block;font-size:11.5px;opacity:.78;font-weight:600;margin-top:2px}
+.lb-info p{margin:8px auto 0;font-size:12.5px;font-weight:500;max-width:520px;line-height:1.45;opacity:.95}
+.lb-count{display:inline-block;margin-top:9px;font-size:10.5px;font-weight:800;letter-spacing:.05em;
+  background:rgba(255,255,255,.18);padding:3px 10px;border-radius:999px}
+.auto-toggle{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:var(--text-3);flex-shrink:0}
+.auto-toggle input{width:15px;height:15px;accent-color:var(--teal-600)}
+.data-bar{display:flex;align-items:center;gap:11px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:13px;padding:10px 12px;margin-bottom:12px}
+.data-bar > i{font-size:15px;color:var(--teal-600);flex-shrink:0}
+.data-bar div{flex:1;min-width:0}
+.data-bar b{display:block;font-size:12px;font-weight:800;line-height:1.25}
+.data-bar small{font-size:10.5px;color:var(--text-3);font-weight:600}
+.nc-photos-btn{display:flex;align-items:center;gap:8px;width:100%;margin-top:10px;padding:10px 12px;border-radius:12px;
+  border:1.5px solid var(--red-500);background:var(--red-100);color:var(--red-600);font-size:12.5px;font-weight:800}
+.nc-photos-btn i{font-size:14px}
+.nc-photos-btn span{margin-left:auto;font-weight:700;opacity:.8}
 .cover-card{background:var(--teal-100);border:1.5px solid var(--teal-500);border-radius:18px;padding:15px}
 .cover-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .cover-head i{font-size:18px;color:var(--teal-600);flex-shrink:0}
@@ -172,7 +198,9 @@ html.dark .cover-info{background:rgba(0,0,0,.18)}
 @media(min-width:560px){.gal-grid{grid-template-columns:repeat(3,1fr)}}
 .gal-cell{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface-2);position:relative}
 .gal-img{width:100%;height:112px;object-fit:cover;display:block;cursor:pointer;background:var(--bg-sunken)}
-.gal-ph{width:100%;height:112px;display:grid;place-items:center;color:var(--text-3);font-size:16px}
+.gal-ph{width:100%;height:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  color:var(--text-3);font-size:16px;border:none;background:var(--bg-sunken);cursor:pointer}
+.gal-ph small{font-size:9px;font-weight:700;opacity:.8}
 .gal-meta{padding:7px 8px}
 .gal-t{font-size:10.5px;font-weight:800;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gal-s{font-size:9px;color:var(--text-3);font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -781,6 +809,12 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <button class="icon-btn" @click.stop="openShare(item)" title="Compartilhar"><i class="fas fa-share-nodes"></i></button>
             <i class="fas fa-chevron-down" :style="{transform: openAudits[item._id] ? 'rotate(180deg)' : '', color:'var(--text-3)'}"></i>
           </div>
+          <button class="nc-photos-btn" v-if="ncPhotoCount(item)" @click.stop="openGalleryAt(ncPhotosOf(item), 0)">
+            <i class="fas fa-camera"></i>
+            Ver fotos das não conformidades
+            <span>{{ ncPhotoCount(item) }}</span>
+          </button>
+
           <div class="ack-note" :class="ackOf(item).status === 'ok' ? 'ack-ok' : 'ack-contested'" v-if="ackOf(item)">
             <i :class="ackOf(item).status === 'ok' ? 'fas fa-circle-check' : 'fas fa-circle-exclamation'"></i>
             {{ ackOf(item).status === 'ok' ? 'Ciência registrada' : 'Contestada' }} por {{ ackOf(item).name }}
@@ -799,7 +833,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                 <div class="d-reason" v-if="(p.reason || p.obs) && !(p.status==='ok' || p.checked)">{{ p.reason || p.obs }}</div>
               </div>
               <button v-if="p.photoDocId || p.photoUrl" class="cp-link" style="flex-shrink:0"
-                      @click.stop="openPhotoDoc(p.photoDocId, p.photoUrl)">
+                      @click.stop="openPhotoDoc(p.photoDocId, p.photoUrl, p.name, item.team + ' · ' + fmtDate(item.date))">
                 <i v-if="loadingPhoto === p.photoDocId" class="fas fa-circle-notch spinner"></i>
                 <i v-else class="fas fa-image"></i> Foto
               </button>
@@ -1083,30 +1117,41 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
         <template v-if="adminTab === 'fotos'">
           <div class="card">
             <div class="card-title"><i class="fas fa-images"></i> Fotos registradas pelos auditores</div>
-            <div class="card-sub">Confira se o local certo está sendo fotografado e se a evidência corresponde ao apontamento.</div>
+            <div class="card-sub">
+              Confira se o local certo está sendo fotografado e se a evidência corresponde ao apontamento.
+              As imagens só são baixadas quando você pede — use os filtros para chegar ao que interessa.
+            </div>
             <div class="field" style="margin:0">
               <label>Mês de referência</label>
               <input type="month" class="input" v-model="adminMonth">
             </div>
             <div class="section-label" style="margin-top:14px">Tipo</div>
             <div class="filter-row chip-row">
-              <button class="chip" :class="{active: galleryFilter==='todas'}" @click="galleryFilter='todas'">Todas</button>
-              <button class="chip" :class="{active: galleryFilter==='ok'}" @click="galleryFilter='ok'">Conformes</button>
               <button class="chip" :class="{active: galleryFilter==='nok'}" @click="galleryFilter='nok'">Não conformes</button>
               <button class="chip" :class="{active: galleryFilter==='after'}" @click="galleryFilter='after'">Correções</button>
+              <button class="chip" :class="{active: galleryFilter==='ok'}" @click="galleryFilter='ok'">Conformes</button>
+              <button class="chip" :class="{active: galleryFilter==='todas'}" @click="galleryFilter='todas'">Todas</button>
             </div>
             <div class="section-label" style="margin-top:12px">Equipe auditada</div>
             <div class="filter-row chip-row">
               <button class="chip" :class="{active: galleryTeamFilter==='todas'}" @click="galleryTeamFilter='todas'">Todas</button>
               <button v-for="t in opTeams" :key="'gt'+t" class="chip" :class="{active: galleryTeamFilter===t}" @click="galleryTeamFilter=t">{{ t }}</button>
             </div>
-          </div>
-
-          <div class="card" v-if="galleryByAuditor.length">
-            <div class="section-label">Fotos por auditor no mês</div>
-            <div v-for="r in galleryByAuditor" :key="r.nome" class="list-row">
-              <div class="li">{{ r.nome || '—' }}<div class="ls">{{ r.equipe }}</div></div>
-              <div class="score-badge pass">{{ r.total }}</div>
+            <div class="select-grid" style="display:grid;grid-template-columns:1fr;gap:10px;margin-top:14px">
+              <div class="field" style="margin:0">
+                <label>Ponto de verificação</label>
+                <select v-model="galleryPointFilter">
+                  <option value="todos">Todos os pontos</option>
+                  <option v-for="pt in galleryPoints" :key="'gp'+pt" :value="pt">{{ pt }}</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0">
+                <label>Auditor</label>
+                <select v-model="galleryAuditorFilter">
+                  <option value="todos">Todos os auditores</option>
+                  <option v-for="au in galleryAuditors" :key="'ga'+au" :value="au">{{ au }}</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1117,16 +1162,36 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           </div>
           <template v-else>
             <div class="card">
-              <div class="section-label">{{ galleryItems.length }} foto(s) · exibindo {{ galleryPage.length }}</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <div class="section-label" style="margin:0;flex:1">
+                  {{ galleryItems.length }} foto(s) · exibindo {{ galleryPage.length }}
+                </div>
+                <label class="auto-toggle">
+                  <input type="checkbox" v-model="galleryAuto">
+                  <span>Carregar sozinho</span>
+                </label>
+              </div>
+
+              <div class="data-bar" v-if="galleryPending.length && !loadingGallery">
+                <i class="fas fa-wifi"></i>
+                <div>
+                  <b>{{ galleryPending.length }} imagem(ns) não baixada(s)</b>
+                  <small>Cerca de {{ galleryEstimateMB }} MB de dados</small>
+                </div>
+                <button class="btn btn-primary btn-sm" @click="loadGalleryPhotos">Carregar</button>
+              </div>
+              <div v-if="loadingGallery" class="center-load" style="padding:10px"><i class="fas fa-circle-notch spinner"></i> Baixando imagens...</div>
+
               <div class="gal-grid">
                 <div v-for="it in galleryPage" :key="it.key" class="gal-cell">
                   <span class="gal-tag" :class="it.kind==='ok' ? 'gal-ok' : it.kind==='nok' ? 'gal-nok' : 'gal-after'">
                     {{ it.kind==='ok' ? 'conforme' : it.kind==='nok' ? 'não conf.' : 'correção' }}
                   </span>
-                  <img v-if="galleryThumb(it)" class="gal-img" :src="galleryThumb(it)" @click="openPhotoDoc(it.photoDocId, it.photoUrl)">
-                  <div v-else class="gal-ph" @click="openPhotoDoc(it.photoDocId, it.photoUrl)">
-                    <i :class="loadingPhoto === it.photoDocId ? 'fas fa-circle-notch spinner' : 'fas fa-image'"></i>
-                  </div>
+                  <img v-if="galleryThumb(it)" class="gal-img" :src="galleryThumb(it)" @click="openGalleryItem(it)">
+                  <button v-else class="gal-ph" @click="openGalleryItem(it)">
+                    <i :class="loadingPhoto === it.photoDocId ? 'fas fa-circle-notch spinner' : 'fas fa-eye'"></i>
+                    <small>{{ loadingPhoto === it.photoDocId ? 'abrindo' : 'tocar para ver' }}</small>
+                  </button>
                   <div class="gal-meta">
                     <div class="gal-t">{{ it.name }}</div>
                     <div class="gal-s">{{ it.team }} · {{ fmtDate(it.date) }} · {{ it.shift }}</div>
@@ -1134,11 +1199,19 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
                   </div>
                 </div>
               </div>
-              <div v-if="loadingGallery" class="center-load" style="padding:14px"><i class="fas fa-circle-notch spinner"></i> Carregando imagens...</div>
+
               <button class="btn btn-ghost btn-block" style="margin-top:12px"
                       v-if="galleryItems.length > galleryVisible" @click="showMoreGallery">
                 <i class="fas fa-chevron-down"></i> Carregar mais ({{ galleryItems.length - galleryVisible }} restantes)
               </button>
+            </div>
+
+            <div class="card" v-if="galleryByAuditor.length">
+              <div class="section-label">Fotos por auditor no mês</div>
+              <div v-for="r in galleryByAuditor" :key="r.nome" class="list-row">
+                <div class="li">{{ r.nome || '—' }}<div class="ls">{{ r.equipe }}</div></div>
+                <div class="score-badge pass">{{ r.total }}</div>
+              </div>
             </div>
           </template>
         </template>
@@ -1568,9 +1641,23 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   </div>
 
   <!-- ============ LIGHTBOX ============ -->
-  <div class="lightbox" v-if="lightboxUrl" @click.self="closeImage">
+  <div class="lightbox" v-if="lightbox" @click.self="closeImage">
     <button class="lb-close" @click="closeImage"><i class="fas fa-xmark"></i></button>
-    <img :src="lightboxUrl">
+    <div class="lb-stage">
+      <img v-if="lightboxUrl" :src="lightboxUrl" @click.stop>
+      <div v-else class="lb-load">
+        <i :class="lightboxLoading ? 'fas fa-circle-notch spinner' : 'fas fa-image'"></i>
+        <span>{{ lightboxLoading ? 'Carregando imagem...' : 'Imagem indisponível' }}</span>
+      </div>
+      <button class="lb-nav lb-prev" v-if="lbCount > 1" @click.stop="lbPrev"><i class="fas fa-chevron-left"></i></button>
+      <button class="lb-nav lb-next" v-if="lbCount > 1" @click.stop="lbNext"><i class="fas fa-chevron-right"></i></button>
+    </div>
+    <div class="lb-info" v-if="lbItem && (lbItem.title || lbItem.reason)" @click.stop>
+      <b v-if="lbItem.title">{{ lbItem.title }}</b>
+      <small v-if="lbItem.sub">{{ lbItem.sub }}</small>
+      <p v-if="lbItem.reason">{{ lbItem.reason }}</p>
+      <span class="lb-count" v-if="lbCount > 1">{{ lightbox.i + 1 }} de {{ lbCount }}</span>
+    </div>
   </div>
 
   <!-- ============ TOASTS ============ -->
@@ -1585,11 +1672,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.7.1"></script>
+<script type="module" src="./app.js?v=3.8.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v371';
+    var CURRENT = 'controlpoint-v380';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1597,7 +1684,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.7.1')
+        navigator.serviceWorker.register('./sw.js?v=3.8.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
