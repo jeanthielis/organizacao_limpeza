@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.7.1'
+} from './firebase.js?v=3.8.0'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.7.1')
+    const appVersion = ref('3.8.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -604,16 +604,71 @@ createApp({
       point.photoDocId = ''; point.photoUrl = ''; point.photoPath = ''
     }
 
-    /* --- Lightbox --- */
+    /* --- Visualizador de fotos (com navegação) ---
+       Recebe uma lista e abre no item escolhido. Cada imagem é buscada no banco
+       só quando entra na tela, nunca em lote. */
+    const lightbox = ref(null)        // { items: [{photoDocId, photoUrl, title, sub, reason}], i }
     const lightboxUrl = ref('')
-    const openImage = (url) => { if (url) lightboxUrl.value = url }
-    const closeImage = () => { lightboxUrl.value = '' }
-    // abre uma foto guardada no Firestore, carregando sob demanda
-    const openPhotoDoc = async (photoId, fallbackUrl) => {
-      if (fallbackUrl) { lightboxUrl.value = fallbackUrl; return }
-      const url = await loadPhotoData(photoId)
-      if (url) lightboxUrl.value = url
+    const lightboxLoading = ref(false)
+    const lbItem = computed(() => lightbox.value ? lightbox.value.items[lightbox.value.i] : null)
+    const lbCount = computed(() => lightbox.value ? lightbox.value.items.length : 0)
+
+    const showLightboxAt = async (i) => {
+      if (!lightbox.value) return
+      const n = lightbox.value.items.length
+      if (!n) return
+      const idx = ((i % n) + n) % n
+      lightbox.value.i = idx
+      const it = lightbox.value.items[idx]
+      const cache = it.photoUrl || localPhotoUrls.value[it.photoDocId] || ''
+      lightboxUrl.value = cache
+      if (!cache && it.photoDocId) {
+        lightboxLoading.value = true
+        try {
+          const u = await loadPhotoData(it.photoDocId)
+          // só aplica se o visualizador ainda está no mesmo item
+          if (lightbox.value && lightbox.value.items[lightbox.value.i] === it) lightboxUrl.value = u
+        } finally { lightboxLoading.value = false }
+      }
     }
+    const openGalleryAt = async (items, i) => {
+      if (!items || !items.length) { showWarning('Nenhuma foto neste registro'); return }
+      lightbox.value = { items, i: i || 0 }
+      await showLightboxAt(i || 0)
+    }
+    const lbNext = () => { if (lightbox.value) showLightboxAt(lightbox.value.i + 1) }
+    const lbPrev = () => { if (lightbox.value) showLightboxAt(lightbox.value.i - 1) }
+    const closeImage = () => { lightbox.value = null; lightboxUrl.value = ''; lightboxLoading.value = false }
+
+    const openImage = (url) => { if (url) openGalleryAt([{ photoUrl: url, title: '', sub: '' }], 0) }
+    const openPhotoDoc = (photoId, fallbackUrl, titulo, sub) =>
+      openGalleryAt([{ photoDocId: photoId || '', photoUrl: fallbackUrl || '', title: titulo || '', sub: sub || '' }], 0)
+
+    /* Fotos das não conformidades de uma auditoria — usado pela equipe auditada
+       para ver exatamente o que foi apontado contra ela. */
+    const ncPhotosOf = (item) => {
+      const out = []
+      ;(item.points || []).forEach(p => {
+        const ehNok = p.status === 'nok' || (p.status == null && p.checked === false)
+        if (!ehNok) return
+        const sub = `${item.team} · ${fmtDate(item.date)} · turno ${item.shift || '-'}`
+        if (p.photoDocId || p.photoUrl) {
+          out.push({
+            photoDocId: p.photoDocId || '', photoUrl: p.photoUrl || '',
+            title: p.name, sub, reason: p.reason || p.obs || ''
+          })
+        }
+        const t = p.treatment
+        if (t && (t.afterPhotoDocId || t.afterPhotoUrl)) {
+          out.push({
+            photoDocId: t.afterPhotoDocId || '', photoUrl: t.afterPhotoUrl || '',
+            title: p.name + ' — correção', sub, reason: t.nota || ''
+          })
+        }
+      })
+      return out
+    }
+    const ncPhotoCount = (item) => ncPhotosOf(item).length
 
     /* --- Salvar --- */
     const saveAudit = async () => {
@@ -818,10 +873,15 @@ createApp({
     /* ==================== GALERIA DE FOTOS (ADMIN) ==================== */
     /* Permite ao administrador conferir se o auditor está de fato fotografando
        o local certo, e não repetindo a mesma imagem ou fotografando o chão. */
-    const galleryFilter = ref('todas')     // todas | ok | nok | after
+    const galleryFilter = ref('nok')       // todas | ok | nok | after — começa no que interessa
     const galleryTeamFilter = ref('todas')
+    const galleryPointFilter = ref('todos')
+    const galleryAuditorFilter = ref('todos')
     const galleryVisible = ref(12)
     const loadingGallery = ref(false)
+    /* Nenhuma imagem é baixada sozinha: o administrador decide quando carregar.
+       Cada foto custa dados móveis do aparelho dele. */
+    const galleryAuto = ref(false)
 
     const galleryAll = computed(() => {
       const rows = []
@@ -858,12 +918,33 @@ createApp({
       let r = galleryAll.value
       if (galleryFilter.value !== 'todas') r = r.filter(x => x.kind === galleryFilter.value)
       if (galleryTeamFilter.value !== 'todas') r = r.filter(x => x.team === galleryTeamFilter.value)
+      if (galleryPointFilter.value !== 'todos') r = r.filter(x => x.name === galleryPointFilter.value)
+      if (galleryAuditorFilter.value !== 'todos') r = r.filter(x => (x.auditorName || x.auditorTeam) === galleryAuditorFilter.value)
       return r
     })
     const galleryPage = computed(() => galleryItems.value.slice(0, galleryVisible.value))
 
+    // Listas para os seletores, montadas a partir do que existe no mês
+    const galleryPoints = computed(() =>
+      Array.from(new Set(galleryAll.value.map(x => x.name))).sort((a, b) => a.localeCompare(b)))
+    const galleryAuditors = computed(() =>
+      Array.from(new Set(galleryAll.value.map(x => x.auditorName || x.auditorTeam).filter(Boolean))).sort((a, b) => a.localeCompare(b)))
+
+    // O que ainda não está em cache — é só isso que consome dados
+    const galleryPending = computed(() =>
+      galleryPage.value.filter(it => it.photoDocId && !localPhotoUrls.value[it.photoDocId]))
+
+    // Estimativa de consumo: evidência de não conformidade é maior que foto de rotina
+    const galleryEstimateMB = computed(() => {
+      const mb = galleryPending.value.reduce((t, it) => t + (it.kind === 'nok' ? 0.2 : 0.09), 0)
+      return mb < 0.1 ? '0,1' : mb.toFixed(1).replace('.', ',')
+    })
+
+    const galleryThumb = (it) => it.photoUrl || localPhotoUrls.value[it.photoDocId] || ''
+
     // Carrega as imagens da página atual, uma a uma, para não travar a tela
     const loadGalleryPhotos = async () => {
+      if (loadingGallery.value) return
       loadingGallery.value = true
       try {
         for (const it of galleryPage.value) {
@@ -873,11 +954,21 @@ createApp({
         }
       } finally { loadingGallery.value = false }
     }
+
     const showMoreGallery = async () => {
       galleryVisible.value += 12
-      await loadGalleryPhotos()
+      if (galleryAuto.value) await loadGalleryPhotos()
     }
-    const galleryThumb = (it) => it.photoUrl || localPhotoUrls.value[it.photoDocId] || ''
+
+    // Abre a foto tocada e permite navegar pelas demais já filtradas
+    const openGalleryItem = (it) => {
+      const idx = galleryPage.value.indexOf(it)
+      openGalleryAt(galleryPage.value.map(x => ({
+        photoDocId: x.photoDocId, photoUrl: x.photoUrl,
+        title: x.name, sub: `${x.team} · ${fmtDate(x.date)} · ${x.shift}${x.auditorName ? ' · ' + x.auditorName : ''}`,
+        reason: x.reason
+      })), idx < 0 ? 0 : idx)
+    }
 
     // Quantas fotos cada auditor registrou no mês — ajuda a ver quem está pulando etapa
     const galleryByAuditor = computed(() => {
@@ -1463,19 +1554,19 @@ createApp({
     watch(adminMonth, () => {
       if (currentView.value !== 'admin') return
       if (adminTab.value === 'audits') loadAdminAudits()
-      if (adminTab.value === 'fotos') { galleryVisible.value = 12; loadAdminAudits().then(() => loadGalleryPhotos()) }
+      if (adminTab.value === 'fotos') { galleryVisible.value = 12; loadAdminAudits() }
     })
     watch(adminTab, (t) => {
       if (t === 'fotos') {
         galleryVisible.value = 12
-        if (!adminAudits.value.length) loadAdminAudits().then(() => loadGalleryPhotos())
-        else loadGalleryPhotos()
+        if (!adminAudits.value.length) loadAdminAudits()   // só os dados, sem imagem
       }
     })
-    watch([galleryFilter, galleryTeamFilter], () => {
+    watch([galleryFilter, galleryTeamFilter, galleryPointFilter, galleryAuditorFilter], () => {
       galleryVisible.value = 12
-      if (adminTab.value === 'fotos') loadGalleryPhotos()
+      if (adminTab.value === 'fotos' && galleryAuto.value) loadGalleryPhotos()
     })
+    watch(galleryAuto, (v) => { if (v && adminTab.value === 'fotos') loadGalleryPhotos() })
     watch([reportType, reportMonth, reportYear, dailyDate], () => { if (currentView.value === 'reports') loadReports() })
     watch([auditedTeam, auditDate, auditShift], () => {
       if (draftLoading.value) return
@@ -1962,13 +2053,16 @@ createApp({
       hasPhoto, photoPreview, pointsGrouped, pesoTotal, isCovering, forceOwnTeam,
       draft, draftBanner, draftResumo, draftSavedAt, resumeDraft, discardDraft,
       isOnline, pendingUploads, syncing, syncNow, localPhotoUrls, loadingPhoto, openPhotoDoc, loadPhotoData,
-      lightboxUrl, openImage, closeImage,
+      lightboxUrl, openImage, closeImage, lightbox, lightboxLoading, lbItem, lbCount,
+      lbNext, lbPrev, openGalleryAt, ncPhotosOf, ncPhotoCount,
       // auditorias
       auditsTab, auditsList, auditsPage, auditsVisible, showMoreAudits, loadingAudits, auditsMonth, openAudits, toggleAudit,
       receivedAverage, nonConformities, loadAudits,
       // admin
       adminTab, adminAudits, loadingAdminAudits, adminMonth, loadAdminAudits,
-      galleryFilter, galleryTeamFilter, galleryItems, galleryPage, galleryVisible,
+      galleryFilter, galleryTeamFilter, galleryPointFilter, galleryAuditorFilter,
+      galleryItems, galleryPage, galleryVisible, galleryAuto, galleryPoints, galleryAuditors,
+      galleryPending, galleryEstimateMB, openGalleryItem,
       loadingGallery, loadGalleryPhotos, showMoreGallery, galleryThumb, galleryByAuditor,
       cleaning, cleanupMonths, cleanupProgress, cleanupOldPhotos,
       editing, openEdit, closeEdit, setEditStatus, saveEdit, deleteAudit,
