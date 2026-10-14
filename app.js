@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.8.0'
+} from './firebase.js?v=3.9.0'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.8.0')
+    const appVersion = ref('3.9.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -781,10 +781,16 @@ createApp({
 
     const auditsPage = computed(() => auditsList.value.slice(0, auditsVisible.value))
 
+    /* Uma auditoria cuja contestação foi acatada pelo administrador deixa de contar
+       em médias, ranking e não conformidades. Ela continua no histórico, marcada. */
+    const ehValida = (a) => !!a && !a.desconsiderada
+
     const receivedAverage = computed(() => {
-      if (!auditsList.value.length) return 0
-      return Math.round(auditsList.value.reduce((s, a) => s + (parseFloat(a.score) || 0), 0) / auditsList.value.length)
+      const validas = auditsList.value.filter(ehValida)
+      if (!validas.length) return 0
+      return Math.round(validas.reduce((s, a) => s + (parseFloat(a.score) || 0), 0) / validas.length)
     })
+    const receivedValidCount = computed(() => auditsList.value.filter(ehValida).length)
 
     const nonConformities = (item) => (item.points || []).filter(p => p.status === 'nok' || p.checked === false)
 
@@ -1175,6 +1181,7 @@ createApp({
           const stats = {}
           snap.forEach(d => {
             const x = d.data()
+            if (!ehValida(x)) return                 // contestação acatada: fora do cálculo
             const score = parseFloat(x.score) || 0
             if (!stats[x.team]) stats[x.team] = { total: 0, count: 0, name: x.team }
             stats[x.team].total += score
@@ -1190,6 +1197,7 @@ createApp({
               where('date', '>=', prevMonth + '-01'), where('date', '<=', prevMonth + '-31')))
             psnap.forEach(d => {
               const x = d.data()
+              if (!ehValida(x)) return
               if (!prevStats[x.team]) prevStats[x.team] = { total: 0, count: 0 }
               prevStats[x.team].total += parseFloat(x.score) || 0
               prevStats[x.team].count++
@@ -1221,6 +1229,7 @@ createApp({
           const td = {}
           opTeams.value.forEach(t => td[t] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 })))
           raw.forEach(d => {
+            if (!ehValida(d)) return
             if (!td[d.team]) td[d.team] = Array.from({ length: 12 }, () => ({ total: 0, count: 0 }))
             const m = parseInt(d.date.split('-')[1]) - 1
             td[d.team][m].total += parseFloat(d.score) || 0
@@ -1664,7 +1673,7 @@ createApp({
 
     const ncAll = computed(() => {
       const rows = []
-      alertsAudits.value.forEach(a => {
+      alertsAudits.value.filter(ehValida).forEach(a => {
         (a.points || []).forEach(p => {
           if (p.status === 'nok' || (p.status == null && p.checked === false)) {
             rows.push({
@@ -1729,7 +1738,8 @@ createApp({
     })
 
     const alertsCount = computed(() =>
-      pendingList.value.length + ncRecent.value.length + pendingAcks.value.length + recurrences.value.length)
+      pendingList.value.length + ncRecent.value.length + pendingAcks.value.length +
+      recurrences.value.length + pendingReviews.value.length)
 
     // Abre a tela de auditoria já posicionada na pendência escolhida
     const auditPending = (p) => {
@@ -1789,8 +1799,77 @@ createApp({
     // Auditorias recebidas pela minha equipe que ainda não têm ciência
     const pendingAcks = computed(() => alertsAudits.value.filter(a =>
       (isAdmin.value ? true : a.team === myTeam.value) &&
-      !(a.acknowledgement && a.acknowledgement.status)
+      !(a.acknowledgement && a.acknowledgement.status) &&
+      !a.desconsiderada
     ).slice(0, 30))
+
+    /* ==================== CONTESTAÇÃO: DECISÃO DO ADMINISTRADOR ==================== */
+    /* Contestar não anula nada sozinho — quem decide é o administrador, e ele precisa
+       justificar. Acatada, a avaliação é desconsiderada e sai de médias, ranking e
+       não conformidades, mas permanece no histórico com a decisão registrada. */
+    const reviewModal = ref(null)   // { item, decision: 'acatada'|'rejeitada', justificativa }
+    const savingReview = ref(false)
+
+    const revisaoDe = (a) => (a && a.revisao) || null
+    const contestada = (a) => !!(a && a.acknowledgement && a.acknowledgement.status === 'contested')
+    const aguardandoDecisao = (a) => contestada(a) && !revisaoDe(a)
+
+    // Fila do administrador: contestações ainda sem decisão
+    const pendingReviews = computed(() => {
+      if (!isAdmin.value) return []
+      return alertsAudits.value.filter(aguardandoDecisao)
+        .sort((a, b) => (a.acknowledgement?.at || '').localeCompare(b.acknowledgement?.at || ''))
+    })
+
+    // Decisões recentes, para a equipe acompanhar o desfecho
+    const myReviewed = computed(() =>
+      alertsAudits.value.filter(a => a.team === myTeam.value && revisaoDe(a)).slice(0, 10))
+
+    const openReview = (item) => {
+      reviewModal.value = { item, decision: 'acatada', justificativa: '' }
+    }
+    const closeReview = () => { reviewModal.value = null }
+
+    const saveReview = async () => {
+      const m = reviewModal.value
+      if (!m) return
+      const just = (m.justificativa || '').trim()
+      if (just.length < 10) {
+        showWarning('Descreva a justificativa da decisão (mínimo 10 caracteres)')
+        return
+      }
+      savingReview.value = true
+      try {
+        const acatada = m.decision === 'acatada'
+        const revisao = {
+          status: m.decision,
+          justificativa: just,
+          by: user.value.uid,
+          name: profile.value?.name || user.value.email,
+          at: new Date().toISOString()
+        }
+        await updateDoc(doc(db, 'inspections', m.item._id), {
+          revisao,
+          desconsiderada: acatada,
+          updatedAt: new Date().toISOString(),
+          historico: arrayUnion(logEntry(
+            acatada ? 'Contestação acatada — avaliação desconsiderada' : 'Contestação rejeitada — avaliação mantida',
+            just
+          ))
+        })
+        // reflete na tela sem esperar nova leitura
+        const aplicar = (lista) => lista.forEach(a => {
+          if (a._id === m.item._id) { a.revisao = revisao; a.desconsiderada = acatada }
+        })
+        aplicar(alertsAudits.value); aplicar(auditsList.value); aplicar(adminAudits.value)
+        showSuccess(acatada
+          ? 'Contestação acatada. A avaliação foi desconsiderada dos indicadores.'
+          : 'Contestação rejeitada. A avaliação permanece válida.')
+        closeReview()
+      } catch (e) {
+        showError('Erro ao registrar a decisão: ' + e.message)
+      } finally { savingReview.value = false }
+    }
 
     /* ==================== TRATATIVA DAS NÃO CONFORMIDADES ==================== */
     const treatModal = ref(null)   // { row, status, responsavel, prazo, nota, afterUrl, afterDocId }
@@ -1898,6 +1977,7 @@ createApp({
       L.push(`*Equipe auditada:* ${a.team}`)
       L.push(`*Auditada por:* ${a.auditorTeam || '—'}${a.auditorName ? ' (' + a.auditorName + ')' : ''}`)
       if (a.cobertura && a.coberturaDe) L.push(`_Registrada em cobertura por integrante da ${a.coberturaDe}_`)
+      if (a.desconsiderada) L.push('⚠️ *AVALIAÇÃO DESCONSIDERADA* — contestação acatada pela administração')
       L.push(`*Data:* ${fmtDate(a.date)} · Turno ${a.shift || '-'}`)
       L.push(`*Conformidade:* ${Math.round(a.score)}% (${ok}/${total}) · Meta ${a.meta || meta.value}% ${atingiu ? '✅' : '⚠️'}`)
       L.push('')
@@ -1976,6 +2056,11 @@ createApp({
         y += 4
         line('PONTOS CONFORMES', 11, 'bold', [22, 163, 74])
         ;(a.points || []).filter(p => p.status === 'ok' || p.checked).forEach(p => line('• ' + p.name, 9))
+        if (a.desconsiderada) {
+          y += 3
+          line('AVALIAÇÃO DESCONSIDERADA — contestação acatada pela administração', 10, 'bold', [220, 38, 38])
+          if (a.revisao && a.revisao.justificativa) line(`    ${a.revisao.justificativa}`, 9, 'italic')
+        }
         if (a.acknowledgement && a.acknowledgement.status) {
           y += 4
           line(`Ciência: ${a.acknowledgement.status === 'ok' ? 'de acordo' : 'contestada'} por ${a.acknowledgement.name || ''}`, 9, 'italic')
@@ -2073,6 +2158,8 @@ createApp({
       generatePDF, takeScreenshot, exportCSV,
       // ciência e tratativa
       ackModal, ackOf, canAck, openAck, closeAck, submitAck, pendingAcks,
+      ehValida, receivedValidCount, revisaoDe, contestada, aguardandoDecisao,
+      pendingReviews, myReviewed, reviewModal, savingReview, openReview, closeReview, saveReview,
       treatModal, savingTreat, ncFilter, ncAll, treatStats, treatOf, isOverdue,
       openTreat, closeTreat, saveTreat,
       afterInput, uploadingAfter, triggerAfterPhoto, onAfterPhotoSelected,
