@@ -343,6 +343,22 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .st-atrasada{background:var(--red-500);color:#fff}
 .ack-bar{display:flex;gap:7px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
 .ack-note{font-size:11.5px;font-weight:600;border-radius:10px;padding:8px 10px;margin-top:10px;line-height:1.4}
+.score-badge.void{background:var(--bg-sunken);color:var(--text-3);text-decoration:line-through}
+.void-tag{font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;background:var(--text-3);color:var(--bg);
+  text-transform:uppercase;letter-spacing:.04em;flex-shrink:0}
+.audit-card.void{opacity:.72;border-style:dashed}
+.rev-note{font-size:11.5px;font-weight:600;border-radius:10px;padding:9px 11px;margin-top:8px;line-height:1.45}
+.rev-ok{background:var(--green-100);color:var(--green-600)}
+.rev-no{background:var(--bg-sunken);color:var(--text-2)}
+.rev-note b{display:block;margin-bottom:3px}
+.review-card{border:1.5px solid var(--amber-600);background:var(--warn-bg);border-radius:16px;padding:13px;margin-bottom:10px}
+.review-head{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.review-head i{font-size:17px;color:var(--amber-600);flex-shrink:0}
+.review-head b{font-size:13px;font-weight:800;color:var(--warn-fg);display:block;line-height:1.25}
+.review-head small{font-size:10.5px;color:var(--warn-fg);opacity:.85;font-weight:600}
+.review-quote{background:rgba(255,255,255,.45);border-radius:10px;padding:9px 11px;font-size:12px;font-weight:600;
+  color:var(--warn-fg);line-height:1.45;margin-bottom:10px}
+html.dark .review-quote{background:rgba(0,0,0,.18)}
 .ack-ok{background:var(--green-100);color:var(--green-600)}
 .ack-contested{background:var(--warn-bg);color:var(--warn-fg)}
 .spinner{display:inline-block;animation:spin 1s linear infinite}
@@ -788,7 +804,9 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div class="card-sub">Avaliações que a {{ myTeam }} recebeu no mês selecionado.</div>
           <div class="stat-grid">
             <div class="stat-box"><div class="num">{{ receivedAverage }}%</div><div class="lbl">Média recebida</div></div>
-            <div class="stat-box"><div class="num">{{ auditsList.length }}</div><div class="lbl">Auditorias</div></div>
+            <div class="stat-box"><div class="num">{{ receivedValidCount }}</div><div class="lbl">Auditorias válidas</div>
+              <div class="ls" v-if="auditsList.length > receivedValidCount" style="margin-top:2px">{{ auditsList.length - receivedValidCount }} anulada(s)</div>
+            </div>
           </div>
         </div>
 
@@ -798,14 +816,15 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <p>{{ auditsTab === 'received' ? 'Sua equipe ainda não foi auditada neste mês.' : 'Nenhuma auditoria neste mês.' }}</p>
         </div>
 
-        <div v-else v-for="item in auditsPage" :key="item._id" class="audit-card">
+        <div v-else v-for="item in auditsPage" :key="item._id" class="audit-card" :class="{void: item.desconsiderada}">
           <div class="audit-head" @click="toggleAudit(item._id)">
             <div class="avatar">{{ (item.team || '?').replace('Equipe ','E') }}</div>
             <div class="audit-info">
               <div class="l1">{{ item.team }} <span style="font-weight:600;color:var(--text-3)">auditada por</span> {{ item.auditorTeam || '—' }}</div>
               <div class="l2">{{ fmtDate(item.date) }} · {{ item.shift || '-' }} · {{ nonConformities(item).length }} não conf.<span v-if="item.auditorName"> · {{ item.auditorName }}</span><span v-if="item.cobertura"> · cobertura {{ item.coberturaDe }}</span></div>
             </div>
-            <div class="score-badge" :class="(item.score >= (item.meta || meta)) ? 'pass' : 'fail'">{{ Math.round(item.score) }}%</div>
+            <span class="void-tag" v-if="item.desconsiderada">anulada</span>
+            <div class="score-badge" :class="item.desconsiderada ? 'void' : ((item.score >= (item.meta || meta)) ? 'pass' : 'fail')">{{ Math.round(item.score) }}%</div>
             <button class="icon-btn" @click.stop="openShare(item)" title="Compartilhar"><i class="fas fa-share-nodes"></i></button>
             <i class="fas fa-chevron-down" :style="{transform: openAudits[item._id] ? 'rotate(180deg)' : '', color:'var(--text-3)'}"></i>
           </div>
@@ -820,6 +839,24 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             {{ ackOf(item).status === 'ok' ? 'Ciência registrada' : 'Contestada' }} por {{ ackOf(item).name }}
             <template v-if="ackOf(item).comment"> — {{ ackOf(item).comment }}</template>
           </div>
+
+          <div class="rev-note rev-no" v-if="aguardandoDecisao(item)">
+            <i class="fas fa-hourglass-half"></i> Contestação enviada ao administrador, aguardando decisão.
+          </div>
+
+          <div class="rev-note" :class="revisaoDe(item).status === 'acatada' ? 'rev-ok' : 'rev-no'" v-else-if="revisaoDe(item)">
+            <b>
+              <i :class="revisaoDe(item).status === 'acatada' ? 'fas fa-gavel' : 'fas fa-circle-xmark'"></i>
+              {{ revisaoDe(item).status === 'acatada' ? 'Contestação acatada — avaliação desconsiderada' : 'Contestação rejeitada — avaliação mantida' }}
+            </b>
+            {{ revisaoDe(item).justificativa }}
+            <div style="opacity:.75;margin-top:4px">{{ revisaoDe(item).name }} · {{ new Date(revisaoDe(item).at).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) }}</div>
+          </div>
+
+          <button class="btn btn-primary btn-sm btn-block" style="margin-top:10px"
+                  v-if="isAdmin && aguardandoDecisao(item)" @click.stop="openReview(item)">
+            <i class="fas fa-gavel"></i> Analisar contestação
+          </button>
           <div class="ack-bar" v-else-if="canAck(item)">
             <button class="btn btn-ghost btn-sm" style="flex:1" @click="openAck(item,'ok')"><i class="fas fa-check"></i> Dar ciência</button>
             <button class="btn btn-danger btn-sm" style="flex:1" @click="openAck(item,'contested')"><i class="fas fa-flag"></i> Contestar</button>
@@ -877,10 +914,36 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <i class="fas fa-circle-info"></i>
             <span>A detecção de pendências usa a escala 12x36. Ative-a em Admin › Config. para acompanhar os turnos sem auditoria.</span>
           </div>
-          <div v-else-if="!pendingList.length && !pendingAcks.length && !recurrences.length" class="card empty">
+          <div v-else-if="!pendingList.length && !pendingAcks.length && !recurrences.length && !pendingReviews.length" class="card empty">
             <i class="fas fa-circle-check" style="color:var(--green-500);opacity:.8"></i>
             <p>Nada pendente. Todos os turnos foram auditados e as ciências estão em dia.</p>
           </div>
+          <div class="card" v-if="isAdmin && pendingReviews.length">
+            <div class="card-title"><i class="fas fa-gavel"></i> Contestações aguardando decisão</div>
+            <div class="card-sub">A equipe discordou da avaliação. Decida se a nota vale ou não — com justificativa.</div>
+            <div v-for="a in pendingReviews" :key="'rev'+a._id" class="review-card">
+              <div class="review-head">
+                <i class="fas fa-circle-exclamation"></i>
+                <div>
+                  <b>{{ a.team }} — {{ Math.round(a.score) }}%</b>
+                  <small>{{ fmtDate(a.date) }} · turno {{ a.shift }} · auditada por {{ a.auditorTeam }}</small>
+                </div>
+              </div>
+              <div class="review-quote" v-if="a.acknowledgement && a.acknowledgement.comment">
+                “{{ a.acknowledgement.comment }}”
+                <div style="opacity:.75;font-weight:700;margin-top:4px">— {{ a.acknowledgement.name }}</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" style="flex:1" @click="openReview(a)">
+                  <i class="fas fa-gavel"></i> Analisar
+                </button>
+                <button class="btn btn-ghost btn-sm" v-if="ncPhotoCount(a)" @click="openGalleryAt(ncPhotosOf(a), 0)">
+                  <i class="fas fa-camera"></i> {{ ncPhotoCount(a) }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="card" v-if="recurrences.length">
             <div class="section-label">Reincidências — 3 ou mais ocorrências em 30 dias</div>
             <div v-for="r in recurrences" :key="r.team + r.name" class="alert-item">
@@ -1090,6 +1153,32 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
         <!-- Avaliações -->
         <template v-if="adminTab === 'audits'">
+          <div class="card" v-if="isAdmin && pendingReviews.length">
+            <div class="card-title"><i class="fas fa-gavel"></i> Contestações aguardando decisão</div>
+            <div class="card-sub">A equipe discordou da avaliação. Decida se a nota vale ou não — com justificativa.</div>
+            <div v-for="a in pendingReviews" :key="'rev'+a._id" class="review-card">
+              <div class="review-head">
+                <i class="fas fa-circle-exclamation"></i>
+                <div>
+                  <b>{{ a.team }} — {{ Math.round(a.score) }}%</b>
+                  <small>{{ fmtDate(a.date) }} · turno {{ a.shift }} · auditada por {{ a.auditorTeam }}</small>
+                </div>
+              </div>
+              <div class="review-quote" v-if="a.acknowledgement && a.acknowledgement.comment">
+                “{{ a.acknowledgement.comment }}”
+                <div style="opacity:.75;font-weight:700;margin-top:4px">— {{ a.acknowledgement.name }}</div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" style="flex:1" @click="openReview(a)">
+                  <i class="fas fa-gavel"></i> Analisar
+                </button>
+                <button class="btn btn-ghost btn-sm" v-if="ncPhotoCount(a)" @click="openGalleryAt(ncPhotosOf(a), 0)">
+                  <i class="fas fa-camera"></i> {{ ncPhotoCount(a) }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <div class="field" style="margin:0">
               <label>Mês de referência</label>
@@ -1103,6 +1192,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <div v-for="a in adminAudits" :key="a._id" class="list-row">
               <div class="li">
                 {{ a.team }} <span style="color:var(--text-3);font-weight:600">por {{ a.auditorTeam || '—' }}</span>
+                <span class="void-tag" v-if="a.desconsiderada">anulada</span>
                 <div class="ls">{{ fmtDate(a.date) }} · {{ a.shift || '-' }} · {{ Math.round(a.score) }}%<span v-if="a.auditorName"> · {{ a.auditorName }}</span></div>
               </div>
               <button class="icon-btn" @click="openShare(a)"><i class="fas fa-share-nodes"></i></button>
@@ -1449,6 +1539,66 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     </div>
   </div>
 
+  <!-- ============ MODAL: DECISÃO DA CONTESTAÇÃO ============ -->
+  <div class="modal-ov" v-if="reviewModal" @click.self="closeReview">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h3>Analisar contestação</h3>
+        <button class="icon-btn" @click="closeReview"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="card-sub">
+        <b>{{ reviewModal.item.team }}</b> · {{ Math.round(reviewModal.item.score) }}% ·
+        {{ fmtDate(reviewModal.item.date) }} · turno {{ reviewModal.item.shift }} ·
+        auditada por {{ reviewModal.item.auditorTeam }}
+      </div>
+
+      <div class="review-quote" v-if="reviewModal.item.acknowledgement && reviewModal.item.acknowledgement.comment">
+        “{{ reviewModal.item.acknowledgement.comment }}”
+        <div style="opacity:.75;font-weight:700;margin-top:4px">— {{ reviewModal.item.acknowledgement.name }}</div>
+      </div>
+
+      <button class="btn btn-ghost btn-sm btn-block" style="margin-bottom:14px"
+              v-if="ncPhotoCount(reviewModal.item)" @click="openGalleryAt(ncPhotosOf(reviewModal.item), 0)">
+        <i class="fas fa-camera"></i> Ver as {{ ncPhotoCount(reviewModal.item) }} foto(s) apontadas
+      </button>
+
+      <div class="field">
+        <label>Decisão</label>
+        <div class="chip-row">
+          <button class="chip" :class="{active: reviewModal.decision==='acatada'}" @click="reviewModal.decision='acatada'">
+            <i class="fas fa-check"></i> Acatar
+          </button>
+          <button class="chip" :class="{active: reviewModal.decision==='rejeitada'}" @click="reviewModal.decision='rejeitada'">
+            <i class="fas fa-xmark"></i> Rejeitar
+          </button>
+        </div>
+      </div>
+
+      <div class="warn" style="margin-bottom:12px" v-if="reviewModal.decision==='acatada'">
+        <i class="fas fa-triangle-exclamation"></i>
+        <span>A avaliação será <b>desconsiderada</b>: sai da média da equipe, do ranking e das não conformidades.
+          O registro permanece no histórico, marcado como anulado.</span>
+      </div>
+      <div class="warn" style="margin-bottom:12px;background:var(--surface-2);color:var(--text-2)" v-else>
+        <i class="fas fa-circle-info"></i>
+        <span>A avaliação continua valendo. A equipe verá sua justificativa.</span>
+      </div>
+
+      <div class="field">
+        <label>Justificativa da decisão *</label>
+        <textarea v-model="reviewModal.justificativa" rows="3"
+          :class="{invalid: (reviewModal.justificativa || '').trim().length > 0 && (reviewModal.justificativa || '').trim().length < 10}"
+          placeholder="Explique o que foi apurado e no que a decisão se baseia"></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-block" :disabled="savingReview" @click="saveReview">
+        <i v-if="savingReview" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-gavel"></i>
+        Registrar decisão
+      </button>
+    </div>
+  </div>
+
   <!-- ============ MODAL: TRATATIVA ============ -->
   <div class="modal-ov" v-if="treatModal" @click.self="closeTreat">
     <div class="modal">
@@ -1672,11 +1822,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.8.0"></script>
+<script type="module" src="./app.js?v=3.9.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v380';
+    var CURRENT = 'controlpoint-v390';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1684,7 +1834,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.8.0')
+        navigator.serviceWorker.register('./sw.js?v=3.9.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
