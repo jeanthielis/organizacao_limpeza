@@ -1,19 +1,19 @@
 {
-  "version": "3.8.0",
-  "codeName": "See For Yourself",
-  "releaseDate": "2026-10-08",
+  "version": "3.9.0",
+  "codeName": "Right of Reply",
+  "releaseDate": "2026-10-14",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Equipe auditada vê as fotos das não conformidades que recebeu",
-    "Visualizador com navegação entre as fotos, motivo e contexto",
-    "Galeria do admin não baixa imagem sem você pedir",
-    "Filtros por ponto de verificação e por auditor",
-    "Aviso de quantos megabytes serão consumidos antes de baixar"
+    "Contestação da equipe vai para a decisão do administrador",
+    "Justificativa obrigatória em toda decisão, acatando ou rejeitando",
+    "Avaliação acatada é desconsiderada de médias, ranking e não conformidades",
+    "Fila de contestações na central de notificações e no painel admin",
+    "Decisão visível para a equipe, com a justificativa"
   ],
   "improvements": [
-    "Cada imagem é buscada só quando entra na tela",
-    "Opção de carregar miniaturas automaticamente, desligada por padrão",
-    "Filtro de tipo começa em não conformes, que é o que se procura"
+    "Registro anulado permanece no histórico, marcado",
+    "Contestar não altera indicador algum até a decisão sair",
+    "Fotos apontadas acessíveis durante a análise da contestação"
   ]
 }
