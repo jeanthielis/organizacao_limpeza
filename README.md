@@ -1,8 +1,32 @@
-# ControlPoint 3.8 — Auditoria de Virada de Turno
+# ControlPoint 3.9 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Novidades da 3.9 — contestação com decisão do administrador
+
+Até agora a contestação era um desabafo registrado: ficava anexada à auditoria e não ia a lugar nenhum. Agora ela vira um processo com desfecho.
+
+### O fluxo
+1. A equipe auditada contesta, com justificativa (como já era).
+2. A auditoria entra na **fila do administrador**, na central de notificações e em Admin → Avaliações, somando no sino.
+3. O administrador abre, lê a contestação, **pode ver as fotos apontadas** na própria tela de análise, e decide: **acatar** ou **rejeitar**.
+4. A **justificativa é obrigatória** nos dois casos (mínimo de 10 caracteres).
+5. **Acatada:** a avaliação é desconsiderada — sai da média da equipe, do ranking mensal e anual, do relatório diário e das não conformidades, que deixam de cobrar tratativa. O registro **permanece no histórico**, marcado como anulado, com nota tachada e etiqueta.
+6. **Rejeitada:** a nota continua valendo, e a equipe vê o porquê.
+
+A decisão aparece para a equipe no próprio cartão da auditoria, e também sai no relatório do WhatsApp e no PDF.
+
+### Duas decisões de projeto
+**Contestar não muda nada sozinho.** Enquanto a decisão não sai, a nota e as não conformidades continuam valendo normalmente — senão contestar viraria atalho para escapar de um apontamento legítimo.
+
+**Justificativa obrigatória também ao rejeitar.** Você pediu a exigência para o caso de acatar. Estendi para os dois: se a contestação é negada, a equipe merece saber em que a decisão se baseou — é o que sustenta a credibilidade do processo.
+
+### Quem pode anular
+Só o administrador. As regras do Firestore já restringiam a equipe auditada aos campos `acknowledgement`, `points`, `historico` e `updatedAt` — então ela não consegue gravar `desconsiderada` nem forjar o campo `revisao`. **Nenhuma mudança nas regras foi necessária.**
 
 ---
 
