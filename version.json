@@ -1,19 +1,19 @@
 {
-  "version": "3.9.0",
-  "codeName": "Right of Reply",
-  "releaseDate": "2026-10-14",
+  "version": "3.10.0",
+  "codeName": "Admin Verdict",
+  "releaseDate": "2026-10-19",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Contestação da equipe vai para a decisão do administrador",
-    "Justificativa obrigatória em toda decisão, acatando ou rejeitando",
-    "Avaliação acatada é desconsiderada de médias, ranking e não conformidades",
-    "Fila de contestações na central de notificações e no painel admin",
-    "Decisão visível para a equipe, com a justificativa"
+    "Contestação acatada reverte apontamentos em vez de anular a auditoria",
+    "Administrador escolhe quais apontamentos passam a conforme",
+    "Nota recalculada na hora, com prévia antes de confirmar",
+    "Auditoria segue contabilizada em médias, ranking e relatórios",
+    "Motivo original preservado no histórico do ponto revertido"
   ],
   "improvements": [
-    "Registro anulado permanece no histórico, marcado",
-    "Contestar não altera indicador algum até a decisão sair",
-    "Fotos apontadas acessíveis durante a análise da contestação"
+    "Ponto revertido sai das não conformidades e encerra a tratativa",
+    "Foto da evidência é mantida para consulta posterior",
+    "Reversão aparece no relatório do WhatsApp e no PDF"
   ]
 }
