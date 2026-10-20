@@ -351,6 +351,24 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .rev-ok{background:var(--green-100);color:var(--green-600)}
 .rev-no{background:var(--bg-sunken);color:var(--text-2)}
 .rev-note b{display:block;margin-bottom:3px}
+.rev-list{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.rev-item{display:flex;align-items:flex-start;gap:10px;padding:10px 11px;border:1.5px solid var(--border);
+  border-radius:12px;background:var(--surface-2);cursor:pointer}
+.rev-item.on{border-color:var(--green-500);background:var(--green-100)}
+.rev-item input{width:17px;height:17px;margin-top:1px;flex-shrink:0;accent-color:var(--green-600)}
+.rev-body{flex:1;min-width:0}
+.rev-body b{display:block;font-size:12.5px;font-weight:800;line-height:1.3}
+.rev-body small{display:block;font-size:11px;color:var(--text-3);font-weight:500;margin-top:3px;line-height:1.4}
+.score-preview{display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:13px;padding:11px 13px;margin-bottom:12px}
+.score-preview > div{flex:1}
+.score-preview small{display:block;font-size:10.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.score-preview b{display:flex;align-items:center;gap:9px;font-size:19px;font-weight:800;font-family:var(--font-head);margin-top:3px}
+.score-preview .old{color:var(--text-3);text-decoration:line-through;font-size:16px}
+.score-preview .new{color:var(--green-600)}
+.score-preview > i{font-size:17px;color:var(--text-3)}
+.reverted-tag{font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;background:var(--green-500);color:#fff;
+  text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;margin-left:6px}
 .review-card{border:1.5px solid var(--amber-600);background:var(--warn-bg);border-radius:16px;padding:13px;margin-bottom:10px}
 .review-head{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .review-head i{font-size:17px;color:var(--amber-600);flex-shrink:0}
@@ -847,8 +865,14 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           <div class="rev-note" :class="revisaoDe(item).status === 'acatada' ? 'rev-ok' : 'rev-no'" v-else-if="revisaoDe(item)">
             <b>
               <i :class="revisaoDe(item).status === 'acatada' ? 'fas fa-gavel' : 'fas fa-circle-xmark'"></i>
-              {{ revisaoDe(item).status === 'acatada' ? 'Contestação acatada — avaliação desconsiderada' : 'Contestação rejeitada — avaliação mantida' }}
+              <template v-if="revisaoDe(item).status === 'acatada'">
+                Contestação acatada — {{ (revisaoDe(item).pontosRevertidos || []).length }} apontamento(s) revertido(s)
+              </template>
+              <template v-else>Contestação rejeitada — avaliação mantida</template>
             </b>
+            <div v-if="(revisaoDe(item).pontosRevertidos || []).length" style="margin-bottom:5px;opacity:.9">
+              {{ revisaoDe(item).pontosRevertidos.join(' · ') }}
+            </div>
             {{ revisaoDe(item).justificativa }}
             <div style="opacity:.75;margin-top:4px">{{ revisaoDe(item).name }} · {{ new Date(revisaoDe(item).at).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) }}</div>
           </div>
@@ -866,8 +890,13 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             <div v-for="p in item.points" :key="p.name" class="d-row" :class="(p.status==='ok' || p.checked) ? 'ok' : 'nok'">
               <i :class="(p.status==='ok' || p.checked) ? 'fas fa-check' : 'fas fa-xmark'" style="margin-top:2px"></i>
               <div style="flex:1;min-width:0">
-                <div style="font-weight:700">{{ p.name }}</div>
+                <div style="font-weight:700">
+                  {{ p.name }}<span class="reverted-tag" v-if="p.revertido">revertido</span>
+                </div>
                 <div class="d-reason" v-if="(p.reason || p.obs) && !(p.status==='ok' || p.checked)">{{ p.reason || p.obs }}</div>
+                <div class="d-reason" v-else-if="p.revertido" style="background:var(--green-100);color:var(--green-600)">
+                  Era: “{{ p.revertido.motivoOriginal }}” — revertido por {{ p.revertido.por }}
+                </div>
               </div>
               <button v-if="p.photoDocId || p.photoUrl" class="cp-link" style="flex-shrink:0"
                       @click.stop="openPhotoDoc(p.photoDocId, p.photoUrl, p.name, item.team + ' · ' + fmtDate(item.date))">
@@ -1575,14 +1604,57 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
         </div>
       </div>
 
-      <div class="warn" style="margin-bottom:12px" v-if="reviewModal.decision==='acatada'">
-        <i class="fas fa-triangle-exclamation"></i>
-        <span>A avaliação será <b>desconsiderada</b>: sai da média da equipe, do ranking e das não conformidades.
-          O registro permanece no histórico, marcado como anulado.</span>
-      </div>
+      <template v-if="reviewModal.decision === 'acatada'">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div class="section-label" style="margin:0;flex:1">
+            Apontamentos a reverter ({{ reviewSelecionados.length }}/{{ reviewModal.pontos.length }})
+          </div>
+          <button class="cp-link" @click="toggleTodosPontos">
+            {{ reviewModal.pontos.some(p => !p.selecionado) ? 'Marcar todos' : 'Desmarcar todos' }}
+          </button>
+        </div>
+
+        <div class="empty" style="padding:18px" v-if="!reviewModal.pontos.length">
+          <i class="fas fa-circle-check" style="color:var(--green-500)"></i>
+          <p>Esta auditoria não tem apontamentos para reverter.</p>
+        </div>
+
+        <div class="rev-list" v-else>
+          <label v-for="p in reviewModal.pontos" :key="p.name" class="rev-item" :class="{on: p.selecionado}">
+            <input type="checkbox" v-model="p.selecionado">
+            <div class="rev-body">
+              <b>{{ p.name }}<span class="peso-tag" v-if="p.peso > 1" style="margin-left:6px">peso {{ p.peso }}</span></b>
+              <small v-if="p.reason">{{ p.reason }}</small>
+            </div>
+            <button class="cp-link" v-if="p.temFoto" @click.prevent.stop="openPhotoDoc(p.photoDocId, p.photoUrl, p.name, reviewModal.item.team)">
+              <i class="fas fa-image"></i>
+            </button>
+          </label>
+        </div>
+
+        <div class="score-preview">
+          <div>
+            <small>Nota da auditoria</small>
+            <b>
+              <span class="old">{{ Math.round(reviewModal.item.score) }}%</span>
+              <i class="fas fa-arrow-right"></i>
+              <span class="new">{{ reviewNewScore }}%</span>
+            </b>
+          </div>
+          <i class="fas fa-calculator"></i>
+        </div>
+
+        <div class="warn" style="margin-bottom:12px">
+          <i class="fas fa-circle-info"></i>
+          <span>A auditoria <b>continua contando</b> nos indicadores. Os apontamentos marcados passam a
+            conforme, saem das não conformidades e deixam de cobrar tratativa. O motivo original fica
+            guardado no histórico.</span>
+        </div>
+      </template>
+
       <div class="warn" style="margin-bottom:12px;background:var(--surface-2);color:var(--text-2)" v-else>
         <i class="fas fa-circle-info"></i>
-        <span>A avaliação continua valendo. A equipe verá sua justificativa.</span>
+        <span>Nada muda na avaliação. A equipe verá sua justificativa.</span>
       </div>
 
       <div class="field">
@@ -1822,11 +1894,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.9.0"></script>
+<script type="module" src="./app.js?v=3.10.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v390';
+    var CURRENT = 'controlpoint-v3100';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1834,7 +1906,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.9.0')
+        navigator.serviceWorker.register('./sw.js?v=3.10.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
