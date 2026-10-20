@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.9.0'
+} from './firebase.js?v=3.10.0'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.9.0')
+    const appVersion = ref('3.10.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -1825,10 +1825,52 @@ createApp({
     const myReviewed = computed(() =>
       alertsAudits.value.filter(a => a.team === myTeam.value && revisaoDe(a)).slice(0, 10))
 
+    const ehPontoNok = (p) => p.status === 'nok' || (p.status == null && p.checked === false)
+
     const openReview = (item) => {
-      reviewModal.value = { item, decision: 'acatada', justificativa: '' }
+      const ncs = (item.points || []).filter(ehPontoNok)
+      reviewModal.value = {
+        item,
+        decision: 'acatada',
+        justificativa: '',
+        // o administrador escolhe quais apontamentos caem; por padrão, todos os contestados
+        pontos: ncs.map(p => ({
+          name: p.name,
+          area: p.area || 'Geral',
+          peso: p.peso || 1,
+          reason: p.reason || p.obs || '',
+          temFoto: !!(p.photoDocId || p.photoUrl),
+          photoDocId: p.photoDocId || '',
+          photoUrl: p.photoUrl || '',
+          selecionado: true
+        }))
+      }
     }
     const closeReview = () => { reviewModal.value = null }
+
+    const reviewSelecionados = computed(() =>
+      reviewModal.value ? reviewModal.value.pontos.filter(p => p.selecionado) : [])
+
+    const toggleTodosPontos = () => {
+      const m = reviewModal.value
+      if (!m) return
+      const marcar = m.pontos.some(p => !p.selecionado)
+      m.pontos.forEach(p => { p.selecionado = marcar })
+    }
+
+    // Nota que a auditoria passa a ter depois da reversão (ponderada pelo peso)
+    const reviewNewScore = computed(() => {
+      const m = reviewModal.value
+      if (!m) return 0
+      const pts = m.item.points || []
+      const revertidos = new Set(reviewSelecionados.value.map(p => p.name))
+      const total = pts.reduce((t, p) => t + (p.peso || 1), 0)
+      const ok = pts.reduce((t, p) => {
+        const conforme = !ehPontoNok(p) || revertidos.has(p.name)
+        return t + (conforme ? (p.peso || 1) : 0)
+      }, 0)
+      return total ? Math.round(ok / total * 100) : 0
+    })
 
     const saveReview = async () => {
       const m = reviewModal.value
@@ -1838,33 +1880,82 @@ createApp({
         showWarning('Descreva a justificativa da decisão (mínimo 10 caracteres)')
         return
       }
+      const acatada = m.decision === 'acatada'
+      if (acatada && !reviewSelecionados.value.length) {
+        showWarning('Selecione ao menos um apontamento para reverter, ou rejeite a contestação')
+        return
+      }
       savingReview.value = true
       try {
-        const acatada = m.decision === 'acatada'
+        const agora = new Date().toISOString()
+        const nome = profile.value?.name || user.value.email
         const revisao = {
           status: m.decision,
           justificativa: just,
           by: user.value.uid,
-          name: profile.value?.name || user.value.email,
-          at: new Date().toISOString()
+          name: nome,
+          at: agora,
+          pontosRevertidos: acatada ? reviewSelecionados.value.map(p => p.name) : []
         }
-        await updateDoc(doc(db, 'inspections', m.item._id), {
+
+        const patch = {
           revisao,
-          desconsiderada: acatada,
-          updatedAt: new Date().toISOString(),
-          historico: arrayUnion(logEntry(
-            acatada ? 'Contestação acatada — avaliação desconsiderada' : 'Contestação rejeitada — avaliação mantida',
-            just
-          ))
-        })
+          desconsiderada: false,        // a auditoria continua contando
+          updatedAt: agora
+        }
+
+        let novosPontos = null
+        let novoScore = m.item.score
+
+        if (acatada) {
+          const revertidos = new Set(reviewSelecionados.value.map(p => p.name))
+          novosPontos = (m.item.points || []).map(p => {
+            if (!revertidos.has(p.name) || !ehPontoNok(p)) return p
+            return {
+              ...p,
+              status: 'ok',
+              checked: true,
+              reason: '',
+              obs: '',
+              treatment: null,
+              // guarda o que foi revertido, para o registro não se perder
+              revertido: {
+                motivoOriginal: p.reason || p.obs || '',
+                justificativa: just,
+                por: nome,
+                em: agora
+              }
+            }
+          })
+          novoScore = reviewNewScore.value
+          patch.points = novosPontos
+          patch.score = novoScore
+        }
+
+        const antes = Math.round(m.item.score)
+        patch.historico = arrayUnion(logEntry(
+          acatada
+            ? `Contestação acatada — ${reviewSelecionados.value.length} apontamento(s) revertido(s) (${antes}% → ${novoScore}%)`
+            : 'Contestação rejeitada — avaliação mantida',
+          acatada
+            ? `${reviewSelecionados.value.map(p => p.name).join(' · ')} — ${just}`
+            : just
+        ))
+
+        await updateDoc(doc(db, 'inspections', m.item._id), patch)
+
         // reflete na tela sem esperar nova leitura
         const aplicar = (lista) => lista.forEach(a => {
-          if (a._id === m.item._id) { a.revisao = revisao; a.desconsiderada = acatada }
+          if (a._id !== m.item._id) return
+          a.revisao = revisao
+          a.desconsiderada = false
+          if (acatada) { a.points = novosPontos; a.score = novoScore }
         })
         aplicar(alertsAudits.value); aplicar(auditsList.value); aplicar(adminAudits.value)
+
         showSuccess(acatada
-          ? 'Contestação acatada. A avaliação foi desconsiderada dos indicadores.'
-          : 'Contestação rejeitada. A avaliação permanece válida.')
+          ? `Contestação acatada. ${reviewSelecionados.value.length} apontamento(s) passaram a conforme — nota ${antes}% → ${novoScore}%.`
+          : 'Contestação rejeitada. A avaliação permanece como está.')
         closeReview()
       } catch (e) {
         showError('Erro ao registrar a decisão: ' + e.message)
@@ -1978,6 +2069,9 @@ createApp({
       L.push(`*Auditada por:* ${a.auditorTeam || '—'}${a.auditorName ? ' (' + a.auditorName + ')' : ''}`)
       if (a.cobertura && a.coberturaDe) L.push(`_Registrada em cobertura por integrante da ${a.coberturaDe}_`)
       if (a.desconsiderada) L.push('⚠️ *AVALIAÇÃO DESCONSIDERADA* — contestação acatada pela administração')
+      if (a.revisao && a.revisao.status === 'acatada' && (a.revisao.pontosRevertidos || []).length) {
+        L.push(`_Contestação acatada: ${a.revisao.pontosRevertidos.length} apontamento(s) revertido(s) pela administração_`)
+      }
       L.push(`*Data:* ${fmtDate(a.date)} · Turno ${a.shift || '-'}`)
       L.push(`*Conformidade:* ${Math.round(a.score)}% (${ok}/${total}) · Meta ${a.meta || meta.value}% ${atingiu ? '✅' : '⚠️'}`)
       L.push('')
@@ -2060,6 +2154,11 @@ createApp({
           y += 3
           line('AVALIAÇÃO DESCONSIDERADA — contestação acatada pela administração', 10, 'bold', [220, 38, 38])
           if (a.revisao && a.revisao.justificativa) line(`    ${a.revisao.justificativa}`, 9, 'italic')
+        } else if (a.revisao && a.revisao.status === 'acatada' && (a.revisao.pontosRevertidos || []).length) {
+          y += 3
+          line(`CONTESTAÇÃO ACATADA — ${a.revisao.pontosRevertidos.length} apontamento(s) revertido(s)`, 10, 'bold', [22, 163, 74])
+          line(`    ${a.revisao.pontosRevertidos.join(' · ')}`, 9)
+          if (a.revisao.justificativa) line(`    ${a.revisao.justificativa}`, 9, 'italic')
         }
         if (a.acknowledgement && a.acknowledgement.status) {
           y += 4
@@ -2160,6 +2259,7 @@ createApp({
       ackModal, ackOf, canAck, openAck, closeAck, submitAck, pendingAcks,
       ehValida, receivedValidCount, revisaoDe, contestada, aguardandoDecisao,
       pendingReviews, myReviewed, reviewModal, savingReview, openReview, closeReview, saveReview,
+      reviewSelecionados, reviewNewScore, toggleTodosPontos, ehPontoNok,
       treatModal, savingTreat, ncFilter, ncAll, treatStats, treatOf, isOverdue,
       openTreat, closeTreat, saveTreat,
       afterInput, uploadingAfter, triggerAfterPhoto, onAfterPhotoSelected,
