@@ -1,8 +1,29 @@
-# ControlPoint 3.9 — Auditoria de Virada de Turno
+# ControlPoint 3.10 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Novidades da 3.10 — acatar passou a corrigir, não a anular
+
+Na 3.9, acatar uma contestação anulava a auditoria inteira: ela saía dos indicadores e o trabalho do auditor ia junto. Agora a decisão é cirúrgica.
+
+### O que acontece ao acatar
+- A auditoria **continua contabilizada** em médias, ranking, relatórios e tendência.
+- O administrador escolhe **quais apontamentos** caem — a lista das não conformidades aparece com caixas de seleção, todas marcadas por padrão, com o motivo escrito pelo auditor e acesso à foto.
+- Os marcados passam a **conforme**: saem das não conformidades, encerram a tratativa em aberto e deixam de contar como reincidência.
+- A **nota é recalculada** na hora, ponderada pelo peso de cada ponto. O modal mostra a prévia antes de confirmar: *87% → 94%*.
+- A justificativa continua obrigatória.
+
+### O que fica registrado
+Nada se perde. Cada ponto revertido guarda o **motivo original**, quem reverteu, quando e a justificativa — visível no detalhe da auditoria com a etiqueta "revertido". A foto da evidência é mantida. O histórico anota a reversão com a nota antes e depois, e a decisão aparece no relatório do WhatsApp e no PDF.
+
+### Por que a seleção ponto a ponto
+A contestação costuma ser sobre **um** apontamento específico, não sobre a auditoria toda. Anular tudo punia o auditor por um erro pontual e apagava apontamentos legítimos junto. Com a seleção, o administrador corrige o que está errado e preserva o resto.
+
+> Auditorias anuladas pela versão anterior continuam marcadas como tal e seguem fora dos cálculos — o comportamento antigo é respeitado para o que já foi decidido.
 
 ---
 
