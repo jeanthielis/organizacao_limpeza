@@ -1,8 +1,65 @@
-# ControlPoint 3.10 — Auditoria de Virada de Turno
+# ControlPoint 3.12 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Correção da 3.12 — atualizar a página perdia as fotos
+
+**Sintoma:** o auditor lançava várias fotos, atualizava a página e encontrava tudo zerado.
+
+**Causa.** Na abertura, o app monta a lista de pontos vazia e só depois lê o Firestore para ver se já existe auditoria daquele turno. O salvamento automático do rascunho rodava 0,7 s após qualquer mudança na lista — inclusive a montagem vazia. Se a leitura do Firestore demorasse mais que isso (comum no chão de fábrica), o salvamento disparava antes da restauração, via a lista vazia e **apagava o rascunho**. Em seguida a restauração não encontrava mais nada.
+
+Reproduzido: com rede de 300 ms nada se perdia; com 1500 ms, as três fotos do teste sumiam.
+
+**Correção, em duas partes:**
+1. A gravação automática só começa **depois** da tentativa de restauração.
+2. O rascunho deixou de ser apagado por lista vazia. Apagar agora é sempre explícito: concluir a auditoria, limpar ou descartar.
+
+### Rascunho no banco, não só no aparelho
+Atendendo ao pedido, a auditoria em andamento passou a ser gravada também no Firestore, na coleção `audit_drafts` — um documento por usuário, já que só existe uma auditoria em andamento por vez.
+
+- **Ao anexar uma foto ou avaliar um ponto, o rascunho sobe na hora**, sem espera.
+- Digitação de motivo continua com folga (0,7 s no aparelho, 2,5 s no banco) para não escrever a cada tecla.
+- Na abertura, o app compara o rascunho do aparelho com o do banco e usa o **mais recente**.
+- Consequência prática: atualizar a página, trocar de celular ou limpar os dados do navegador deixou de significar perder o trabalho.
+
+Um indicador na tela de auditoria mostra onde o progresso está — *"Progresso salvo no banco"* ou *"Salvo neste aparelho"* (offline) — e lembra que **a auditoria só é finalizada no botão Concluir**. Essa regra não mudou: continua exigindo foto em todos os pontos, motivo nas não conformidades, e o rascunho só vira auditoria ao concluir.
+
+> **Regra nova no Firestore:** republique o `firestore.rules`. A coleção `audit_drafts` exige que cada um só leia e escreva o próprio rascunho; o administrador pode ler para dar suporte.
+
+---
+
+## Novidades da 3.11 — e-mail ao administrador na contestação
+
+Quando uma equipe contesta uma auditoria, o administrador passa a receber um e-mail com o caso montado: equipe, data, turno, nota, quem contestou, o motivo e a lista dos apontamentos.
+
+### Por que pelo navegador
+Site estático no GitHub Pages e Firebase no plano gratuito **não têm servidor** para disparar e-mail. Cloud Functions resolveria, mas exige o plano Blaze. A alternativa que funciona sem backend é o **EmailJS**, que existe exatamente para envio a partir do navegador — plano gratuito de **200 e-mails por mês**, folgado para um evento raro como contestação.
+
+### Configurar (uma vez, ~5 minutos)
+
+1. Crie conta em `emailjs.com` e conecte o e-mail de envio (**Email Services**) → anote o **Service ID**.
+2. Em **Email Templates**, crie um template. No campo **To Email** coloque `{{to_email}}`, no **Subject** coloque `{{assunto}}`, e no corpo:
+   ```
+   {{mensagem}}
+   ```
+   Se quiser um layout próprio, as variáveis disponíveis são:
+   `{{equipe}}`, `{{data}}`, `{{turno}}`, `{{nota}}`, `{{auditor_equipe}}`,
+   `{{auditor_nome}}`, `{{contestante}}`, `{{contestante_equipe}}`, `{{motivo}}`, `{{mensagem}}`.
+   Anote o **Template ID**.
+3. Em **Account → General**, copie a **Public Key**.
+4. No ControlPoint: **Admin → Config. → Aviso de contestação por e-mail**. Ative, preencha os três campos, informe os destinatários (separados por vírgula) e **Salvar**. Use **Testar envio** para confirmar antes de depender dele.
+
+### Sem configurar, ou se o envio falhar
+O app abre uma tela com a mensagem pronta e dois caminhos: **abrir no app de e-mail** do celular (com destinatário, assunto e corpo preenchidos) ou **copiar a mensagem**. Nada se perde.
+
+### A regra que orientou o desenho
+**O e-mail é aviso, nunca registro.** A contestação é gravada no Firestore *antes* de qualquer tentativa de envio. Se o e-mail falhar — sem rede, cota estourada, configuração errada —, o registro continua lá e o administrador continua vendo a contestação na fila dele dentro do app. O resultado do envio fica anotado junto da contestação, então dá para saber se o aviso saiu.
+
+> **Transparência sobre segurança:** a chave pública do EmailJS fica visível no app, como toda chave pública. No plano gratuito não há restrição por domínio (é recurso pago), então alguém que a extraia poderia consumir a cota de 200 e-mails enviando para os **mesmos destinatários do template**. Não há acesso a dados do ControlPoint por essa via. Se isso incomodar, o plano pago do EmailJS libera a restrição por domínio.
 
 ---
 
@@ -318,6 +375,31 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
 }
 ```
 `team` pode ser `ADM` para quem audita qualquer equipe. `mustChangePassword` vira `false` assim que o usuário define a senha definitiva.
+
+### `audit_drafts/{uid}`
+```json
+{
+  "uid": "<uid>", "team": "Equipe 1", "nome": "Maria Silva",
+  "auditDate": "2026-11-18", "auditShift": "Noite",
+  "auditedTeam": "Equipe 4", "auditorTeam": "Equipe 1",
+  "points": [
+    { "name": "Sala de Tonalidade L4", "status": "ok", "reason": "", "photoDocId": "ph_abc123" }
+  ],
+  "savedAt": "..."
+}
+```
+Auditoria ainda não concluída. É apagado ao concluir, limpar ou descartar, e ignorado depois de 7 dias.
+
+### `config_geral/email`
+```json
+{
+  "ativo": true,
+  "serviceId": "service_xxxxxxx",
+  "templateId": "template_xxxxxxx",
+  "publicKey": "chave pública do EmailJS",
+  "destinatarios": "admin@empresa.com, gestor@empresa.com"
+}
+```
 
 ### `config_geral/meta_padrao` · `config_geral/equipes` · `config_geral/rodizio` · `config_geral/escala`
 ```json
