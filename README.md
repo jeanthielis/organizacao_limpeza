@@ -1,8 +1,27 @@
-# ControlPoint 3.12 — Auditoria de Virada de Turno
+# ControlPoint 3.13 — Auditoria de Virada de Turno
 
 PWA de auditoria cruzada de limpeza e organização entre equipes de turno. A equipe que **chega** audita a área deixada pela equipe que está **saindo**, com foto de evidência e motivo descritivo obrigatórios em cada não conformidade.
 
 Stack: Vue 3 (ESM via CDN) · Firebase Auth + Firestore (plano gratuito) · Chart.js · PWA.
+
+---
+
+## Novidades da 3.13 — cada auditor na sua ordem
+
+Os pontos vinham sempre agrupados por área, na ordem do cadastro. Só que cada auditor percorre a fábrica por um caminho próprio, que raramente coincide com essa divisão — e ficar procurando o card certo no meio da lista atrasa a virada de turno.
+
+Agora existe o botão **Ordem** no topo da lista de pontos. Ele abre a lista numerada, com três botões por item: subir, descer e mandar para o topo. Sem arrastar, que é pouco confiável no celular e pior ainda de luva.
+
+### Como a ordem se comporta
+- **É de cada auditor.** Fica salva no aparelho e no banco (`user_prefs`), então vale em qualquer celular em que ele entrar, e não interfere na dos colegas.
+- **Carrega sozinha.** Toda abertura da tela de auditoria já monta a lista na ordem dele.
+- **Na ordem própria a lista fica corrida**, sem os cabeçalhos de área — a área aparece como etiqueta ao lado do nome do ponto, já que o caminho não respeita a divisão por área.
+- **Reordenar no meio da auditoria não perde nada**: fotos, status e motivos seguem com seus pontos, porque os cards só mudam de lugar.
+- **Ponto novo criado pelo administrador entra no fim**, sem bagunçar o resto nem obrigar a reordenar tudo.
+- **Ponto removido some** e a ordem dos demais se mantém.
+- O botão **Voltar para a ordem por área** restaura o agrupamento padrão.
+
+> **Regra nova no Firestore:** republique o `firestore.rules`. A coleção `user_prefs` segue o mesmo princípio do rascunho — cada um lê e escreve só o próprio, e o administrador pode ler para dar suporte.
 
 ---
 
@@ -375,6 +394,17 @@ Remover um usuário apaga o documento em `users` (bloqueia o acesso ao app), mas
 }
 ```
 `team` pode ser `ADM` para quem audita qualquer equipe. `mustChangePassword` vira `false` assim que o usuário define a senha definitiva.
+
+### `user_prefs/{uid}`
+```json
+{
+  "uid": "<uid>",
+  "ordemPontos": ["p3", "p1", "p4", "p2"],
+  "usarOrdemPropria": true,
+  "updatedAt": "..."
+}
+```
+Ordem em que o auditor percorre os pontos. Ids desconhecidos são ignorados; pontos ausentes da lista entram no fim.
 
 ### `audit_drafts/{uid}`
 ```json
