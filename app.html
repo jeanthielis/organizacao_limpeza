@@ -194,6 +194,14 @@ html.dark .cover-info{background:rgba(0,0,0,.18)}
 .draft-acts .btn{flex:1}
 .saved-pill{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--text-3);margin-left:auto}
 .saved-pill i{font-size:9px;color:var(--green-600)}
+.save-state{display:flex;align-items:flex-start;gap:9px;margin:-2px 0 11px;padding:9px 11px;border-radius:12px;
+  background:var(--surface-2);border:1px solid var(--border)}
+.save-state > i{font-size:13px;color:var(--text-3);margin-top:1px;flex-shrink:0}
+.save-state.nuvem{background:var(--green-100);border-color:var(--green-500)}
+.save-state.nuvem > i{color:var(--green-600)}
+.save-state b{display:block;font-size:11.5px;font-weight:800;line-height:1.3}
+.save-state.nuvem b{color:var(--green-600)}
+.save-state small{display:block;font-size:10.5px;color:var(--text-3);font-weight:600;margin-top:2px;line-height:1.4}
 .gal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 @media(min-width:560px){.gal-grid{grid-template-columns:repeat(3,1fr)}}
 .gal-cell{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface-2);position:relative}
@@ -735,8 +743,16 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
             </button>
             <button class="icon-btn" v-if="answeredCount" @click="clearAll" title="Limpar"><i class="fas fa-eraser"></i></button>
           </div>
-          <div v-if="draftSavedAt && !draftBanner" class="cp-links" style="margin:-4px 0 10px">
-            <span class="saved-pill"><i class="fas fa-circle-check"></i> Progresso salvo neste aparelho</span>
+          <div v-if="draftSavedAt && !draftBanner" class="save-state" :class="{nuvem: draftNaNuvem}">
+            <i v-if="salvandoDraft" class="fas fa-circle-notch spinner"></i>
+            <i v-else-if="draftNaNuvem" class="fas fa-cloud-arrow-up"></i>
+            <i v-else class="fas fa-mobile-screen"></i>
+            <span>
+              <b v-if="salvandoDraft">Salvando...</b>
+              <b v-else-if="draftNaNuvem">Progresso salvo no banco</b>
+              <b v-else>Salvo neste aparelho</b>
+              <small>Atualizar a página não perde nada. A auditoria só é finalizada no botão Concluir.</small>
+            </span>
           </div>
           <div v-if="loadingPoints" class="center-load"><i class="fas fa-circle-notch spinner"></i> Carregando pontos...</div>
           <div v-else-if="!points.length" class="empty">
@@ -860,6 +876,10 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
 
           <div class="rev-note rev-no" v-if="aguardandoDecisao(item)">
             <i class="fas fa-hourglass-half"></i> Contestação enviada ao administrador, aguardando decisão.
+            <template v-if="ackOf(item) && ackOf(item).aviso">
+              <span v-if="ackOf(item).aviso.enviado"> · administrador avisado por e-mail</span>
+              <span v-else style="color:var(--amber-600)"> · e-mail não enviado</span>
+            </template>
           </div>
 
           <div class="rev-note" :class="revisaoDe(item).status === 'acatada' ? 'rev-ok' : 'rev-no'" v-else-if="revisaoDe(item)">
@@ -1442,6 +1462,52 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
           </button>
 
           <div class="card">
+            <div class="card-title"><i class="fas fa-envelope"></i> Aviso de contestação por e-mail</div>
+            <div class="card-sub">
+              Quando uma equipe contestar uma auditoria, o administrador recebe um e-mail.
+              O envio sai do navegador pelo EmailJS — o passo a passo está no README.
+              Sem configurar, o app ainda oferece o aviso manual pelo app de e-mail do celular.
+            </div>
+
+            <div class="chip-row" style="margin-bottom:12px">
+              <button class="chip" :class="{active: emailCfg.ativo}" @click="emailCfg.ativo = true">Ativado</button>
+              <button class="chip" :class="{active: !emailCfg.ativo}" @click="emailCfg.ativo = false">Desativado</button>
+            </div>
+
+            <div class="field">
+              <label>Destinatários (separados por vírgula)</label>
+              <input class="input" v-model="emailCfg.destinatarios" placeholder="admin@empresa.com, gestor@empresa.com">
+            </div>
+            <template v-if="emailCfg.ativo">
+              <div class="field">
+                <label>Service ID</label>
+                <input class="input" v-model="emailCfg.serviceId" placeholder="service_xxxxxxx">
+              </div>
+              <div class="field">
+                <label>Template ID</label>
+                <input class="input" v-model="emailCfg.templateId" placeholder="template_xxxxxxx">
+              </div>
+              <div class="field">
+                <label>Public Key</label>
+                <input class="input" v-model="emailCfg.publicKey" placeholder="chave pública do EmailJS">
+              </div>
+            </template>
+
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button class="btn btn-primary btn-sm" style="flex:1" @click="saveEmailConfig">
+                <i class="fas fa-floppy-disk"></i> Salvar
+              </button>
+              <button class="btn btn-ghost btn-sm" style="flex:1" :disabled="emailTestando || !emailConfigurado" @click="testarEmail">
+                <i v-if="emailTestando" class="fas fa-circle-notch spinner"></i><i v-else class="fas fa-paper-plane"></i>
+                Testar envio
+              </button>
+            </div>
+            <div class="alert-s" style="margin-top:9px" v-if="emailCfg.ativo && !emailConfigurado">
+              <i class="fas fa-circle-info"></i> Preencha os três campos e ao menos um destinatário para habilitar o teste.
+            </div>
+          </div>
+
+          <div class="card">
             <div class="card-title"><i class="fas fa-broom"></i> Espaço: limpar fotos antigas</div>
             <div class="card-sub">
               Com foto obrigatória em todos os pontos, são cerca de 16 imagens por auditoria.
@@ -1565,6 +1631,35 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
       <button class="btn btn-primary btn-block" @click="submitAck">
         <i class="fas fa-signature"></i> Registrar
       </button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: AVISO MANUAL AO ADMINISTRADOR ============ -->
+  <div class="modal-ov" v-if="avisoManual" @click.self="fecharAvisoManual">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h3>Avisar o administrador</h3>
+        <button class="icon-btn" @click="fecharAvisoManual"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="warn" style="margin-bottom:12px">
+        <i class="fas fa-circle-check"></i>
+        <span><b>Sua contestação já foi registrada.</b> Falta apenas avisar o administrador —
+          o envio automático não está disponível agora.</span>
+      </div>
+
+      <div class="section-label">Mensagem</div>
+      <pre style="white-space:pre-wrap;word-break:break-word;font-family:var(--font-body);font-size:12px;font-weight:500;
+                  background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin:0 0 14px;
+                  max-height:220px;overflow-y:auto;color:var(--text-2)">{{ avisoManual.corpo }}</pre>
+
+      <button class="btn btn-primary btn-block" v-if="avisoManual.temDestino" @click="abrirAvisoManual">
+        <i class="fas fa-envelope"></i> Abrir no app de e-mail
+      </button>
+      <button class="btn btn-ghost btn-block" style="margin-top:8px" @click="copiarAviso">
+        <i class="fas fa-copy"></i> Copiar mensagem
+      </button>
+      <button class="btn btn-ghost btn-block" style="margin-top:8px" @click="fecharAvisoManual">Fechar</button>
     </div>
   </div>
 
@@ -1894,11 +1989,11 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
   <input type="file" ref="afterInput" accept="image/*" capture="environment" style="display:none" @change="onAfterPhotoSelected">
 </div>
 
-<script type="module" src="./app.js?v=3.10.0"></script>
+<script type="module" src="./app.js?v=3.12.0"></script>
 <script>
   // Limpa caches de versões anteriores antes de registrar o service worker atual.
   (function () {
-    var CURRENT = 'controlpoint-v3100';
+    var CURRENT = 'controlpoint-v3120';
     if ('caches' in window) {
       caches.keys().then(function (names) {
         names.forEach(function (n) { if (n !== CURRENT) caches.delete(n); });
@@ -1906,7 +2001,7 @@ table.report td{padding:9px 6px;border-top:1px solid var(--border);font-weight:6
     }
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=3.10.0')
+        navigator.serviceWorker.register('./sw.js?v=3.12.0')
           .then(function (reg) { reg.update(); })
           .catch(function () {});
       });
