@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.12.0'
+} from './firebase.js?v=3.13.0'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.12.0')
+    const appVersion = ref('3.13.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -112,6 +112,126 @@ createApp({
         pointsConfig.value = list.map(p => ({ ...p, area: p.area || 'Geral', peso: p.peso || 1 }))
       } catch (e) { console.error('Erro ao carregar pontos:', e) }
       finally { loadingPoints.value = false }
+    }
+
+    /* ==================== ORDEM DOS PONTOS (POR AUDITOR) ====================
+       Cada auditor percorre a fábrica num caminho próprio, que nem sempre segue
+       a ordem cadastrada nem a divisão por área. A ordem escolhida fica salva no
+       aparelho e no banco, então vale em qualquer celular em que ele entrar. */
+    const DEFAULT_PREFS = { ordemPontos: [], usarOrdemPropria: false }
+    const prefs = ref({ ...DEFAULT_PREFS })
+    const salvandoPrefs = ref(false)
+    const ordenarAberto = ref(false)
+    const ordemRascunho = ref([])     // lista em edição dentro do modal
+
+    const prefsKey = () => 'cp_prefs_' + (user.value?.uid || 'anon')
+    const prefsRef = () => doc(db, 'user_prefs', user.value.uid)
+
+    const loadPrefs = async () => {
+      let local = null, remoto = null
+      try {
+        const raw = localStorage.getItem(prefsKey())
+        if (raw) local = JSON.parse(raw)
+      } catch (e) {}
+      if (db && user.value) {
+        try {
+          const snap = await getDoc(prefsRef())
+          if (snap.exists()) remoto = snap.data()
+        } catch (e) { /* sem acesso ou offline: vale o local */ }
+      }
+      let escolhido = local
+      if (remoto && (!local || (remoto.updatedAt || '') > (local.updatedAt || ''))) escolhido = remoto
+      if (escolhido) prefs.value = { ...DEFAULT_PREFS, ...escolhido }
+    }
+
+    const savePrefs = async () => {
+      const payload = {
+        ...prefs.value,
+        uid: user.value.uid,
+        updatedAt: new Date().toISOString()
+      }
+      prefs.value = { ...prefs.value, updatedAt: payload.updatedAt }
+      try { localStorage.setItem(prefsKey(), JSON.stringify(payload)) } catch (e) {}
+      if (!db || !user.value) return
+      try { await setDoc(prefsRef(), payload) }
+      catch (e) { console.warn('Preferência não subiu agora:', e.message) }
+    }
+
+    /* Pontos na ordem que vale para este auditor. Pontos criados depois pelo
+       administrador entram no fim, sem precisar reordenar tudo de novo. */
+    const pontosOrdenados = computed(() => {
+      const base = pointsConfig.value
+      const ordem = prefs.value.ordemPontos || []
+      if (!prefs.value.usarOrdemPropria || !ordem.length) return base
+      const pos = new Map(ordem.map((id, i) => [id, i]))
+      return base.slice().sort((a, b) => {
+        const ia = pos.has(a.id) ? pos.get(a.id) : 10000 + (a.ordem ?? 999)
+        const ib = pos.has(b.id) ? pos.get(b.id) : 10000 + (b.ordem ?? 999)
+        return ia - ib
+      })
+    })
+
+    /* Reordena a auditoria em andamento sem perder nada: os objetos são os mesmos,
+       só mudam de lugar, então fotos, status e motivos seguem intactos. */
+    const aplicarOrdemNosPontos = () => {
+      if (!points.value.length) return
+      const desejada = pontosOrdenados.value.map(p => p.id)
+      const pos = new Map(desejada.map((id, i) => [id, i]))
+      points.value = points.value.slice().sort((a, b) =>
+        (pos.has(a.id) ? pos.get(a.id) : 9999) - (pos.has(b.id) ? pos.get(b.id) : 9999))
+    }
+
+    /* --- Modal de ordenação --- */
+    const abrirOrdenar = () => {
+      ordemRascunho.value = pontosOrdenados.value.map(p => ({
+        id: p.id, name: p.name, area: p.area || 'Geral'
+      }))
+      ordenarAberto.value = true
+    }
+    const fecharOrdenar = () => { ordenarAberto.value = false }
+
+    const moverPonto = (i, delta) => {
+      const lista = ordemRascunho.value
+      const j = i + delta
+      if (j < 0 || j >= lista.length) return
+      const copia = lista.slice()
+      const [item] = copia.splice(i, 1)
+      copia.splice(j, 0, item)
+      ordemRascunho.value = copia
+    }
+    const moverParaTopo = (i) => {
+      const copia = ordemRascunho.value.slice()
+      const [item] = copia.splice(i, 1)
+      copia.unshift(item)
+      ordemRascunho.value = copia
+    }
+
+    const salvarOrdem = async () => {
+      salvandoPrefs.value = true
+      try {
+        prefs.value = {
+          ...prefs.value,
+          ordemPontos: ordemRascunho.value.map(p => p.id),
+          usarOrdemPropria: true
+        }
+        await savePrefs()
+        aplicarOrdemNosPontos()
+        fecharOrdenar()
+        showSuccess('Sua ordem foi salva e vale em qualquer aparelho')
+      } catch (e) { showError('Erro ao salvar a ordem: ' + e.message) }
+      finally { salvandoPrefs.value = false }
+    }
+
+    const restaurarOrdemPadrao = async () => {
+      salvandoPrefs.value = true
+      try {
+        prefs.value = { ...prefs.value, ordemPontos: [], usarOrdemPropria: false }
+        await savePrefs()
+        aplicarOrdemNosPontos()
+        fecharOrdenar()
+        showInfo('Ordem padrão restaurada, agrupada por área')
+      } catch (e) { showError('Erro: ' + e.message) }
+      finally { salvandoPrefs.value = false }
     }
 
     /* ==================== AUDITORIA ==================== */
@@ -227,6 +347,10 @@ createApp({
     const pesoOk = computed(() => points.value.filter(p => p.status === 'ok').reduce((t, p) => t + (p.peso || 1), 0))
     const progress = computed(() => pesoTotal.value ? Math.round(pesoOk.value / pesoTotal.value * 100) : 0)
     const pointsGrouped = computed(() => {
+      // ordem própria: lista corrida, na sequência do caminho do auditor
+      if (prefs.value.usarOrdemPropria && (prefs.value.ordemPontos || []).length) {
+        return [{ area: null, items: points.value.map((p, i) => ({ p, i })) }]
+      }
       const groups = []
       points.value.forEach((p, i) => {
         const area = p.area || 'Geral'
@@ -248,7 +372,7 @@ createApp({
       (auditorTeam.value === ADM_TEAM ? '_ADM' : '')
 
     const buildChecklist = () => {
-      points.value = pointsConfig.value.map(p => ({
+      points.value = pontosOrdenados.value.map(p => ({
         id: p.id, name: p.name, area: p.area || 'Geral', peso: p.peso || 1,
         status: null, reason: '', photoUrl: '', photoDocId: ''
       }))
@@ -1687,6 +1811,7 @@ createApp({
           writeSessionHint(u, profile.value)
           if (profile.value) {
             await loadConfig()
+            await loadPrefs()
             await loadMasterPoints()
             adminAuditorTeam.value = myTeam.value
             if (scale.value.ativo) applyCurrentShift()
@@ -2478,6 +2603,8 @@ createApp({
       okCount, nokCount, answeredCount, progress, pendingPhotos, pendingReasons, canSubmit,
       setStatus, markAllOk, clearAll, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
       hasPhoto, photoPreview, pointsGrouped, pesoTotal, isCovering, forceOwnTeam,
+      prefs, salvandoPrefs, ordenarAberto, ordemRascunho,
+      abrirOrdenar, fecharOrdenar, moverPonto, moverParaTopo, salvarOrdem, restaurarOrdemPadrao,
       draft, draftBanner, draftResumo, draftSavedAt, resumeDraft, discardDraft,
       draftNaNuvem, salvandoDraft, appPronto,
       isOnline, pendingUploads, syncing, syncNow, localPhotoUrls, loadingPhoto, openPhotoDoc, loadPhotoData,
