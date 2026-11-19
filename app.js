@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail,
   verifyPasswordResetCode, confirmPasswordReset, updatePassword,
   createUserAsAdmin
-} from './firebase.js?v=3.10.0'
+} from './firebase.js?v=3.12.0'
 
 createApp({
   setup() {
@@ -39,7 +39,7 @@ createApp({
     const showInfo = (m, d = 3000) => showNotification(m, 'info', d)
 
     /* ==================== VERSÃO ==================== */
-    const appVersion = ref('3.10.0')
+    const appVersion = ref('3.12.0')
     const versionStatus = ref('Stable')
     const versionInfo = ref({})
     const loadVersionInfo = async () => {
@@ -84,13 +84,15 @@ createApp({
     const loadConfig = async () => {
       if (!db) return
       try {
-        const [mSnap, rSnap, tSnap, eSnap] = await Promise.all([
+        const [mSnap, rSnap, tSnap, eSnap, mailSnap] = await Promise.all([
           getDoc(doc(db, 'config_geral', 'meta_padrao')),
           getDoc(doc(db, 'config_geral', 'rodizio')),
           getDoc(doc(db, 'config_geral', 'equipes')),
-          getDoc(doc(db, 'config_geral', 'escala'))
+          getDoc(doc(db, 'config_geral', 'escala')),
+          getDoc(doc(db, 'config_geral', 'email'))
         ])
         if (eSnap.exists()) scale.value = { ...DEFAULT_SCALE, ...eSnap.data() }
+        if (mailSnap.exists()) emailCfg.value = { ...DEFAULT_EMAIL, ...mailSnap.data() }
         if (mSnap.exists()) meta.value = mSnap.data().valor ?? 93
         if (tSnap.exists() && Array.isArray(tSnap.data().lista) && tSnap.data().lista.length) teams.value = tSnap.data().lista
         if (rSnap.exists() && rSnap.data().mapa) rotation.value = rSnap.data().mapa
@@ -262,53 +264,121 @@ createApp({
     const draftBanner = ref(false)   // mostra a faixa de retomada
     const draftLoading = ref(false)  // bloqueia o watcher da escala durante a restauração
     const draftSavedAt = ref('')
+    const draftNaNuvem = ref(false)   // o rascunho atual já subiu para o banco
+    const salvandoDraft = ref(false)
+    const appPronto = ref(false)      // só grava rascunho depois de tentar restaurar
     const DRAFT_MAX_DIAS = 7
     let draftTimer = null
+    let draftRemotoTimer = null
 
     const draftKey = () => 'cp_draft_' + (user.value?.uid || 'anon')
 
     const draftTemConteudo = () =>
       points.value.some(p => p.status || p.photoDocId || p.photoUrl || (p.reason || '').trim())
 
+    const montarDraft = () => ({
+      v: 2,
+      auditDate: auditDate.value,
+      auditShift: auditShift.value,
+      auditedTeam: auditedTeam.value,
+      auditorTeam: auditorTeam.value,
+      manualAudited: manualAudited.value || '',
+      adminAuditorTeam: adminAuditorTeam.value || '',
+      forceOwnTeam: !!forceOwnTeam.value,
+      points: points.value.map(p => ({
+        name: p.name,
+        status: p.status || null,
+        reason: p.reason || '',
+        photoDocId: p.photoDocId || '',
+        photoUrl: p.photoUrl || ''
+      })),
+      savedAt: new Date().toISOString()
+    })
+
+    /* Grava só quando faz sentido gravar.
+       Antes esta função apagava o rascunho quando a lista estava vazia — e a lista
+       fica vazia por instantes durante a abertura do app, o que destruía o trabalho
+       de quem tinha acabado de atualizar a página. Apagar agora é sempre explícito:
+       concluir a auditoria, limpar ou descartar. */
+    const podeGravarDraft = () =>
+      !!user.value && points.value.length > 0 && appPronto.value &&
+      !draftBanner.value && !draftLoading.value && draftTemConteudo()
+
     const writeDraft = () => {
-      if (!user.value || !points.value.length) return
-      // Há um rascunho de outro turno esperando decisão: não sobrescrever nem apagar
-      if (draftBanner.value) return
-      if (!draftTemConteudo()) { clearDraft(false); return }
+      if (!podeGravarDraft()) return
       try {
-        const agora = new Date().toISOString()
-        localStorage.setItem(draftKey(), JSON.stringify({
-          v: 1,
-          auditDate: auditDate.value,
-          auditShift: auditShift.value,
-          auditedTeam: auditedTeam.value,
-          auditorTeam: auditorTeam.value,
-          manualAudited: manualAudited.value || '',
-          adminAuditorTeam: adminAuditorTeam.value || '',
-          forceOwnTeam: !!forceOwnTeam.value,
-          points: points.value.map(p => ({
-            name: p.name,
-            status: p.status,
-            reason: p.reason || '',
-            photoDocId: p.photoDocId || '',
-            photoUrl: p.photoUrl || ''
-          })),
-          savedAt: agora
-        }))
-        draftSavedAt.value = agora
+        const d = montarDraft()
+        localStorage.setItem(draftKey(), JSON.stringify(d))
+        draftSavedAt.value = d.savedAt
       } catch (e) { /* armazenamento cheio ou bloqueado */ }
+    }
+
+    /* O rascunho também vai para o banco: atualizar a página, trocar de aparelho ou
+       limpar os dados do navegador deixa de significar perder o trabalho. É um
+       documento por usuário — só existe uma auditoria em andamento por vez. */
+    const draftRef = () => doc(db, 'audit_drafts', user.value.uid)
+
+    const writeRemoteDraft = async () => {
+      if (!db || !podeGravarDraft()) return
+      salvandoDraft.value = true
+      try {
+        await setDoc(draftRef(), {
+          ...montarDraft(),
+          uid: user.value.uid,
+          team: myTeam.value || '',
+          nome: profile.value?.name || ''
+        })
+        draftNaNuvem.value = true
+      } catch (e) {
+        draftNaNuvem.value = false
+        console.warn('Rascunho não subiu agora:', e.message)
+      } finally { salvandoDraft.value = false }
+    }
+
+    const readRemoteDraft = async () => {
+      if (!db || !user.value) return null
+      try {
+        const snap = await getDoc(draftRef())
+        if (!snap.exists()) return null
+        const d = snap.data()
+        if (!d || !Array.isArray(d.points)) return null
+        const dias = (Date.now() - new Date(d.savedAt || 0).getTime()) / 86400000
+        if (dias > DRAFT_MAX_DIAS) { deleteRemoteDraft(); return null }
+        return d
+      } catch (e) { return null }
+    }
+
+    const deleteRemoteDraft = async () => {
+      if (!db || !user.value) return
+      try { await deleteDoc(draftRef()) } catch (e) { /* já não existe */ }
+      draftNaNuvem.value = false
     }
 
     // Grava com folga, para não escrever a cada tecla digitada no motivo
     const scheduleDraft = () => {
       clearTimeout(draftTimer)
       draftTimer = setTimeout(writeDraft, 700)
+      clearTimeout(draftRemotoTimer)
+      draftRemotoTimer = setTimeout(writeRemoteDraft, 2500)
     }
-    const flushDraft = () => { clearTimeout(draftTimer); writeDraft() }
+    // Momentos que não podem esperar: foto anexada, ponto avaliado, app saindo da tela
+    const saveDraftNow = async () => {
+      clearTimeout(draftTimer); clearTimeout(draftRemotoTimer)
+      writeDraft()
+      await writeRemoteDraft()
+    }
+    const flushDraft = () => {
+      clearTimeout(draftTimer); clearTimeout(draftRemotoTimer)
+      writeDraft()
+      writeRemoteDraft()
+    }
 
     const clearDraft = (limparBanner) => {
+      clearTimeout(draftTimer); clearTimeout(draftRemotoTimer)
       try { localStorage.removeItem(draftKey()) } catch (e) {}
+      deleteRemoteDraft()
       draftSavedAt.value = ''
+      draftNaNuvem.value = false
       if (limparBanner !== false) { draft.value = null; draftBanner.value = false }
     }
 
@@ -397,7 +467,16 @@ createApp({
 
     // Decide, ao abrir, se retoma sozinho ou apenas oferece a retomada
     const checkDraft = async () => {
-      const d = readDraft()
+      const local = readDraft()
+      const remoto = await readRemoteDraft()
+      // vale o mais recente dos dois
+      let d = local
+      if (remoto && (!local || (remoto.savedAt || '') > (local.savedAt || ''))) {
+        d = remoto
+        draftNaNuvem.value = true
+      } else if (remoto) {
+        draftNaNuvem.value = true
+      }
       if (!d) return
       draft.value = d
       const mesmoContexto = d.auditDate === auditDate.value &&
@@ -453,6 +532,7 @@ createApp({
       }
       point.status = point.status === status ? null : status
       if (point.status !== 'nok') point.reason = ''
+      saveDraftNow()
     }
 
     /* ==================== FOTOS NO FIRESTORE (sem Storage) ==================== */
@@ -583,7 +663,9 @@ createApp({
         const id = await savePhotoDoc(blob, point.name, 'photo')
         point.photoDocId = id
         point.photoUrl = ''
-        showSuccess(navigator.onLine ? 'Foto anexada' : 'Foto salva no aparelho. Envio automático depois.')
+        // a foto e o vínculo com o ponto vão para o banco imediatamente
+        await saveDraftNow()
+        showSuccess(navigator.onLine ? 'Foto anexada e salva' : 'Foto salva no aparelho. Sobe quando a rede voltar.')
       } catch (e) {
         console.error(e)
         showError('Não foi possível processar a foto: ' + e.message)
@@ -602,6 +684,7 @@ createApp({
         localPhotoUrls.value = copy
       }
       point.photoDocId = ''; point.photoUrl = ''; point.photoPath = ''
+      saveDraftNow()
     }
 
     /* --- Visualizador de fotos (com navegação) ---
@@ -722,7 +805,7 @@ createApp({
         const docId = auditDocId()
         await setDoc(doc(db, 'inspections', docId), payload)
         points.value.forEach(p => { if (p.photoDocId) linkPhotoToAudit(p.photoDocId, docId) })
-        clearTimeout(draftTimer)
+        clearTimeout(draftTimer); clearTimeout(draftRemotoTimer)
         clearDraft()
         forceOwnTeam.value = false
         showSuccess(navigator.onLine ? 'Auditoria registrada com sucesso!' : 'Auditoria salva no aparelho. Será enviada quando a rede voltar.')
@@ -1608,7 +1691,7 @@ createApp({
             adminAuditorTeam.value = myTeam.value
             if (scale.value.ativo) applyCurrentShift()
             await loadExistingAudit()
-            await checkDraft()
+            try { await checkDraft() } finally { appPronto.value = true }
             loadAlerts()
           }
         } else {
@@ -1792,7 +1875,13 @@ createApp({
         })
         patch(auditsList.value); patch(alertsAudits.value); patch(adminAudits.value)
         showSuccess(m.decision === 'ok' ? 'Ciência registrada' : 'Contestação registrada')
+        const contestacao = m.decision === 'contested'
+        const item = m.item
+        const comentario = m.comment.trim()
         closeAck()
+
+        // Registro já está salvo. Daqui para a frente é só aviso ao administrador.
+        if (contestacao) await avisarAdminContestacao(item, comentario)
       } catch (e) { showError('Erro: ' + e.message) }
     }
 
@@ -1802,6 +1891,160 @@ createApp({
       !(a.acknowledgement && a.acknowledgement.status) &&
       !a.desconsiderada
     ).slice(0, 30))
+
+    /* ==================== AVISO POR E-MAIL ====================
+       Site estático + Firebase no plano gratuito não têm servidor para disparar
+       e-mail. O envio sai do próprio navegador pelo EmailJS, que existe para isso.
+       O e-mail é um aviso, nunca o registro: a contestação já está gravada antes
+       de qualquer tentativa de envio, e uma falha aqui não desfaz nada. */
+    const DEFAULT_EMAIL = {
+      ativo: false,
+      serviceId: '', templateId: '', publicKey: '',
+      destinatarios: ''       // separados por vírgula
+    }
+    const emailCfg = ref({ ...DEFAULT_EMAIL })
+    const emailTestando = ref(false)
+
+    const emailConfigurado = computed(() => {
+      const c = emailCfg.value
+      return !!(c.ativo && c.serviceId && c.templateId && c.publicKey && (c.destinatarios || '').includes('@'))
+    })
+    const emailDestinos = computed(() =>
+      (emailCfg.value.destinatarios || '').split(/[;,\s]+/).filter(x => x.includes('@')).join(','))
+
+    const enviarEmail = async (params) => {
+      const c = emailCfg.value
+      if (!emailConfigurado.value) return { ok: false, motivo: 'nao_configurado' }
+      if (!navigator.onLine) return { ok: false, motivo: 'offline' }
+      try {
+        const r = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            service_id: c.serviceId,
+            template_id: c.templateId,
+            user_id: c.publicKey,
+            template_params: { to_email: emailDestinos.value, ...params }
+          })
+        })
+        if (!r.ok) {
+          const txt = await r.text().catch(() => '')
+          return { ok: false, motivo: txt || ('http_' + r.status) }
+        }
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, motivo: e.message || 'falha_rede' }
+      }
+    }
+
+    // Monta o conteúdo do aviso de contestação, usado no e-mail e no fallback manual
+    const textoContestacao = (item, comentario) => {
+      const nc = (item.points || []).filter(ehPontoNok)
+      const linhas = [
+        `Equipe auditada: ${item.team}`,
+        `Auditada por: ${item.auditorTeam || '—'}${item.auditorName ? ' (' + item.auditorName + ')' : ''}`,
+        `Data: ${fmtDate(item.date)} · Turno ${item.shift || '-'}`,
+        `Nota: ${Math.round(item.score)}%`,
+        '',
+        `Contestado por: ${profile.value?.name || user.value.email} (${myTeam.value})`,
+        `Motivo da contestação: ${comentario}`,
+        ''
+      ]
+      if (nc.length) {
+        linhas.push(`Apontamentos (${nc.length}):`)
+        nc.forEach((p, i) => {
+          linhas.push(`${i + 1}. ${p.name}${p.reason || p.obs ? ' — ' + (p.reason || p.obs) : ''}`)
+        })
+        linhas.push('')
+      }
+      linhas.push('Abra o ControlPoint para analisar e decidir.')
+      return {
+        assunto: `[ControlPoint] Contestação da ${item.team} — ${fmtDate(item.date)} ${item.shift || ''}`,
+        corpo: linhas.join('\n')
+      }
+    }
+
+    // Quando não há envio automático, o auditor avisa pelo próprio app de e-mail
+    const avisoManual = ref(null)   // { assunto, corpo, mailto }
+    const abrirAvisoManual = () => {
+      const a = avisoManual.value
+      if (!a) return
+      window.location.href = a.mailto
+    }
+    const copiarAviso = async () => {
+      const a = avisoManual.value
+      if (!a) return
+      try { await navigator.clipboard.writeText(a.assunto + '\n\n' + a.corpo); showSuccess('Aviso copiado') }
+      catch (e) { showError('Não foi possível copiar') }
+    }
+    const fecharAvisoManual = () => { avisoManual.value = null }
+
+    const testarEmail = async () => {
+      if (!emailConfigurado.value) { showWarning('Preencha e ative a configuração antes de testar'); return }
+      emailTestando.value = true
+      try {
+        const r = await enviarEmail({
+          assunto: '[ControlPoint] E-mail de teste',
+          mensagem: 'Se você recebeu esta mensagem, o aviso de contestação está funcionando.',
+          equipe: '—', data: '—', turno: '—', nota: '—',
+          contestante: profile.value?.name || '', motivo: 'teste de configuração'
+        })
+        if (r.ok) showSuccess('E-mail de teste enviado. Confira a caixa de entrada.')
+        else showError('Falhou: ' + (r.motivo === 'nao_configurado' ? 'configuração incompleta' : r.motivo), 8000)
+      } finally { emailTestando.value = false }
+    }
+
+    const saveEmailConfig = async () => {
+      try {
+        await setDoc(doc(db, 'config_geral', 'email'), { ...emailCfg.value })
+        showSuccess('Configuração de e-mail salva')
+      } catch (e) { showError('Erro ao salvar: ' + e.message) }
+    }
+
+    /* Avisa o administrador de uma contestação recém-registrada.
+       Falha aqui nunca derruba o registro: no máximo oferece o envio manual. */
+    const avisarAdminContestacao = async (item, comentario) => {
+      const { assunto, corpo } = textoContestacao(item, comentario)
+
+      if (emailConfigurado.value) {
+        showInfo('Avisando o administrador por e-mail...')
+        const r = await enviarEmail({
+          assunto,
+          mensagem: corpo,
+          equipe: item.team,
+          data: fmtDate(item.date),
+          turno: item.shift || '-',
+          nota: Math.round(item.score) + '%',
+          auditor_equipe: item.auditorTeam || '—',
+          auditor_nome: item.auditorName || '',
+          contestante: profile.value?.name || user.value.email,
+          contestante_equipe: myTeam.value || '',
+          motivo: comentario
+        })
+        // guarda o resultado dentro de acknowledgement (único campo que a equipe pode escrever)
+        try {
+          await updateDoc(doc(db, 'inspections', item._id), {
+            'acknowledgement.aviso': {
+              enviado: r.ok, em: new Date().toISOString(),
+              motivo: r.ok ? '' : String(r.motivo || '').slice(0, 200)
+            }
+          })
+        } catch (e) { /* o aviso é acessório */ }
+
+        if (r.ok) { showSuccess('Administrador avisado por e-mail'); return }
+        showWarning('Não foi possível enviar o e-mail. Use o aviso manual.', 6000)
+      }
+
+      // Sem envio automático (ou após falha): o auditor avisa pelo próprio celular
+      const destinos = emailDestinos.value
+      avisoManual.value = {
+        assunto, corpo,
+        mailto: 'mailto:' + encodeURIComponent(destinos) +
+                '?subject=' + encodeURIComponent(assunto) +
+                '&body=' + encodeURIComponent(corpo),
+        temDestino: !!destinos
+      }
+    }
 
     /* ==================== CONTESTAÇÃO: DECISÃO DO ADMINISTRADOR ==================== */
     /* Contestar não anula nada sozinho — quem decide é o administrador, e ele precisa
@@ -2236,6 +2479,7 @@ createApp({
       setStatus, markAllOk, clearAll, triggerPhoto, onPhotoSelected, removePhotoFromPoint, saveAudit, fileInput,
       hasPhoto, photoPreview, pointsGrouped, pesoTotal, isCovering, forceOwnTeam,
       draft, draftBanner, draftResumo, draftSavedAt, resumeDraft, discardDraft,
+      draftNaNuvem, salvandoDraft, appPronto,
       isOnline, pendingUploads, syncing, syncNow, localPhotoUrls, loadingPhoto, openPhotoDoc, loadPhotoData,
       lightboxUrl, openImage, closeImage, lightbox, lightboxLoading, lbItem, lbCount,
       lbNext, lbPrev, openGalleryAt, ncPhotosOf, ncPhotoCount,
@@ -2258,6 +2502,8 @@ createApp({
       // ciência e tratativa
       ackModal, ackOf, canAck, openAck, closeAck, submitAck, pendingAcks,
       ehValida, receivedValidCount, revisaoDe, contestada, aguardandoDecisao,
+      emailCfg, emailConfigurado, emailTestando, testarEmail, saveEmailConfig,
+      avisoManual, abrirAvisoManual, copiarAviso, fecharAvisoManual,
       pendingReviews, myReviewed, reviewModal, savingReview, openReview, closeReview, saveReview,
       reviewSelecionados, reviewNewScore, toggleTodosPontos, ehPontoNok,
       treatModal, savingTreat, ncFilter, ncAll, treatStats, treatOf, isOverdue,
