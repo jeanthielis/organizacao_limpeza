@@ -1,19 +1,19 @@
 {
-  "version": "3.10.0",
-  "codeName": "Admin Verdict",
-  "releaseDate": "2026-10-19",
+  "version": "3.12.0",
+  "codeName": "Nothing Lost",
+  "releaseDate": "2026-11-18",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Contestação acatada reverte apontamentos em vez de anular a auditoria",
-    "Administrador escolhe quais apontamentos passam a conforme",
-    "Nota recalculada na hora, com prévia antes de confirmar",
-    "Auditoria segue contabilizada em médias, ranking e relatórios",
-    "Motivo original preservado no histórico do ponto revertido"
+    "Correção: atualizar a página não perde mais as fotos já lançadas",
+    "Rascunho da auditoria salvo no banco, não só no aparelho",
+    "Foto anexada vai para o banco no mesmo instante",
+    "Recuperação do trabalho mesmo trocando de aparelho",
+    "Indicador mostrando onde o progresso está salvo"
   ],
   "improvements": [
-    "Ponto revertido sai das não conformidades e encerra a tratativa",
-    "Foto da evidência é mantida para consulta posterior",
-    "Reversão aparece no relatório do WhatsApp e no PDF"
+    "Rascunho só é apagado por ação explícita: concluir, limpar ou descartar",
+    "Gravação automática só começa depois da restauração",
+    "Auditoria continua sendo finalizada apenas no botão Concluir"
   ]
 }
