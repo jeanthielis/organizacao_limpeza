@@ -1,19 +1,19 @@
 {
-  "version": "3.12.0",
-  "codeName": "Nothing Lost",
+  "version": "3.13.0",
+  "codeName": "My Route",
   "releaseDate": "2026-11-18",
   "status": "stable",
   "environment": "production",
   "features": [
-    "Correção: atualizar a página não perde mais as fotos já lançadas",
-    "Rascunho da auditoria salvo no banco, não só no aparelho",
-    "Foto anexada vai para o banco no mesmo instante",
-    "Recuperação do trabalho mesmo trocando de aparelho",
-    "Indicador mostrando onde o progresso está salvo"
+    "Cada auditor define a ordem dos pontos de verificação",
+    "A ordem fica salva e vale em qualquer aparelho",
+    "Reordenar no meio da auditoria não perde fotos nem avaliações",
+    "Pontos criados depois pelo administrador entram no fim da lista",
+    "Volta para a ordem por área a qualquer momento"
   ],
   "improvements": [
-    "Rascunho só é apagado por ação explícita: concluir, limpar ou descartar",
-    "Gravação automática só começa depois da restauração",
-    "Auditoria continua sendo finalizada apenas no botão Concluir"
+    "Na ordem própria, a área vira etiqueta no card",
+    "Botões de subir, descer e mandar para o topo, sem arrastar",
+    "Ordem de um auditor não interfere na dos outros"
   ]
 }
